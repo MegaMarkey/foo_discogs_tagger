@@ -88,7 +88,7 @@ void Fetcher::fetch_url(const pfc::string8 &url, const pfc::string8 &params, pfc
 	bool isImageUrl = url.has_prefix("https://img.discogs.com");
 	isImageUrl |= url.has_prefix("https://i.discogs.com");
 	isImageUrl &= !std::string(url.c_str()).find("h:150"); //ignore img previews
-	
+
 	if (isImageUrl) {
 
 		time_t currentTime;
@@ -96,6 +96,7 @@ void Fetcher::fetch_url(const pfc::string8 &url, const pfc::string8 &params, pfc
 
 		time(&currentTime);
 		localTime = localtime(&currentTime);
+
 		int Min = localTime->tm_min;
 
 		m_ratelimit_max = 60/3;
@@ -161,7 +162,7 @@ void Fetcher::fetch_url(const pfc::string8 &url, const pfc::string8 &params, pfc
 		m_ratelimit_cruise |= isImageUrl;
 
 		log_msg(msg_average);
-		
+
 		//apply delta/set cruise mode
 		if (m_ratelimit_cruise ||
 			(m_fetch_wait_rolling_avg < (60/m_ratelimit_max) /*RL_AVG_THRESHOLD*/ /*(0.5)*/ && m_ratelimit_remaining <= m_ratelimit_threshold /*(30)*/)) {
@@ -171,7 +172,7 @@ void Fetcher::fetch_url(const pfc::string8 &url, const pfc::string8 &params, pfc
 			chrono::duration<double, std::milli> time_span_milli = time_span;
 			double sleep_base = m_ratelimit_remaining < (m_ratelimit_max / 6) ? 5000 : m_ratelimit_remaining < (m_ratelimit_max / 3) ? 2000 : 1000;
 			m_throttle_delta = (std::max)(sleep_base - (isImageUrl ? 0 : time_span_milli.count()), 0.0);
-			
+
 			DWORD dw = static_cast<DWORD>((int)m_throttle_delta);
 			Sleep(dw);
 		}
@@ -202,6 +203,7 @@ void Fetcher::fetch_url(const pfc::string8 &url, const pfc::string8 &params, pfc
 		while (1) {
 
 			try {
+
 				file::ptr f;
 				f = request->run_ex(clean_url.get_ptr(), p_abort);
 
@@ -252,9 +254,21 @@ void Fetcher::fetch_url(const pfc::string8 &url, const pfc::string8 &params, pfc
 				}
 
 				// check status
-				if (pfc::string8(status).find_first("200") == ~0) {
+				if (pfc::string8(status).find_first("200") == SIZE_MAX) {
+
+					int error_code = 0;
 					pfc::string8 msg_status;
-					msg_status << "HTTP error status: " << status;
+					auto search_url = url.find_first("search");
+
+					if (search_url != SIZE_MAX) {
+						msg_status << "Query syntax/Network error: " << status;
+						error_code = 4011; //todo
+					}
+					else {
+						msg_status << "HTTP error status: " << status;
+						error_code = std::stoi(substr(status, 9, 3).get_ptr());
+					}
+
 					log_msg(msg_status);
 
 					int error_code = std::stoi(substr(status, 9, 3).get_ptr());
@@ -264,14 +278,14 @@ void Fetcher::fetch_url(const pfc::string8 &url, const pfc::string8 &params, pfc
 						throw http_404_exception();
 					case 401: //unauthorized
 						throw http_401_exception();
+					case 4011:
+						throw http_401_Search_exception();
 					case 429: //too many requests (need to wait for remaining 60 or slow to 1 req/sec)
 						throw http_429_exception();
 					default:
 						throw http_exception(error_code);
 					}
 				}
-
-				//Sleep(1000);
 
 				pfc::string8 reply_content_type;
 				f->get_content_type(reply_content_type);
@@ -319,7 +333,7 @@ void Fetcher::fetch_url(const pfc::string8 &url, const pfc::string8 &params, pfc
 				Sleep(2000 * tries);
 			}
 			catch (foobar2000_io::exception_io &e) {
-				
+
 				if (tries > 5) throw;
 
 				pfc::string8 error_msg;
@@ -327,7 +341,9 @@ void Fetcher::fetch_url(const pfc::string8 &url, const pfc::string8 &params, pfc
 				if (!error_msg.has_prefix(pfc::string8(e.what())))
 					error_msg << ": " << e.what();
 				error_msg << ". Retrying: " << tries;
+
 				log_msg(error_msg);
+
 				Sleep(2000 * (tries > 1 ? 2 : 1));
 			}
 			tries++;
@@ -337,7 +353,10 @@ void Fetcher::fetch_url(const pfc::string8 &url, const pfc::string8 &params, pfc
 		throw;
 	}
 	catch (foo_discogs_exception &e) {
-		e << "(url: " << clean_url << ")";
+		char decoded[MAX_PATH];
+		urldecode2(decoded, clean_url);
+
+		e << "url: " << decoded;
 		pfc::string8 error_msg;
 		error_msg << "Exception handling: " << clean_url;
 		log_msg(error_msg);
@@ -562,32 +581,17 @@ void Fetcher::test_oauth(const pfc::string8 &token, const pfc::string8 &token_se
 	pfc::string8 url = "";
 	url << identity << "?";
 	url << oa.getURLQueryString(OAuth::Http::Get, identity, "").c_str();
-	
+
 	pfc::string8 html;
 	// throws network_exception on error
 	fetch_html(url, "", html, p_abort, false);
-}
-
-pfc::string8 Fetcher::oauth_sign_url(const pfc::string8 &url, const pfc::string8 &params) {
-	pfc::string8 oauth_params;
-	if (params.get_length()) {
-		pfc::string8 tmp = url; 
-		tmp << "?" << params;
-		oauth_params = oauth->getURLQueryString(OAuth::Http::Get, tmp.get_ptr()).c_str();
-	}
-	else {
-		oauth_params = oauth->getURLQueryString(OAuth::Http::Get, url.get_ptr()).c_str();
-	}
-	pfc::string8 ret(url);
-	ret << "?" << oauth_params;
-	return ret;
 }
 
 pfc::string8 Fetcher::oauth_sign_url_header(const pfc::string8& url, const pfc::string8& params) {
 	pfc::string8 oauth_header;
 	if (params.get_length()) {
 		pfc::string8 tmp = url;
-		tmp << "?" << params;	
+		tmp << "?" << params;
 		oauth_header = oauth->getFormattedHttpHeader(OAuth::Http::Get, tmp.get_ptr()).c_str();
 	}
 	else {

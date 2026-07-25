@@ -29,7 +29,7 @@ protected:
 public:
 	http_exception() : status(0) {}
 	http_exception(int s) : network_exception("HTTP Error"), status(s) {
-		(*this) << " (" << s << ")";
+		(*this) << s ;
 	}
 	http_exception(int s, const char* msg) : network_exception(msg), status(s) {}
 	int get_status() const {
@@ -51,6 +51,11 @@ public:
 	http_401_exception() : http_exception(401, "Authorization Failed (401) [Is OAuth working?]") {}
 };
 
+class http_401_Search_exception : public http_exception
+{
+public:
+	http_401_Search_exception() : http_exception(401, "Authorization Failed (401) \n[Is the query syntax valid? Is OAuth working?]\n") {}
+};
 
 class http_429_exception : public http_exception
 {
@@ -146,7 +151,6 @@ public:
 	void init_oauth();
 	void update_oauth(const pfc::string8 &token, const pfc::string8 &token_secret);
 	void test_oauth(const pfc::string8 &token, const pfc::string8 &token_secret, abort_callback &p_abort);
-	pfc::string8 oauth_sign_url(const pfc::string8 &url, const pfc::string8 &params);
 	pfc::string8 oauth_sign_url_header(const pfc::string8& url, const pfc::string8& params);
 	pfc::string8 get_oauth_authorize_url(abort_callback &p_abort);
 	OAuth::Token * generate_oauth(pfc::string8 &code, abort_callback &p_abort);
