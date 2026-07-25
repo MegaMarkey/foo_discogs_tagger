@@ -28,6 +28,11 @@ m_va(false), cewb_artist_search(), cewb_release_filter(), cewb_release_url(), m_
 
 	load_global_icons();
 
+	if (cfg.on_init_query_tf.get_length()) {
+		static_api_ptr_t<titleformat_compiler>()->compile_safe_ex(m_query_custom_script, cfg.on_init_query_tf);
+		m_query_custom_tf = cfg.on_init_query_tf;
+	}
+
 	//HWND
 
 	m_artist_list = nullptr;
@@ -147,7 +152,7 @@ inline bool CFindReleaseDialog::build_current_cfg() {
 	conf.find_release_dlg_flags |= (attach_flagged | open_flagged);
 
 	int mask = ~(~0 << 3);
-	if ((CONF.find_release_dlg_flags & mask) != (conf.find_release_dlg_flags & mask)) {		
+	if ((CONF.find_release_dlg_flags & mask) != (conf.find_release_dlg_flags & mask)) {
 		bres |= true;
 	}
 
@@ -313,18 +318,20 @@ LRESULT CFindReleaseDialog::OnInitDialog(UINT /*uMsg*/, WPARAM /*wParam*/, LPARA
 
 	m_edit_artist = GetDlgItem(IDC_EDIT_SEARCH);
 	m_edit_filter = GetDlgItem(IDC_EDIT_FILTER);
-	m_edit_release = GetDlgItem(IDC_RELEASE_URL_TEXT);
-	m_artist_list = GetDlgItem(IDC_ARTIST_LIST);
 	m_release_tree = GetDlgItem(IDC_RELEASE_TREE);
 
-	cewb_artist_search.SubclassWindow(m_edit_artist);
+	m_static_search_msg = GetDlgItem(IDC_STATIC_FIND_REL_SEARCH_STATS);
+
+	m_chkbox_rolemain = GetDlgItem(IDC_CHK_FIND_RELEASE_FILTER_ROLEMAIN);
+
+	ceqwb_artist_search.SubclassWindow(m_edit_artist);
 	cewb_release_filter.SubclassWindow(m_edit_filter);
 	cewb_release_url.SubclassWindow(m_edit_release);
 
 	set_history_key_override();
 
 	cewb_release_filter.SetEnterEscHandlers();
-	cewb_artist_search.SetEnterEscHandlers();
+	ceqwb_artist_search.SetEnterEscHandlers();
 	cewb_release_url.SetEnterEscHandlers();
 
 	m_artist_link.SubclassWindow(GetDlgItem(IDC_STATIC_FIND_REL_STATS));
@@ -346,9 +353,17 @@ LRESULT CFindReleaseDialog::OnInitDialog(UINT /*uMsg*/, WPARAM /*wParam*/, LPARA
 	// album name, artist name, album artist
 
 	metadb_handle_ptr item = m_items[0];
-	item->format_title(nullptr, frm_album, m_album_name_script, nullptr);           //ALBUM
-	item->format_title(nullptr, frm_artist, m_artist_name_script, nullptr);         //ARTIST
-	item->format_title(nullptr, frm_album_artist, m_album_artist_script, nullptr);  //ALBUM ARTIST
+	m_tracer.init_tracker_tags(m_items);
+
+	// track album, artist, album artist and track title
+
+	item->format_title(nullptr, m_frm_artist, m_artist_name_script, nullptr);
+	item->format_title(nullptr, m_frm_album_artist, m_album_artist_script, nullptr);
+	item->format_title(nullptr, m_frm_album, m_album_name_script, nullptr);
+	item->format_title(nullptr, m_frm_track_title, m_track_title_script, nullptr);
+
+	pfc::string8 bk_frm_album = m_frm_album;
+	pfc::string8 bk_frm_track_title = m_frm_track_title;
 
 	bool bvarious = STR_EQUAL(frm_album_artist, "VA") || frm_album_artist.has_prefix("VA ");
 	bvarious |= frm_album_artist.toLower().has_prefix("various") /*|| frm_album_artist.toLower().has_prefix("various artists")*/;
@@ -435,6 +450,8 @@ LRESULT CFindReleaseDialog::OnInitDialog(UINT /*uMsg*/, WPARAM /*wParam*/, LPARA
 	SetWindowSubclass(m_release_tree, EnterKeySubclassProc, 0, 0);
 
 	// dark mode
+
+	init_cfged_dialog_controls();
 
 	m_dark.AddDialog(m_hWnd);
 	m_dark.AddControls(m_hWnd);
@@ -1205,6 +1222,26 @@ bool CFindReleaseDialog::add_history(oplog_type optype, std::string cmd, pfc::st
 	size_t inc_id = pfc_infinite;
 
 	if (optype == oplog_type::artist) {
+
+		// artist
+
+		if (sf.equals("194")) {
+			//..
+			return false;
+			//..
+		}
+
+		rppair row = std::pair(std::pair("", ""), std::pair(sf, ss));
+
+		if (m_oplogger.add_history_row(optype, row)) {
+			sqldb db;
+			inc_id = db.insert_history(optype, cmd, row);
+		}
+	}
+	else if (optype == oplog_type::query) {
+
+		// search query
+
 		rppair row = std::pair(std::pair("", ""), std::pair(sf, ss));
 
 		if (m_oplogger.add_history_row(optype, row)) {
@@ -1213,6 +1250,9 @@ bool CFindReleaseDialog::add_history(oplog_type optype, std::string cmd, pfc::st
 		}
 	}
 	else if (optype == oplog_type::release) {
+
+		// release
+
 		rppair row = rppair(std::pair(ff, fs), std::pair(sf, ss));
 
 		if (m_oplogger.add_history_row(optype, row)) {
@@ -1221,6 +1261,9 @@ bool CFindReleaseDialog::add_history(oplog_type optype, std::string cmd, pfc::st
 		}
 	}
 	else if (optype == oplog_type::filter) {
+
+		// filter
+
 		rppair row = rppair(std::pair(ff, fs), std::pair(sf, ss));
 
 		if (m_oplogger.add_history_row(optype, row)) {

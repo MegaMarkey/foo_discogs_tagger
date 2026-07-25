@@ -2,26 +2,20 @@
 
 #include "atlwin.h"
 
-#include "helpers/DarkMode.h"
-
-#include "resource.h"
-#include "foo_discogs.h"
-#include "multiformat.h"
 #include "my_editwithbuttons.h"
 
+#include "querydefmap.h"
 #include "history_oplog.h"
 #include "find_release_tree.h"
 #include "find_artist_list.h"
 #include "find_artist_list_ILO.h"
-
-using namespace Discogs;
 
 class expand_master_release_process_callback;
 class get_artist_process_callback;
 class search_artist_process_callback;
 
 class CFindReleaseDialog : public MyCDialogImpl<CFindReleaseDialog>,
-	public CMessageFilter, public ILOD_artist_list, 
+	public CMessageFilter, public ILOD_artist_list,
 	public CDialogResize<CFindReleaseDialog> {
 
 public:
@@ -46,7 +40,8 @@ public:
 	BEGIN_MSG_MAP(CFindReleaseDialog)
 
 		MSG_WM_TIMER(OnTypeFilterTimer)
-		
+
+		NOTIFY_HANDLER(IDC_RELEASE_TREE, TVN_DELETEITEM, OnDeleteTreeItem)
 		MESSAGE_HANDLER(WM_INITDIALOG, OnInitDialog)
 		MESSAGE_HANDLER(WM_CONTEXTMENU, OnContextMenu)
 		MESSAGE_HANDLER(WM_DESTROY, OnDestroy)
@@ -63,8 +58,8 @@ public:
 		COMMAND_ID_HANDLER(IDC_CHK_FIND_RELEASE_FILTER_VERS, OnCheckboxFindReleaseFilterFlags)
 		COMMAND_ID_HANDLER(IDC_CHK_FIND_RELEASE_FILTER_ROLEMAIN, OnCheckboxFindReleaseFilterFlags)
 
-		CHAIN_MSG_MAP(CDialogResize<CFindReleaseDialog>)
 		CHAIN_MSG_MAP_MEMBER(m_dctree)
+		CHAIN_MSG_MAP(CDialogResize<CFindReleaseDialog>)
 	END_MSG_MAP()
 
 #pragma warning( pop )
@@ -72,19 +67,25 @@ public:
 	BEGIN_DLGRESIZE_MAP(CFindReleaseDialog)
 
 		DLGRESIZE_CONTROL(IDC_LABEL_RELEASE_ID, DLSZ_MOVE_X | DLSZ_MOVE_Y)
+		DLGRESIZE_CONTROL(IDC_LABEL_RELEASE_MINI_ID, DLSZ_MOVE_Y)
 		DLGRESIZE_CONTROL(IDC_RELEASE_URL_TEXT, DLSZ_MOVE_X | DLSZ_MOVE_Y)
+		DLGRESIZE_CONTROL(IDC_RELEASE_MINI_URL_TEXT, DLSZ_MOVE_Y | DLSZ_SIZE_X)
 		DLGRESIZE_CONTROL(IDC_STATIC_FIND_REL_STATS_EXT, DLSZ_MOVE_X | DLSZ_MOVE_Y)
 		DLGRESIZE_CONTROL(IDC_EDIT_FILTER, DLSZ_MOVE_X)
 		DLGRESIZE_CONTROL(IDC_ARTIST_LIST, DLSZ_SIZE_Y)
+		DLGRESIZE_CONTROL(IDC_EDIT_SEARCH, DLSZ_SIZE_X)
+		DLGRESIZE_CONTROL(IDC_STATIC_FIND_REL_SEARCH_STATS, DLSZ_SIZE_X)
+		DLGRESIZE_CONTROL(IDC_BTN_SEARCH, DLSZ_MOVE_X)
+		DLGRESIZE_CONTROL(IDC_CHK_SEARCH, DLSZ_MOVE_X)
 		DLGRESIZE_CONTROL(IDC_RELEASE_TREE, DLSZ_SIZE_Y)
 		DLGRESIZE_CONTROL(IDC_CHK_FIND_RELEASE_FILTER_ROLEMAIN, DLSZ_MOVE_Y)
 
 		BEGIN_DLGRESIZE_GROUP()
 
-			DLGRESIZE_CONTROL(IDC_ARTIST_LIST, DLSZ_SIZE_X)
-			DLGRESIZE_CONTROL(IDC_RELEASE_TREE, DLSZ_SIZE_X)
-			DLGRESIZE_CONTROL(IDC_LABEL_RELEASES, DLSZ_MOVE_X)
-			DLGRESIZE_CONTROL(IDC_CHK_FIND_RELEASE_FILTER_ROLEMAIN, DLSZ_MOVE_X)
+		DLGRESIZE_CONTROL(IDC_ARTIST_LIST, DLSZ_SIZE_X)
+		DLGRESIZE_CONTROL(IDC_RELEASE_TREE, DLSZ_SIZE_X)
+		DLGRESIZE_CONTROL(IDC_LABEL_RELEASES, DLSZ_MOVE_X)
+		DLGRESIZE_CONTROL(IDC_CHK_FIND_RELEASE_FILTER_ROLEMAIN, DLSZ_MOVE_X)
 
 		END_DLGRESIZE_GROUP()
 
@@ -108,12 +109,12 @@ public:
 	}
 
 	LRESULT OnInitDialog(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/);
+
 	LRESULT OnContextMenu(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/);
 	LRESULT OnDestroy(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/);
 
-	LRESULT OnEditFilter(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 	LRESULT OnButtonNext(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
-	
+
 	LRESULT OnButtonSearch(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 	LRESULT OnButtonConfigure(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 
@@ -123,6 +124,7 @@ public:
 
 	//..
 
+	LRESULT OnEditFilter(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 	void OnTypeFilterTimer(WPARAM id);
 	void apply_filter(pfc::string8 strFilter, bool force_redraw = false, bool force_rebuild = false);
 
@@ -148,7 +150,7 @@ public:
 	//serves EnterKeySubclassProc
 	bool ForwardVKReturn();
 
-	enum { IDD = IDD_DIALOG_FIND_RELEASE };
+	UINT IDD = IDD_DIALOG_FIND_RELEASE;
 
 	//flag_enum_findrelease_dialog
 	enum flg_fr {
@@ -212,16 +214,14 @@ private:
 		return false;
 	};
 
+	//callback history
+
 	std::function<bool(HWND hwnd, wchar_t* editval)> m_stdf_call_history = [&](HWND hwnd, wchar_t* wstrt) {
 
 		oplog_type optype =
 			hwnd == this->m_edit_artist ? oplog_type::artist :
 			hwnd == this->m_edit_release ? oplog_type::release :
 			hwnd == this->m_edit_filter ? oplog_type::filter : oplog_type::filter;
-
-		if (optype == oplog_type::artist && m_va) {
-			return false;
-		}
 
 		//show & capture menu cmd
 
@@ -248,21 +248,257 @@ private:
 		return false;
 	};
 
+	//callback search query and history
+
+	//todo
+	pfc::string8 process_search_query_menu_hit(HWND hwnd, wchar_t* wstrt, pfc::string8 menu_cmd, size_t &ins_pos) {
+
+		pfc::string8 param_text = trim(uGetWindowText(m_edit_artist));
+
+		DWORD dwStart, dwEnd;
+		dwStart = dwEnd = 0;
+		SendMessage(m_edit_artist, EM_GETSEL, (WPARAM)&dwStart, (LPARAM)&dwEnd);
+
+		bool bsel = dwStart != dwEnd;
+
+		const pfc::string8 in = pfc::stringcvt::string_utf8_from_os(wstrt).get_ptr();
+
+		pfc::string8 buffer(in);
+		pfc::string8 tmpField;
+
+		if (menu_cmd.get_length() < kv_query_fields_ordered.size()) {
+			for (auto w : kv_query_fields_ordered) {
+				if (!w.compare(menu_cmd)) {
+					tmpField = w.c_str();
+					break;
+				}
+			}
+		}
+
+		if (tmpField.get_length()) {
+
+			if (!bsel) {
+				bool has_focus = GetFocus() == m_edit_artist;
+				if (has_focus && !dwStart) {
+					//cursor at pos 0
+					t_size fld_size = tmpField.get_length();
+					if (param_text.get_length()) {
+						tmpField << " ";
+					}
+					buffer = tmpField;
+					buffer << in;
+					ins_pos = fld_size /*+ 1*/;
+				}
+				else if (!has_focus || dwStart == param_text.get_length()) {
+					//cursor at last pos
+					buffer << " & " << tmpField;
+					ins_pos = buffer.get_length() + 3;
+				}
+				else {
+					t_size fld_size = tmpField.get_length();
+					tmpField << in.subString(dwEnd);
+					buffer = in.subString(0, dwStart) << " & " << tmpField;
+					ins_pos = dwStart + fld_size + 3;
+				}
+			}
+			else {
+				pfc::string8 join = "";
+				if (dwStart) join = " & ";
+				buffer = in.subString(0, dwStart) << join << tmpField << " " << in.subString(dwEnd, in.get_length());
+				ins_pos = dwStart + tmpField.get_length() + join.get_length();
+			}
+		}
+		else {
+			if (menu_cmd.startsWith("Web")) {
+
+				pfc::string8 url;
+
+				if (menu_cmd.equals("Web Discogs advanced search")) {
+
+					url << DISCOGS_PUBLIC_SEARCH_URL << "advanced";
+				}
+				else if (menu_cmd.equals("Web Discogs current search")) {
+
+					QueryDefMap qdm_search_query = {};
+
+					bool bquery = search_query::TextToMap(buffer, qdm_search_query);
+
+					std::pair<std::string, std::string> exp_pair;
+					search_query::MapToText(qdm_search_query, exp_pair, true);
+
+					pfc::string8 query_scaped = exp_pair.second.c_str();
+
+					url << DISCOGS_PUBLIC_SEARCH_URL << "?" << query_scaped;
+				}
+
+				if (url.get_length()) {
+					try {
+						display_url(url);
+					}
+					catch (...) {};
+				}
+			}
+			else {
+				//history or templates
+				buffer = menu_cmd;
+				ins_pos = buffer.get_length();
+			}
+		}
+
+		return buffer;
+	}
+
+	std::function<bool(HWND hwnd, wchar_t* editval, size_t& ins_pos)> m_stdf_call_history_query = [&](HWND hwnd/*, HMENU hmenu*/, wchar_t* wstrt, size_t& ins_pos) {
+
+		if (hwnd != this->m_edit_artist) {
+			return false;
+		}
+
+		oplog_type optype = oplog_type::query;
+
+		pfc::string8 menu_cmd;
+
+		pfc::string8 buffer;
+		GetCurrentExpression(buffer);
+
+		if (buffer.get_length()) {
+
+			QueryDefMap qdm_search_query = {};
+
+			bool bquery = search_query::TextToMap(buffer, qdm_search_query);
+
+			bquery &= search_query::CountAvailableFields(qdm_search_query) > 0; // ::IsMinimal(qdm_search_query);
+
+			if (bquery) {
+				//..
+				menu_cmd = buffer;
+				//..
+			}
+		}
+
+		pfc::string8 tmp_album_artist;
+		pfc::string8 tmp_artist;
+		pfc::string8 tmp_title;
+		pfc::string8 tmp_track;
+
+
+		if ((m_frm_album_artist.get_length() || m_frm_artist.get_length())) {
+			tmp_album_artist = m_frm_album_artist;
+			tmp_artist = m_frm_artist;
+			tmp_title = m_frm_album;
+			tmp_track = m_frm_track_title;
+
+		}
+		else {
+
+			//artist
+			std::vector<pfc::string8> vsplit_title;
+			split(m_frm_album, "-", 0, vsplit_title);
+			tmp_artist << (m_frm_album_artist.get_length() ?
+				m_frm_album_artist : m_frm_artist.get_length() ? m_frm_artist : vsplit_title.size() > 1 ? vsplit_title[0] : "");
+
+			//title
+			tmp_title << (vsplit_title.size() > 1 ? vsplit_title[1] : m_frm_album);
+
+			//track
+			vsplit_title.clear();
+			split(m_frm_track_title, "-", 0, vsplit_title);
+
+			if (vsplit_title.size()) {
+				if (tmp_artist.equals(vsplit_title[0])) {
+					tmp_track = trim(vsplit_title[1]);
+				}
+				else {
+					tmp_track = trim(vsplit_title[0]);
+				}
+			}
+			else {
+				tmp_track = m_frm_track_title;
+			}
+		}
+
+		pfc::string8 frm_sani_artist(tmp_artist);
+		bool bdone = search_query::sanitize_various_artists_with_csv(conf.various_prefixes.c_str(), frm_sani_artist);
+
+		pfc::string8 param_text = trim(uGetWindowText(m_edit_artist));
+
+		//todo
+		param_text = param_text;
+		param_text << "�" << tmp_album_artist;
+		param_text << "�" << tmp_artist;
+		param_text << "�" << tmp_title;
+		param_text << "�" << tmp_track;
+		param_text << "�" << frm_sani_artist;
+
+		//show & capture menu cmd
+
+		bool menu_hit = this->get_oplogger()->do_history_menu(optype, hwnd/*, hmenu*/, menu_cmd, param_text);
+
+		//process menu cmd
+
+		if (menu_hit) {
+
+			buffer = process_search_query_menu_hit(hwnd, wstrt, menu_cmd, ins_pos);
+
+			if (!buffer.get_length()) {
+				//..
+				return false;
+				//..
+			}
+
+			wchar_t wide_cmd[MAX_PATH + 1];
+
+			pfc::stringcvt::convert_utf8_to_wide(wide_cmd, MAX_PATH, /*menu_cmd*/buffer, /*menu_cmd*/buffer.get_length());
+
+			pfc::string8 in = pfc::stringcvt::string_utf8_from_os(wstrt).get_ptr();
+
+			//transfer result text
+			_tcscpy_s(wstrt, MAX_PATH, wide_cmd);
+
+			//input != output ?
+			return ((bool)stricmp_utf8(in, buffer));
+		}
+
+		return false;
+	};
+
+	std::function<bool(HWND hwnd, wchar_t* editval, size_t ndx)> m_stdf_call_history_query_shortcut = [&](HWND hwnd, wchar_t* wstrt, size_t ndx) {
+		pfc::string8 frm_custom_tf;
+		GetCustomQueryTF(frm_custom_tf);
+
+		pfc::string8 buffer;
+		bool done = search_query::GetSuggestion(m_frm_album_artist, m_frm_artist, m_frm_album, m_frm_track_title, m_frm_sani_artist, frm_custom_tf, ndx, buffer);
+		if (done) {
+			wchar_t wide_cmd[MAX_PATH + 1];
+
+			pfc::stringcvt::convert_utf8_to_wide(wide_cmd, MAX_PATH, buffer, buffer.get_length());
+
+			pfc::string8 in = pfc::stringcvt::string_utf8_from_os(wstrt).get_ptr();
+
+			//transfer result text
+			_tcscpy_s(wstrt, MAX_PATH, wide_cmd);
+			return ((bool)stricmp_utf8(in, buffer));
+		}
+		return false;
+	};
+
 	void set_history_key_override() {
 
 		cewb_release_filter.SetHistoryHandler(m_stdf_call_history);
-		cewb_artist_search.SetHistoryHandler(m_stdf_call_history);
+		ceqwb_artist_search.SetQueryHistoryHandlerShortCut(m_stdf_call_history_query_shortcut);
+		ceqwb_artist_search.SetQueryHistoryHandler(m_stdf_call_history_query);
+		ceqwb_artist_search.SetHistoryHandler(m_stdf_call_history);
 		cewb_release_url.SetHistoryHandler(m_stdf_call_history);
 	}
 
 	void set_enter_key_override(bool enter_ovr) {
 
 		if (enter_ovr) {
-			cewb_artist_search.SetEnterOverride(stdf_enteroverride_artist);
+			ceqwb_artist_search.SetEnterOverride(stdf_enteroverride_artist);
 			cewb_release_url.SetEnterOverride(stdf_enteroverride_url);
 		}
 		else {
-			cewb_artist_search.SetEnterOverride(nullptr);
+			ceqwb_artist_search.SetEnterOverride(nullptr);
 			cewb_release_url.SetEnterOverride(nullptr);
 		}
 	}
@@ -328,19 +564,12 @@ private:
 	history_oplog m_oplogger;
 	id_tracer m_tracer;
 
-	bool m_va = false;
-	pfc::string8 m_va_search;
+	rppair m_row_stats;
 
 	CFindReleaseTree m_dctree;
 	CArtistList m_alist;
 
-	rppair m_row_stats;
-
-	HWND m_artist_list;
-	HWND m_release_tree;
-	HWND m_edit_release, m_edit_artist, m_edit_filter;
-
-	CMyEditWithButtons cewb_artist_search;
+	CMyEditQueryWithButtons ceqwb_artist_search;
 	CMyEditWithButtons cewb_release_filter;
 	CMyEditWithButtons cewb_release_url;
 
@@ -348,7 +577,7 @@ private:
 
 	fb2k::CDarkModeHooks m_dark;
 
-	uint32_t m_tickCount;
+	uint32_t m_tickCount = 0;
 	bool m_filter_box_events_enabled = true;
 	bool m_filter_box_autofill_enabled = true;
 
@@ -357,8 +586,30 @@ private:
 	service_ptr_t<titleformat_object> m_album_name_script;
 	service_ptr_t<titleformat_object> m_artist_name_script;
 	service_ptr_t<titleformat_object> m_album_artist_script;
+	service_ptr_t<titleformat_object> m_track_title_script;
+	service_ptr_t<titleformat_object> m_query_custom_script;
 
-	service_ptr_t<expand_master_release_process_callback>* m_active_task = nullptr;
+	formatting_script m_query_custom_tf;
+	
+	pfc::string8 m_search_artist;
+	pfc::string8 m_search_expression;
+
+	size_t m_query_mode = SearchMode::DEFAULT_SEARCH;
+	QueryDefMap m_qdm_search_query = {};
+
+	HWND m_artist_list = nullptr;
+	HWND m_release_tree = nullptr;
+	HWND m_edit_release = nullptr;
+	HWND m_edit_artist = nullptr;
+	HWND m_edit_filter = nullptr;
+	HWND m_static_search_msg = nullptr;
+	HWND m_chkbox_rolemain = nullptr;
+	
+	pfc::string8 m_frm_album;
+	pfc::string8 m_frm_artist;
+	pfc::string8 m_frm_album_artist;
+	pfc::string8 m_frm_track_title;
+	pfc::string8 m_frm_sani_artist; //when used as credit
 
 	friend class CArtistList;
 	friend class ILOD_artist_list;
