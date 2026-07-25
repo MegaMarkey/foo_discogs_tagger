@@ -313,6 +313,8 @@ LRESULT CPreviewTagsDialog::OnInitDialog(UINT /*uMsg*/, WPARAM /*wParam*/, LPARA
 
 	init_other_controls_and_results();
 
+	init_scroolbars(m_uilist);
+
 	//add rec icon to write tags button
 	if (IsWine()) {
 		HWND hwndWriteTags = GetDlgItem(IDC_BTN_WRITE_TAGS);

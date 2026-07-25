@@ -348,6 +348,24 @@ private:
 		}
 	}
 
+	pfc::string8 listGetEditField(ctx_t ctx, size_t item, size_t subItem, size_t& lineCount) {
+
+		pfc::string8 out = listGetSubItemText(ctx, item, subItem);
+
+		if (subItem == 1) {
+
+			auto col_width = m_tag_list.GetColumnWidthF(subItem);
+
+			CWindowDC dc(*ctx);
+			SelectObjectScope fontScope(dc, ctx->GetFont());
+
+			bool enable_multiline = enable_multiline_list_input(*ctx, ctx->GetFont(), col_width, out);
+
+			lineCount = enable_multiline ? LINES_LONGFIELD : 1;
+		}
+		return out;
+	}
+
 	// set edited text
 
 	void listSetEditField(ctx_t ctx, size_t item, size_t subItem, const char* val) override {

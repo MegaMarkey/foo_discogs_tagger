@@ -91,6 +91,9 @@ static const pfc::string8 match_manual("...");
 typedef pfc::array_t<t_uint8> MemoryBlock;
 extern inline pfc::string EscapeWin(pfc::string8 keyWord);
 
+extern inline void init_scroolbars(HWND wnd);
+extern inline bool enable_multiline_list_input(HWND wnd, CFontHandle font, const float col_width, const pfc::string8& str);
+
 struct nota_info {
 	bool is_number;
 	size_t disk;	//zero based

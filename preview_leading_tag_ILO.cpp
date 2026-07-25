@@ -123,11 +123,22 @@ void ILOD_preview_leading::listSubItemClicked(ctx_t ctx, size_t item, size_t sub
 // get edit field
 
 pfc::string8 ILOD_preview_leading::listGetEditField(ctx_t ctx, size_t item, size_t subItem, size_t& lineCount) {
+
+	pfc::string8 out = listGetSubItemText(ctx, item, subItem);
+
+	if (subItem == 2) {
+
+		auto col_width = ilo_get_uilist()->GetColumnWidthF(subItem);
+
+		CWindowDC dc(*ctx);
+		SelectObjectScope fontScope(dc, ctx->GetFont());
 	
-	pfc::string8 str = listGetSubItemText(ctx, item, subItem);
-	bool onelined = str.length() < 50 && str.find_first(';', 0) == pfc_infinite;
-	lineCount = onelined ? 1 : LINES_LONGFIELD;
-	return str;
+		bool enable_multiline = enable_multiline_list_input(*ctx, ctx->GetFont(), col_width, out);
+
+		lineCount = enable_multiline ? LINES_LONGFIELD : 1;
+	}
+
+	return out;
 }
 
 // set edit field

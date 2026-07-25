@@ -25,6 +25,39 @@ HINSTANCE hGetProcIDDLL = NULL;
 const int IMAGELIST_OFFLINE_CACHE_NDX = 8;
 const int IMAGELIST_OFFLINE_DB_NDX = 9;
 
+void init_scroolbars(HWND wnd) {
+
+	::ShowScrollBar(wnd, SB_VERT, true);
+	::ShowScrollBar(wnd, SB_HORZ, true);
+	CRect rc;
+	::GetWindowRect(wnd, rc);
+	const SIZE sz = { rc.Width(), rc.Height() };
+
+	SCROLLINFO si = {};
+	si.cbSize = sizeof(SCROLLINFO);
+	si.fMask = SIF_PAGE | SIF_POS | SIF_RANGE;
+	si.nPos = si.nMin = 1;
+
+	si.nMax = sz.cx;
+	si.nPage = sz.cx;
+	SetScrollInfo(wnd, SB_HORZ, &si, false);
+
+	si.nMax = sz.cy;
+	si.nPage = sz.cy;
+}
+
+bool enable_multiline_list_input(HWND wnd, CFontHandle font, const float col_width, const pfc::string8 &str) {
+
+	CWindowDC dc(wnd);
+	SelectObjectScope fontScope(dc, font);
+	SIZE sz = {};
+	const auto wout = pfc::wideFromUTF8(str);
+	WIN32_OP_D(dc.GetTextExtent(wout, str.get_length(), &sz));
+	unsigned fixedWidth = MulDiv(sz.cx, 3, 2);
+
+	return !(sz.cx < (col_width - 10));
+}
+
 //todo:
 inline pfc::string EscapeWin(pfc::string8 keyWord) {
 	pfc::string8 out_keyWord(keyWord);

@@ -265,15 +265,25 @@ uint32_t ILOD_preview::listGetEditFlags(ctx_t ctx, size_t item, size_t subItem) 
 pfc::string8 ILOD_preview::listGetEditField(ctx_t ctx, size_t item, size_t subItem, size_t& lineCount) {
 
 	pfc::array_t<string_encoded_array> value = GetPreviewValue(m_tag_writer->tag_results[item]);
-	if (item < m_tag_writer->tag_results.get_count() && subItem == 1 && value.get_size() > 1) {
-		return "";
+
+	pfc::string8 out = listGetSubItemText(ctx, item, subItem);
+
+	if (item < m_tag_writer->tag_results.get_count() && subItem == 1 && value.get_size()) {
+
+		if (subItem == 1) {
+
+			auto col_width = ilo_get_uilist()->GetColumnWidthF(subItem);
+
+			CWindowDC dc(*ctx);
+			SelectObjectScope fontScope(dc, ctx->GetFont());
+
+			bool enable_multiline = enable_multiline_list_input(*ctx, ctx->GetFont(), col_width, out);
+
+			lineCount = enable_multiline ? LINES_LONGFIELD : 1;
+		}
 	}
-	else {
-		pfc::string8 out = listGetSubItemText(ctx, item, subItem);
-		bool onelined = out.length() < CHARS_SHORTFIELD && out.find_first(';', 0) == pfc_infinite;
-		lineCount = onelined ? 1 : LINES_LONGFIELD;
-		return out;
-	}
+
+	return out;
 }
 
 void ILOD_preview::listSetEditField(ctx_t ctx, size_t item, size_t subItem, const char* val) {
