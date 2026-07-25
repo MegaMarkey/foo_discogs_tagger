@@ -172,7 +172,7 @@ bool CConf::load() {
 		return prepare_dbf_and_cache(false);
 	}
 	else {
-		if (vLoad > *vlast || vLoad < v204) {
+		if (vLoad < v204) {
 			//reset unknown version
 			vLoad = *vlast;
 			pfc::string8 title;
@@ -186,11 +186,45 @@ bool CConf::load() {
 			//EXIT
 			return prepare_dbf_and_cache(false);
 		}
+		else if (vLoad > *vlast) {
+
+			//todo: test
+
+			//cfg downgrade
+
+			// < it will truncate
+			auto fallback = std::find_if(vec_specs.rbegin(), vec_specs.rend(),
+				[vLoad](auto e) {return e.boolvals <= vLoad.boolvals && e.intvals <= vLoad.intvals && e.stringvals <= vLoad.stringvals; });
+		
+			if (fallback != vec_specs.rend()) {
+				//truncate to the closest
+				cfg_bool_entries.truncate(fallback->boolvals);
+				cfg_int_entries.truncate(fallback->intvals);
+				cfg_string_entries.truncate(fallback->stringvals);
+
+				log_msg(PFC_string_formatter() << "Downgrading config file - src: " << vLoad.boolvals << " bools, " << vLoad.intvals << " ints, " << vLoad.stringvals << " strs" << ", dst: " << fallback->boolvals << " bools, " << fallback->intvals << " ints, " << fallback->stringvals << " strs");
+
+				vLoad = *fallback;
+			}
+			else {
+				//todo: reset ?
+			}
+
+			//..
+		}
+		else {
+			log_msg(PFC_string_formatter() << "Loaded config file."); // - " << vLoad.boolvals << " cfg bool, " << vLoad.intvals << " cfg int and " << vLoad.stringvals << " cfg str");
+		}
 	}
 
 	// ignore bres while upgrading (loading depricated values will fail)
 	for (unsigned int i = 0; i < cfg_bool_entries.get_count(); i++) {
-		/*bres &=*/ bool_load(cfg_bool_entries[i]);
+		if (i < vlast->boolvals) {
+			bool_load(cfg_bool_entries[i]);
+		}
+		else {
+			cfg_bool_entries.remove_by_idx(cfg_bool_entries[i].id);
+		}
 	}
 
 	if (vLoad < v206) {
@@ -207,7 +241,12 @@ bool CConf::load() {
 	}
 
 	for (unsigned int i = 0; i < cfg_int_entries.get_count(); i++) {
-		/*bres &=*/ int_load(cfg_int_entries[i]);
+		if (i < cfg_int_entries.get_count()) {
+			int_load(cfg_int_entries[i]);
+		}
+		else {
+			cfg_int_entries.remove_by_idx(cfg_int_entries[i].id);
+		}
 	}
 
 	if (vLoad < v206) {
@@ -295,7 +334,7 @@ bool CConf::load() {
 			for (unsigned int i = 0; i < cfg_int_entries.get_count(); i++) {
 				const conf_int_entry& item = cfg_int_entries[i];
 				if (item.id == walk_delete) {
-					cfg_int_entries.remove_item(item);
+					cfg_int_entries.remove_by_idx(item.id);
 					break;
 				}
 			}
@@ -303,7 +342,7 @@ bool CConf::load() {
 
 		size_t dummy;
 		cfg_bool_entries.sort_t(compare_id);
-		conf_bool_entry entry, entry2;
+		conf_bool_entry entry = {}, entry2 = {};
 
 		entry.id = DEPRI_CFG_FIND_RELEASE_DIALOG_SHOW_ID;
 		auto found = cfg_bool_entries.bsearch_t(compare_id, entry, dummy);
@@ -340,7 +379,13 @@ bool CConf::load() {
 	//..
 
 	for (unsigned int i = 0; i < cfg_string_entries.get_count(); i++) {
-		/*bres &=*/ string_load(cfg_string_entries[i]);
+		if (i < cfg_string_entries.get_count()) {
+			string_load(cfg_string_entries[i]);
+		}
+		else {
+			auto tmp = cfg_string_entries[i];
+			cfg_string_entries.remove_by_idx(tmp.id);
+		}
 	}
 
 	if (vLoad == v204) {
@@ -1205,7 +1250,15 @@ bool CConf::id_to_val_str(int id, const CConf& in_conf, pfc::string8& out, bool 
 
 void CConf::save(cfgFilter cfgfilter, const CConf& in_conf) {
 
-	for (unsigned int i = 0; i < cfg_bool_entries.get_count(); i++) {
+
+	vspec* vlast = &vec_specs.at(vec_specs.size() - 1);
+
+	for (unsigned int i = 0; i < vlast->boolvals; i++) {
+
+		if (i >= cfg_bool_entries.get_count()) {
+			log_msg(PFC_string_formatter() << "discarding bool config #" << i);
+			continue;
+		}
 		const conf_bool_entry& item = cfg_bool_entries[i];
 		int id = item.id;
 
@@ -1221,7 +1274,11 @@ void CConf::save(cfgFilter cfgfilter, const CConf& in_conf) {
 		}
 	}
 
-	for (unsigned int i = 0; i < cfg_int_entries.get_count(); i++) {
+	for (unsigned int i = 0; i < vlast->intvals; i++) {
+		if (i >= cfg_int_entries.get_count()) {
+			log_msg(PFC_string_formatter() << "discarding int config #" << i);
+			continue;
+		}
 		const conf_int_entry& item = cfg_int_entries[i];
 		int id = item.id;
 
@@ -1237,7 +1294,11 @@ void CConf::save(cfgFilter cfgfilter, const CConf& in_conf) {
 		}
 	}
 
-	for (unsigned int i = 0; i < cfg_string_entries.get_count(); i++) {
+	for (unsigned int i = 0; i < vlast->stringvals/*cfg_string_entries.get_count()*/; i++) {
+		if (i >= cfg_string_entries.get_count()) {
+			log_msg(PFC_string_formatter() << "discarding string config #" << i);
+			continue;
+		}
 		const conf_string_entry& item = cfg_string_entries[i];
 		int id = item.id;
 
@@ -1255,6 +1316,8 @@ void CConf::save(cfgFilter cfgfilter, const CConf& in_conf) {
 }
 
 void CConf::save(cfgFilter cfgfilter, const CConf& in_conf, int id) {
+
+	vspec* vlast = &vec_specs.at(vec_specs.size() - 1);
 
 	auto filterok =
 		std::find_if(idarray.begin(), idarray.end(), [&](const std::pair<int, int>& e) {

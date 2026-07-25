@@ -663,6 +663,10 @@ public:
 	formatting_script release_discogs_format_string   = "$ifgreater(%RELEASE_TOTAL_DISCS%,1,%DISC_NUMBER%-,)$num(%TRACK_DISC_TRACK_NUMBER%,2) - $multi_if($multi_and(%ARTISTS_NAME_VARIATION%,$multi_not(%REPLACE_ANVS%)),%ARTISTS_NAME_VARIATION%$multi_if(%DISPLAY_ANVS%,*,),%ARTISTS_NAME%) - %TRACK_TITLE%$ifequal(%TRACK_TOTAL_HIDDEN_TRACKS%,0,,'   ['%TRACK_TOTAL_HIDDEN_TRACKS%' HIDDEN]')";
 	formatting_script release_file_format_string      = "$if($strcmp($ext(%path%),tags),$info(@),%path%)";
 
+	//formatting_script release_status_bar_info_format_string = "$ifequal(%RELEASE_ID%,%RELEASE_MASTER_RELEASE_MAIN_RELEASE_ID%,'* ',)%RELEASE_TITLE%, $join($unique(%<RELEASE_LABELS_NAME>%)), $join($zip2($multi_if($multi_greater(%<RELEASE_FORMATS_QUANTITY>%,1),$zip(%<RELEASE_FORMATS_QUANTITY>%,' x '),),%<RELEASE_FORMATS_NAME>%,$multi_if($put(D,$join(%<<RELEASE_FORMATS_DESCRIPTIONS>>%)),',',),$get(D),$multi_if($put(T,%<RELEASE_FORMATS_TEXT>%),',',), $multi_if2($get(T),))), $join(%<RELEASE_LABELS_CATALOG_NUMBER>%,';'), %RELEASE_YEAR%, %RELEASE_COUNTRY%";
+	// ', ' instead of , makes it Sandbox mod compatible
+	formatting_script release_status_bar_info_format_string = "$ifequal(%RELEASE_ID%,%RELEASE_MASTER_RELEASE_MAIN_RELEASE_ID%,'* ',)%RELEASE_TITLE%', '$join($unique(%<RELEASE_LABELS_NAME>%))', '$join($zip2($multi_if($multi_greater(%<RELEASE_FORMATS_QUANTITY>%,1),$zip(%<RELEASE_FORMATS_QUANTITY>%,' x '),),%<RELEASE_FORMATS_NAME>%,$multi_if($put(D,$join(%<<RELEASE_FORMATS_DESCRIPTIONS>>%)),', ',),$get(D),$multi_if($put(T,%<RELEASE_FORMATS_TEXT>%),', ',),$multi_if2($get(T),)))', '$join(%<RELEASE_LABELS_CATALOG_NUMBER>%,';')', '[%RELEASE_YEAR%', ']%RELEASE_COUNTRY%";
+
 	//v200
 	int preview_tags_dialog_col1_width  = 0;
 	int preview_tags_dialog_col2_width  = 0;
@@ -705,7 +709,7 @@ public:
 	pfc::string8 db_dc_path = "";
 	int db_dc_flag = 0;
 	int find_release_filter_flag = 0;
-	int skip_mng_flag = SKIP_BRAINZ_ID_FETCH;
+	int skip_mng_flag = SKIP_BRAINZ_ID_FETCH | SKIP_RELEASE_DLG_VA_AUTO_LOAD;
 	int list_style = 2;
 	int history_enabled_max = MAKELPARAM(10, 1); //enabled-max20
 	int find_release_dlg_flags = 0;
