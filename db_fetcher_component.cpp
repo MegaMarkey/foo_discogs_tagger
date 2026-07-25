@@ -1,5 +1,5 @@
 #include "stdafx.h"
-
+#include "discogs.h"
 #include "utils_db.h"
 #include "db_fetcher_component.h"
 
@@ -108,6 +108,7 @@ bool db_fetcher_component::recharge_history(sqldb* db, std::string delete_cmd, s
 
 	//
 	task_map.emplace(oplog_type::artist, kHistorySearchArtist);
+	task_map.emplace(oplog_type::query, kHistorySearchQuery);
 	task_map.emplace(oplog_type::release, kHistoryProccessRelease);
 	task_map.emplace(oplog_type::filter, kHistoryFilterButton);
 	std::string artist_sec_task = kHistoryGetArtist;
@@ -121,6 +122,16 @@ bool db_fetcher_component::recharge_history(sqldb* db, std::string delete_cmd, s
 			") filter_date_desc GROUP BY filter_date_desc.artist_id) " //diff is group by artist
 		"grp_calc ORDER BY date DESC LIMIT @param_pop_tops "
 	")";
+
+	pfc::string8 keep_top_search_query =
+		"DELETE FROM history_releases WHERE cmd_id = @cmd_id AND id NOT IN ("
+			"SELECT grp_calc.id FROM ( "
+				"SELECT id, date, artist_name FROM ("
+					"SELECT id, date, artist_id, release_id, cmd_text FROM history_releases "
+					"WHERE cmd_id = @cmd_id ORDER BY date DESC "
+				") filter_date_desc GROUP BY filter_date_desc.artist_id) " //diff is group by artist
+			"grp_calc ORDER BY date DESC LIMIT @param_pop_tops "
+		")";
 
 	pfc::string8 keep_top_release =
 	"DELETE FROM history_releases WHERE cmd_id = @cmd_id AND id NOT IN ("
@@ -144,6 +155,7 @@ bool db_fetcher_component::recharge_history(sqldb* db, std::string delete_cmd, s
 
 	flush_map.emplace(oplog_type::release, keep_top_release);
 	flush_map.emplace(oplog_type::artist, keep_top_artist);
+	flush_map.emplace(oplog_type::query, keep_top_search_query);
 	flush_map.emplace(oplog_type::filter, keep_top_filter);
 
 	std::string query_artist =
@@ -153,6 +165,11 @@ bool db_fetcher_component::recharge_history(sqldb* db, std::string delete_cmd, s
 		"GROUP BY artist_id ORDER BY date DESC LIMIT @param_pop_tops;"*/
 		"SELECT artist_id, artist_name, date, cmd_id, cmd_text, artist_id, artist_name "
 		"FROM history_releases WHERE cmd_id == ? OR cmd_id == ? "
+		"GROUP BY artist_id ORDER BY date DESC LIMIT @param_pop_tops;";
+
+	std::string query_search_query =
+		"SELECT artist_id, artist_name, date, cmd_id, cmd_text, artist_id, artist_name "
+		"FROM history_releases WHERE cmd_id = @cmd_id "
 		"GROUP BY artist_id ORDER BY date DESC LIMIT @param_pop_tops;";
 
 	std::string query_release =
@@ -167,6 +184,7 @@ bool db_fetcher_component::recharge_history(sqldb* db, std::string delete_cmd, s
 
 	query_map.emplace(oplog_type::release, query_release);
 	query_map.emplace(oplog_type::artist, query_artist);
+	query_map.emplace(oplog_type::query, query_search_query);
 	query_map.emplace(oplog_type::filter, query_filter);
 
 	ret = db->open(full_dll_db_name(), SQLITE_OPEN_READWRITE);
@@ -246,7 +264,6 @@ bool db_fetcher_component::recharge_history(sqldb* db, std::string delete_cmd, s
 					}
 					else {
 						cmd_idparam = task_map.at(thistype);
-						cmd_idparam = task_map.at(thistype);
 						param_ndx = sqlite3_bind_parameter_index(stmt_read, "@cmd_id");
 						ret = sqlite3_bind_text(stmt_read, param_ndx, cmd_idparam.c_str(), cmd_idparam.size(), NULL);
 					}
@@ -273,6 +290,12 @@ bool db_fetcher_component::recharge_history(sqldb* db, std::string delete_cmd, s
 							}
 						}
 						else if (thistype == oplog_type::artist) { //artist
+							if (tmp_val_5) {
+								rp_row = std::pair(std::pair(tmp_val_1, tmp_val_2), std::pair(tmp_val_4, tmp_val_5));
+								allout.at(thistype)->emplace_back(rp_row);
+							}
+						}
+						else if (thistype == oplog_type::query) { //query
 							if (tmp_val_5) {
 								rp_row = std::pair(std::pair(tmp_val_1, tmp_val_2), std::pair(tmp_val_4, tmp_val_5));
 								allout.at(thistype)->emplace_back(rp_row);

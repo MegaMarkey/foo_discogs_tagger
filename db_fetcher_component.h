@@ -30,7 +30,7 @@ public:
 class foo_db_cmd_open_exception : public foo_db_cmd_exception
 {
 public:
-	foo_db_cmd_open_exception() : foo_db_cmd_exception(404, "Couldn't open database file") {}
+	foo_db_cmd_open_exception() : foo_db_cmd_exception(404, "Error opening database file") {}
 };
 
 

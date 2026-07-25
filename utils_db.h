@@ -15,10 +15,11 @@ const std::string kcmdHistoryDeleteAll{ "cmd_delete_all" };
 const std::string kHistoryFilterButton{ "filter button" };
 const std::string kHistoryGetArtist{ "get_artist_process_callback" };
 const std::string kHistorySearchArtist{ "search_artist_process_callback" };
+const std::string kHistorySearchQuery{ "search_query" };
 const std::string kHistoryProccessRelease{ "process_release_callback" };
 
 enum oplog_type {
-	artist = 1, release, filter
+	artist = 1, query, release, filter
 };
 
 static int int_type_sqlite3_exec_callback(void* data, int argc, char** argv, char** azColName) {
@@ -27,7 +28,7 @@ static int int_type_sqlite3_exec_callback(void* data, int argc, char** argv, cha
 	return 0; //callback status
 }
 
-static int sizet_type_sqlite3_exec_callback(void* data, int argc, char** argv, char** azColName) {
+static int size_t_type_sqlite3_exec_callback(void* data, int argc, char** argv, char** azColName) {
 	size_t& pint_results = *static_cast<size_t*>(data);
 	pint_results = atoi(argv[0]);
 	return 0; //callback status
