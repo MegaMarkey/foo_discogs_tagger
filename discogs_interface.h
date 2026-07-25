@@ -2,6 +2,7 @@
 
 #include <map>
 
+#include "querydefmap.h"
 #include "fetcher.h"
 #include "discogs.h"
 #include "exception.h"
@@ -11,31 +12,6 @@
 
 using namespace Discogs;
 namespace ol = Offline;
-
-#ifdef _WIN64
-const size_t MAX_ARTISTS = 200;
-#else
-const size_t MAX_ARTISTS = 63; //max - id size = 32bits-24bits = 6bites -> 2^6 - 1 = 63
-#endif
-
-class SkipMng {
-
-public:
-	enum {
-
-		RELEASE_DLG_MATCHED = SKIP_RELEASE_DLG_MATCHED,
-		RELEASE_DLG_IDED = SKIP_RELEASE_DLG_IDED,
-		PREVIEW_DLG = SKIP_PREVIEW_DLG,
-		BRAINZ_ID_FETCH = SKIP_BRAINZ_ID_FETCH,
-	};
-
-	SkipMng() = default;
-
-	constexpr SkipMng(int flags) : value(flags) {}
-
-private:
-	int value;
-};
 
 class DiscogsInterface
 {
@@ -105,6 +81,7 @@ public:
 
 	pfc::array_t<JSONParser_ptr> get_all_pages(pfc::string8 &url, pfc::string8 params, abort_callback &p_abort);
 	pfc::array_t<JSONParser_ptr> get_all_pages(pfc::string8 &url, pfc::string8 params, abort_callback &p_abort, const char *msg, threaded_process_status &p_status);
+	pfc::array_t<JSONParser_ptr> get_all_pages(pfc::string8 &url, pfc::string8 params, size_t& max_to_abort, abort_callback &p_abort, const char *msg, threaded_process_status &p_status);
 
 	pfc::array_t<JSONParser_ptr> get_all_pages_offline_cache(ol::GetFrom gpfFrom, pfc::string8 &id, pfc::string8 &secid, pfc::string8 params, abort_callback &p_abort, const char *msg, threaded_process_status &p_status);
 
@@ -195,8 +172,33 @@ public:
 		threaded_process_status& p_status, abort_callback& p_abort);
 
 	void search_artist(const pfc::string8 &name, pfc::array_t<Artist_ptr> &exact_matches, pfc::array_t<Artist_ptr> &other_matches, threaded_process_status &p_status, abort_callback &p_abort);
-	void search_va_artist(const pfc::string8 &name, pfc::array_t<Artist_ptr> &exact_matches, pfc::array_t<Artist_ptr> &other_matches, threaded_process_status &p_status, abort_callback &p_abort);
-	
+#ifdef SEARCH_AT
+
+	struct parse_amt_info {
+
+		QueryDefMap qdm_search_query;
+
+		std::map<std::string, Artist_ptr> map_artists;
+
+		std::set<std::string> catch_artists;
+
+		std::map<std::string, MasterRelease_ptr> mva_masters;
+
+		pfc::array_t<Artist_ptr>& exact_matches;
+		pfc::array_t<Artist_ptr>& other_matches;
+
+		std::pair<size_t, size_t> qry_mrp_found;
+	};
+
+	void process_amt_parsed_fake_artist(Artist_ptr fakeArtist, parse_amt_info &pai, bool load_master_preview, bool load_release_preview,
+		std::pair<size_t, size_t>& va_res_cap, std::pair<size_t, size_t>& va_done_cap,
+		threaded_process_status& p_status, abort_callback& p_abort);
+
+	void DiscogsInterface::parse_amt_page(Artist_ptr fakeArtist,  JSONParser_ptr jp, parse_amt_info& pai,
+		threaded_process_status& p_status, abort_callback& p_abort);
+
+	rppair_t search_amt_artist(const pfc::string8 &name, const QueryDefMap qdm_search_query, pfc::array_t<Artist_ptr> &exact_matches, pfc::array_t<Artist_ptr> &other_matches, threaded_process_status &p_status, abort_callback &p_abort);
+#endif
 	Release_ptr get_release(const size_t lkey, bool bypass_is_cache = true, bool bypass = false);
 	Release_ptr get_release(const size_t lkey, threaded_process_status& p_status, abort_callback& p_abort, bool bypass_cache = false, bool throw_all = false);
 	Release_ptr get_release(const size_t, const pfc::string8& offline_artist_id, threaded_process_status &p_status, abort_callback &p_abort, bool bypass_cache = false, bool throw_all = false);
@@ -207,7 +209,7 @@ public:
 	MasterRelease_ptr get_master_release(const pfc::string8 &master_id, threaded_process_status &p_status, abort_callback &p_abort, bool bypass_cache = false, bool throw_all = false);
 
 	Artist_ptr get_artist(const pfc::string8 &artist_id, bool bypass_cache = false);
-	Artist_ptr get_artist(const pfc::string8 &artist_id, bool load_releases, threaded_process_status &p_status, abort_callback &p_abort, bool bypass_cache = false, bool throw_all = false, bool throw_404 = true);
+	Artist_ptr get_artist(const pfc::string8 &artist_id, bool load_releases, threaded_process_status &p_status, abort_callback &p_abort, bool bypass_cache = false, bool throw_all = false, bool throw_404 = true, bool mem_only = false);
 
 	pfc::string8 get_username(threaded_process_status &p_status, abort_callback &p_abort);
 	pfc::string8 load_username(threaded_process_status &p_status, abort_callback &p_abort);

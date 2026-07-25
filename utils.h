@@ -182,4 +182,5 @@ extern const int IMAGELIST_OFFLINE_CACHE_NDX;
 extern const int IMAGELIST_OFFLINE_DB_NDX;
 
 inline const size_t LINES_LONGFIELD = 4;
-inline const size_t CHARS_SHORTFIELD = 50;
+
+extern size_t MAX_ARTISTS;

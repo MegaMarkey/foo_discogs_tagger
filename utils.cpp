@@ -5,6 +5,13 @@
 #include <algorithm>
 #include <regex>
 
+#ifdef _WIN64
+size_t MAX_ARTISTS = 200;
+#else
+size_t MAX_ARTISTS = 63; //max - id size = 32bits-24bits = 6bites -> 2^6 - 1 = 63
+#endif
+
+
 const char *whitespace = " \t\r\n";
 
 float cfg_find_release_colummn_showid_width = 50.0f;

@@ -180,6 +180,7 @@ namespace Discogs
 		}
 
 		void load(threaded_process_status &p_status, abort_callback &p_abort, bool throw_all = false) override;
+		void load_mem_only(threaded_process_status &p_status, abort_callback &p_abort, bool throw_all = false);
 		void load_releases(threaded_process_status &p_status, abort_callback &p_abort, bool throw_all, db_fetcher* dbfetcher);
 	};
 	typedef std::shared_ptr<Artist> Artist_ptr;
@@ -939,7 +940,8 @@ namespace Discogs
 			load(p_status, p_abort, throw_all);
 		}
 		void load(threaded_process_status &p_status, abort_callback &p_abort, bool throw_all = false) override;
-		void load_releases(threaded_process_status &p_status, abort_callback &p_abort, bool throw_all = false, pfc::string8 offlineArtistId = "", db_fetcher* dbfetcher = nullptr);
+		void load_releases(threaded_process_status &p_status, abort_callback &p_abort, bool throw_all = false,
+				pfc::string8 offlineArtistId = "", db_fetcher* dbfetcher = nullptr, int query_mode = 0);
 	};
 
 
@@ -960,6 +962,8 @@ namespace Discogs
 		pfc::string8 search_catno;
 		pfc::string8 search_role;
 		pfc::array_t<pfc::string8> search_roles;
+
+		pfc::string8 query_major_formats_qty;
 
 		pfc::array_t<ReleaseSeries_ptr> series;
 		pfc::array_t<ReleaseFormat_ptr> formats;
@@ -986,7 +990,7 @@ namespace Discogs
 		pfc::string8 discogs_data_quality;
 		pfc::array_t<pfc::string8> videos;
 		MemoryBlock small_art;
-		
+
 		bool loaded_preview = false;
 		bool loaded_my_rating = false;
 		size_t db_total_tracks = 0;
@@ -1081,11 +1085,11 @@ namespace Discogs
 			return search_formats;
 		}
 		string_encoded_array get_search_labels() const {
+			pfc::string8 result = search_labels;
 			if (CONF.discard_numeric_suffix) {
-				pfc::string8 result = search_labels; 
 				result = remove_number_suffix(result);
 			}
-			return search_labels;
+			return result;
 		}
 		string_encoded_array get_search_catno() const {
 			return search_catno;
@@ -1133,6 +1137,8 @@ namespace Discogs
 			m["SEARCH_CATNOS"] = { &Release::get_search_catno, &Release::load_preview };
 			m["SEARCH_ROLE"] = { &Release::get_search_role, &Release::load_preview };
 			m["SEARCH_ROLES"] = { &Release::get_search_roles, &Release::load_preview };
+
+			m["QUERY_MAJOR_FORMATS_QTY"] = { &Release::get_query_major_formats_qty, &Release::load_preview };
 			return m;
 		}
 
@@ -1149,7 +1155,7 @@ namespace Discogs
 		}
 
 		inline void load_preview(threaded_process_status &p_status, abort_callback &p_abort, bool throw_all = false) {
-			if (loaded || loaded_preview) {
+			if (loaded || loaded_preview || title.length()) {
 				return;
 			}
 			// No point just loading the preview, might as well load everything
@@ -1182,8 +1188,8 @@ namespace Discogs
 	extern void parseImages(json_t *array, pfc::array_t<Image_ptr> &images);
 	extern Image_ptr parseImage(json_t *element);
 
-	extern void parseArtistReleases(json_t *element, Artist *artist, bool bva_artists);
-	extern void parseMasterVersions(json_t *element, MasterRelease *master_release);
+	extern void parseArtistReleases(json_t *element, Artist *artist, int query_mode, std::map<std::string, MasterRelease_ptr>& mva_masters, std::pair<size_t, size_t>& qry_mr_found = std::pair<size_t, size_t>{ 0,0 });
+	extern void parseMasterVersions(json_t *element, MasterRelease *master_release, int query_mode);
 
 	extern ReleaseArtist_ptr parseReleaseArtist(json_t *element, bool preload = false);
 	extern void parseReleaseArtists(json_t *element, pfc::array_t<ReleaseArtist_ptr> &artists, bool preload = false);

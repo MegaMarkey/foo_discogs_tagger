@@ -1,8 +1,10 @@
 #include "stdafx.h"
 
+#include "pfc/other.h"
 #include "discogs_interface.h"
 #include "exception.h"
 #include "utils.h"
+#include "conf.h"
 
 namespace ol = Offline;
 
@@ -140,7 +142,7 @@ Artist_ptr DiscogsInterface::get_artist(const pfc::string8 &artist_id, bool bypa
 	return artist;
 }
 
-Artist_ptr DiscogsInterface::get_artist(const pfc::string8 &artist_id, bool _load_releases, threaded_process_status &p_status, abort_callback &p_abort, bool bypass_cache, bool throw_all, bool throw_404) {
+Artist_ptr DiscogsInterface::get_artist(const pfc::string8 &artist_id, bool _load_releases, threaded_process_status &p_status, abort_callback &p_abort, bool bypass_cache, bool throw_all, bool throw_404, bool mem_only) {
 
 	Artist_ptr artist = bypass_cache ? nullptr : get_artist_from_cache(artist_id);
 
@@ -153,7 +155,12 @@ Artist_ptr DiscogsInterface::get_artist(const pfc::string8 &artist_id, bool _loa
 
 	if (!artist->loaded) {
 		try {
-			artist->load(p_status, p_abort, throw_all);
+			if (mem_only) {
+				artist->load_mem_only(p_status, p_abort, throw_all);
+			}
+			else {
+				artist->load(p_status, p_abort, throw_all);
+			}
 		}
 		catch (http_404_exception) {
 			if (throw_404)
@@ -214,7 +221,416 @@ void DiscogsInterface::search_artist(const pfc::string8 &query, pfc::array_t<Art
 	other_matches.append(wtf_matches);
 }
 
-void DiscogsInterface::search_va_artist(const pfc::string8& query, pfc::array_t<Artist_ptr>& exact_matches, pfc::array_t<Artist_ptr>& other_matches, threaded_process_status& p_status, abort_callback& p_abort) {
+void DiscogsInterface::process_amt_parsed_fake_artist(Artist_ptr fakeArtist, parse_amt_info& pai, bool load_master_preview, bool load_release_preview,
+	std::pair<size_t, size_t>& va_res_cap, std::pair<size_t, size_t>& va_done_cap, threaded_process_status& p_status, abort_callback& p_abort) {
+
+	const size_t k_limit_master_traffic = LOWORD(CONF.query_max);
+	const size_t k_limit_release_traffic = LOWORD(CONF.query_max);
+
+	size_t ctraffic = 0;
+
+	const std::string query_artist = pai.qdm_search_query.at("artist=").first;
+
+	va_res_cap.first = fakeArtist->master_releases.get_count();
+	va_res_cap.second = fakeArtist->releases.get_count();
+
+	Artist_ptr ukArtist;
+	Artist_ptr ukmArtist;
+
+	ukArtist = std::make_shared<Artist>(search_query::k_uk_id);
+	ukmArtist = std::make_shared<Artist>(search_query::k_ukm_id);
+
+	ukArtist->name = search_query::k_uk_artist_name;
+	ukmArtist->name = search_query::k_ukm_artist_name;
+	ukArtist->loaded = true;
+	ukArtist->loaded_preview = true;
+	ukArtist->loaded_releases = false;
+	ukmArtist->loaded = true;
+	ukmArtist->loaded_preview = true;
+	ukmArtist->loaded_releases = false;
+
+	for (MasterRelease_ptr mr : fakeArtist->master_releases) {
+
+		bool bskip_preview_and_stats = false;
+
+		if (va_done_cap.first >= k_limit_master_traffic) {
+
+			--va_res_cap.first;
+			++va_done_cap.first;
+
+			bskip_preview_and_stats = true;
+		}
+
+		if (load_master_preview && !bskip_preview_and_stats) {
+
+			try {
+
+				--va_res_cap.first;
+
+				//missing main_release_id
+
+				pfc::string8 msg(PFC_string_formatter() << "loading master preview " << mr->id << "...");
+				p_status.set_item(msg);
+
+				//* * * * * * * *
+
+				mr->load_preview(p_status, p_abort, false);
+
+				//* * * * * * * *
+
+				++va_done_cap.first; // not counting E500, E404...
+
+			}
+			catch (foo_discogs_exception ex) {
+
+				bool b500, b404;
+				if (b500 = (pfc::string8(ex.what()).find_first("500") == ~0) && (b404 = pfc::string8(ex.what()).find_first("404") == ~0)) {
+					throw ex;
+				}
+				else {
+					log_msg(PFC_string_formatter() << "E500/E404 Master: " << mr->title);
+				}
+			}
+		} 
+
+		if (mr->artists.get_count()) {
+
+			for (ReleaseArtist_ptr a : mr->artists) {
+
+				bool b_add_new_artist = true;
+				bool bexact_name = pfc::stringLite::g_equalsCaseInsensitive(a->name, query_artist.c_str());
+
+				Artist_ptr tmpArtist;
+
+				if (bexact_name) {
+					if (pai.exact_matches.get_count()) {
+						Artist_ptr last_exact = pai.exact_matches[pai.exact_matches.get_count() - 1];
+						b_add_new_artist = atoi(last_exact->id) != atoi(a->id);
+						if (!b_add_new_artist) {
+							tmpArtist = last_exact;
+						}
+					}
+				}
+				else {
+					if (pai.other_matches.get_count()) {
+						Artist_ptr last_other = pai.other_matches[pai.other_matches.get_count() - 1];
+						b_add_new_artist = atoi(last_other->id) != atoi(a->id);
+						if (!b_add_new_artist) {
+							tmpArtist = last_other;
+						}
+					}
+				}
+
+				if (b_add_new_artist) {
+
+					auto find_art = pai.map_artists.find(a->id.c_str());
+					b_add_new_artist = find_art == pai.map_artists.end();
+
+					if (b_add_new_artist) {
+						tmpArtist = std::make_shared<Artist>(a->id);
+						pai.map_artists.emplace(a->id, tmpArtist);
+					}
+					else {
+						tmpArtist = find_art->second;
+					}
+				}
+
+				bool mr_found = false;
+
+				for (MasterRelease_ptr wm : tmpArtist->master_releases) {
+					if ((mr_found = wm->id.equals(mr->id))) {
+						break;
+					}
+				}
+				if (!mr_found) {
+					tmpArtist->master_releases.add_item(std::move(mr));
+					tmpArtist->search_order_master.add_item(true);
+				}
+
+				if (!tmpArtist->loaded) {
+
+					try {
+
+						//* * * * * * * *
+
+						tmpArtist->load_mem_only(p_status, p_abort, false);
+
+						//* * * * * * * *
+
+					}
+					catch (foo_discogs_exception ex) {
+						pfc::string8 msg(ex.what());
+						if (msg.find_first("404") != ~0 || msg.find_first("500") != ~0) {
+							pai.catch_artists.insert(tmpArtist->id.c_str());
+						}
+						log_msg(msg);
+						continue;
+					}
+				}
+
+				a->full_artist = tmpArtist;
+
+				size_t lkey = encode_mr(atoi(tmpArtist->id), atoi(mr->id));
+				add_master_release_to_cache(lkey, mr);
+
+				if (b_add_new_artist) {
+					if (bexact_name) {
+						pai.exact_matches.add_item(std::move(tmpArtist));
+					}
+					else {
+						pai.other_matches.add_item(std::move(tmpArtist));
+					}
+				}
+			} //walk master releases artists
+		}
+		else {
+
+			Artist_ptr no_checkArtist;
+			no_checkArtist = ukmArtist;
+			bool b_add_new_artist = true;
+			bool bexact_name = false;
+			std::map<std::string, Artist_ptr>::iterator it;
+			it = pai.map_artists.find(no_checkArtist->id.c_str());
+			b_add_new_artist = it == pai.map_artists.end();
+
+			if (b_add_new_artist) {
+				pai.map_artists.emplace(no_checkArtist->id, no_checkArtist);
+			}
+			else {
+				no_checkArtist = it->second;
+			}
+			no_checkArtist->master_releases.add_item(std::move(mr));
+			no_checkArtist->search_order_master.add_item(true);
+
+				size_t lkey = encode_mr(atoi(no_checkArtist->id), atoi(mr->id));
+				add_master_release_to_cache(lkey, mr);
+			if (b_add_new_artist) {
+				if (bexact_name) {
+					pai.exact_matches.add_item(std::move(no_checkArtist));
+				}
+				else {
+					pai.other_matches.add_item(std::move(no_checkArtist));
+				}
+			}
+		}
+	}
+
+	//non master releases
+
+	ctraffic = 0;
+
+	for (Release_ptr r : fakeArtist->releases) {
+
+		bool bskip_preview_and_stats = false;
+
+		if (atoi(r->master_id)) {
+
+			--va_res_cap.second;
+			continue;
+		}
+
+		if (va_done_cap.second >= k_limit_release_traffic) {
+
+			// add it to unknown
+
+			--va_res_cap.second;
+			++va_done_cap.second;
+
+			bskip_preview_and_stats = true;
+		}
+
+
+		if (load_master_preview && !bskip_preview_and_stats) {
+
+		try {
+
+			if (!r->artists.get_count()) {
+
+				if (va_done_cap.second < k_limit_release_traffic) {
+
+					pfc::string8 backtitle = r->title;
+					r->title = "";
+
+
+					--va_res_cap.second;
+
+					pfc::string8 msg(PFC_string_formatter() << "loading non-master release " << r->id << "...");
+					p_status.set_item(msg);
+
+					//* * * * * * * *
+
+					r->load_preview(p_status, p_abort, false);
+
+					//* * * * * * * *
+
+					++va_done_cap.second;
+				}
+			}
+			else {
+			
+				--va_res_cap.second;
+				++va_done_cap.second;
+			}
+
+		}
+		catch (foo_discogs_exception ex) {
+			//titleformat in the tree won't be happy
+			bool b500, b404;
+			if (b500 = (pfc::string8(ex.what()).find_first("500") == ~0) && (b404 = pfc::string8(ex.what()).find_first("404") == ~0)) {
+				throw ex;
+			}
+			else {
+				log_msg(PFC_string_formatter() << "E500/E404 r: " << r->title);
+				continue;
+			}
+		}
+		} //end skip stats
+
+		if (r->artists.get_count()) {
+
+			//cached releases have artists...
+
+			for (ReleaseArtist_ptr a : r->artists) {
+
+				bool b_add_new_artist = true;
+				bool bexact_name = pfc::stringLite::g_equalsCaseInsensitive(a->name, query_artist.c_str());
+
+				Artist_ptr tmpArtist;
+
+				std::map<std::string, Artist_ptr>::iterator it;
+				it = pai.map_artists.find(a->id.get_ptr());
+
+				b_add_new_artist = it == pai.map_artists.end();
+
+				if (b_add_new_artist) {
+					tmpArtist = std::make_shared<Artist>(a->id);
+					pai.map_artists.emplace(a->id, tmpArtist);
+				}
+				else {
+					tmpArtist = it->second;
+				}
+
+				bool r_found = false;
+				for (Release_ptr wr: tmpArtist->releases) {
+					if (r_found = wr->id.equals(r->id)) {
+						break;
+					}
+				}
+				if (!r_found) {
+				
+					tmpArtist->releases.add_item(std::move(r));
+					tmpArtist->search_order_master.add_item(false);
+				}
+
+				// load artist
+
+				if (pai.catch_artists.find(tmpArtist->id.c_str()) != pai.catch_artists.end()) {
+
+					continue;
+
+				}
+				
+				if (!tmpArtist->loaded) {
+
+					try {
+
+						//* * * * * * * *
+
+                        tmpArtist->load_mem_only(p_status, p_abort, false);
+
+						//* * * * * * * *
+
+					}
+					catch (foo_discogs_exception ex) {
+						pfc::string8 msg;
+						msg << "Artist Id:" << tmpArtist->id << ", Release Id:" << r->id;
+						msg << " - " << ex.what();
+						if (msg.find_first("404") != ~0 || msg.find_first("500") != ~0) {
+							pai.catch_artists.insert(tmpArtist->id.c_str());
+						}
+						log_msg(msg);
+						continue;
+					}
+				}
+
+				a->full_artist = tmpArtist;
+
+				// end load artist
+
+				size_t lkey = encode_mr(atoi(tmpArtist->id), atoi(r->id));
+				add_release_to_cache(lkey, r);
+
+				if (b_add_new_artist) {
+					if (bexact_name) {
+						pai.exact_matches.add_item(std::move(tmpArtist));
+					}
+					else {
+						pai.other_matches.add_item(std::move(tmpArtist));
+					}
+				}
+			}
+		}
+		else {
+
+			//this is not a cached release
+			Artist_ptr no_checkArtist;
+
+			no_checkArtist = ukArtist;
+			bool b_add_new_artist = true;
+			bool bexact_name = false;
+
+			std::map<std::string, Artist_ptr>::iterator it;
+			it = pai.map_artists.find(no_checkArtist->id.c_str());
+
+			b_add_new_artist = it == pai.map_artists.end();
+
+			if (b_add_new_artist) {
+				pai.map_artists.emplace(no_checkArtist->id, no_checkArtist);
+			}
+			else {
+				no_checkArtist = it->second;
+			}
+
+			no_checkArtist->releases.add_item(std::move(r));
+			no_checkArtist->search_order_master.add_item(false);
+
+			if (!bskip_preview_and_stats) {
+				size_t lkey = encode_mr(atoi(no_checkArtist->id), atoi(r->id));
+				add_release_to_cache(lkey, r);
+			}
+
+			if (b_add_new_artist) {
+				if (bexact_name) {
+					pai.exact_matches.add_item(std::move(no_checkArtist));
+				}
+				else {
+					pai.other_matches.add_item(std::move(no_checkArtist));
+				}
+			}
+		}
+	}
+
+	return;
+}
+
+void DiscogsInterface::parse_amt_page(Artist_ptr fakeArtist, JSONParser_ptr jp, parse_amt_info& pai,
+	threaded_process_status& p_status, abort_callback& p_abort) {
+
+	parseArtistReleases(jp->root, fakeArtist.get(), SearchMode::AT, pai.mva_masters, pai.qry_mrp_found);
+
+	return;
+}
+
+rppair_t DiscogsInterface::search_amt_artist(const pfc::string8& query, const QueryDefMap qdm_search_query, pfc::array_t<Artist_ptr>& exact_matches, pfc::array_t<Artist_ptr>& other_matches, threaded_process_status& p_status, abort_callback& p_abort) {
+
+	if (!search_query::IsMinimal(qdm_search_query)) {
+		//..
+		return rppair_t({ 0,0 }, { 0,0 });
+		//..
+	}
+
+	std::pair<size_t, size_t> va_res_cap(0, 0);
+	std::pair<size_t, size_t> va_done_cap(0, 0);
 
 	pfc::string8 json;
 
@@ -251,7 +667,7 @@ pfc::array_t<JSONParser_ptr> DiscogsInterface::get_all_pages(pfc::string8 &url, 
 	}
 	params << "per_page=100";
 	size_t page = 1;
-	size_t last;
+	size_t last = 0;
 
 	do {
 		pfc::string8 page_params;
@@ -272,7 +688,12 @@ pfc::array_t<JSONParser_ptr> DiscogsInterface::get_all_pages(pfc::string8 &url, 
 	return results;
 }
 
-pfc::array_t<JSONParser_ptr> DiscogsInterface::get_all_pages(pfc::string8 &url, pfc::string8 params, abort_callback &p_abort, const char *msg, threaded_process_status &p_status) {
+pfc::array_t<JSONParser_ptr> DiscogsInterface::get_all_pages(pfc::string8& url, pfc::string8 params, abort_callback& p_abort, const char* msg, threaded_process_status& p_status) {
+	size_t max_to_abort = SIZE_MAX;
+	return get_all_pages(url, params, max_to_abort, p_abort, msg, p_status);
+}
+
+pfc::array_t<JSONParser_ptr> DiscogsInterface::get_all_pages(pfc::string8 &url, pfc::string8 params, size_t& max_to_abort, abort_callback &p_abort, const char *msg, threaded_process_status &p_status) {
 
 	pfc::array_t<JSONParser_ptr> results;
 	if (params.get_length()) {
@@ -280,7 +701,7 @@ pfc::array_t<JSONParser_ptr> DiscogsInterface::get_all_pages(pfc::string8 &url, 
 	}
 	params << "per_page=100";
 	size_t page = 1;
-	size_t last;
+	size_t last = 0;
 
 	do {
 		pfc::string8 status(msg);
@@ -309,8 +730,6 @@ pfc::array_t<JSONParser_ptr> DiscogsInterface::get_all_pages(pfc::string8 &url, 
 
 	return results;
 }
-
-//ol::GetFrom::Versions and ol::GetFrom::ArtistReleases
 
 namespace fs =std::filesystem;
 
@@ -379,8 +798,6 @@ void DiscogsInterface::get_entity_offline_cache(ol::GetFrom getfrom, pfc::string
 	PFC_ASSERT(!(getfrom == ol::GetFrom::Artist && release_id.get_length()));
 	PFC_ASSERT(!(getfrom == ol::GetFrom::Release && !release_id.get_length()));
 
-	pfc::string8 status(msg);
-	p_status.set_item(status);
 
 	pfc::string8 json_path;
 
