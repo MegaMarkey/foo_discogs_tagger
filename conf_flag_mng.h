@@ -12,7 +12,7 @@ public:
 	FlgMng(CConf* conf, int ID, int *flag_var) : m_pcfg(conf), m_id(ID) {}
 
 	int id() { return m_id; }
-	bool SetFlag(HWND hWnd, UINT uid, int flg);
+	bool SetFlag(HWND hWnd, UINT uid, int flg, bool inv = false);
 	bool SetFlag(int flg, bool flgval);
 	bool GetFlag(int flg);
 	friend class CConf;

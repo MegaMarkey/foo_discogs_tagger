@@ -18,9 +18,13 @@ bool FlgMng::GetFlag(int flg) {
 
 //set flags
 
-bool FlgMng::SetFlag(HWND hWnd, UINT uid, int flg) {
+bool FlgMng::SetFlag(HWND hWnd, UINT uid, int flg, bool inv) {
 	PFC_ASSERT(GetDlgItem(hWnd, uid));
 	bool flgval = uButton_GetCheck(hWnd, uid);
+	if (inv) {
+		//ej. 'auto-load' vs 'skip-load'
+		flgval = !flgval;
+	}
 	return SetFlag(flg, flgval);
 }
 

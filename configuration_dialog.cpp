@@ -1,20 +1,17 @@
 #include "stdafx.h"
-#include "tag_mappings_dialog.h"
 
+#include "tag_mappings_dialog.h"
+#include "discogs_interface.h"
 #include "utils.h"
 #include "tasks.h"
 #include "utils_db.h"
 #include "yesno_dialog.h"
+
 #include "configuration_dialog.h"
 
 static HWND g_hWndTabDialog[NUM_TABS] = {nullptr};
 static HWND g_hWndCurrentTab = nullptr;
 static t_uint32 g_current_tab;
-
-inline bool toggle_title_format_help() {
-	t_uint32 a[] = { CONF_FIND_RELEASE_TAB, CONF_MATCHING_TAB, CONF_ART_TAB };
-	return std::find(std::begin(a), std::end(a), g_current_tab) != std::end(a);
-}
 
 bool my_threaded_process::run_modal(service_ptr_t<threaded_process_callback> p_callback, unsigned p_flags, HWND p_parent, const char* p_title, t_size p_title_len = ~0) {
 	bool bres = false;
@@ -52,6 +49,7 @@ bool my_threaded_process::service_query(service_ptr& p_out, const GUID& p_guid) 
 
 void CConfigurationDialog::InitTabs() {
 	tab_table.append_single(tab_entry("Searching", searching_dialog_proc, IDD_DIALOG_CONF_FIND_RELEASE));
+	tab_table.append_single(tab_entry("Searching Adv.", searching_adv_dialog_proc, IDD_DIALOG_CONF_FIND_ADV_RELEASE));
 	tab_table.append_single(tab_entry("Matching", matching_dialog_proc, IDD_DIALOG_CONF_MATCHING));
 	tab_table.append_single(tab_entry("Tagging", tagging_dialog_proc, IDD_DIALOG_CONF_TAGGING));
 	tab_table.append_single(tab_entry("Cache", caching_dialog_proc, IDD_DIALOG_CONF_CACHING));
@@ -151,17 +149,6 @@ LRESULT CConfigurationDialog::OnInitDialog(UINT /*uMsg*/, WPARAM /*wParam*/, LPA
 	g_current_tab = conf.last_conf_tab;
 	uSendMessage(hWndTab, TCM_SETCURSEL, g_current_tab, 0);
 
-	help_link.SubclassWindow(GetDlgItem(IDC_SYNTAX_HELP));
-	COLORREF lnktx = m_dark.IsDark() ? GetSysColor(COLOR_MENUHILIGHT) : (COLORREF)(-1);
-	help_link.m_clrLink = lnktx;
-	help_link.m_clrVisited = lnktx;
-	pfc::string8 n8_url = profile_usr_components_path(true);
-	n8_url << "\\" << "foo_discogs_help.html";
-	pfc::stringcvt::string_wide_from_utf8 wtext(n8_url.get_ptr());
-	help_link.SetHyperLink((LPCTSTR)const_cast<wchar_t*>(wtext.get_ptr()));
-
-	::ShowWindow(help_link, toggle_title_format_help() ? SW_SHOW : SW_HIDE);
-
 	g_hWndCurrentTab = g_hWndTabDialog[g_current_tab];
 	if (g_hWndCurrentTab) {
 		::ShowWindow(g_hWndCurrentTab, SW_SHOW);
@@ -207,7 +194,6 @@ LRESULT CConfigurationDialog::OnChangeTab(WORD /*wNotifyCode*/, LPNMHDR /*lParam
 
 	if (g_current_tab < tabsize(g_hWndTabDialog)) {
 		g_hWndCurrentTab = g_hWndTabDialog[g_current_tab];
-		::ShowWindow(help_link, toggle_title_format_help() ? SW_SHOW : SW_HIDE);
 		::ShowWindow(g_hWndCurrentTab, SW_SHOW);
 	}
 	return FALSE;
@@ -219,6 +205,9 @@ bool CConfigurationDialog::build_current_cfg(bool reset) {
 
 	if (reset || g_hWndCurrentTab == g_hWndTabDialog[CONF_FIND_RELEASE_TAB]) {
 		save_searching_dialog(g_hWndTabDialog[CONF_FIND_RELEASE_TAB], !reset/*bind*/);
+	}
+	if (reset || g_hWndCurrentTab == g_hWndTabDialog[CONF_FIND_ADV_RELEASE_TAB]) {
+		save_searching_adv_dialog(g_hWndTabDialog[CONF_FIND_ADV_RELEASE_TAB], !reset/*bind*/);
 	}
 	if (reset || g_hWndCurrentTab == g_hWndTabDialog[CONF_MATCHING_TAB]) {
 		save_matching_dialog(g_hWndTabDialog[CONF_MATCHING_TAB], !reset);
@@ -284,29 +273,33 @@ void CConfigurationDialog::reset() {
 
 LRESULT CConfigurationDialog::OnDefaults(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/) {
 
-	if (uMessageBox(m_hWnd, "Reset component settings to default?", "Reset Discogger",
-		MB_OKCANCEL | MB_ICONQUESTION | MB_DEFBUTTON2) == IDOK) {
-
-		foo_conf temp;
-		conf = temp;
-		conf_edit = temp;
-		init_searching_dialog(g_hWndTabDialog[CONF_FIND_RELEASE_TAB]);
-		init_caching_dialog(g_hWndTabDialog[CONF_CACHING_TAB]);
-		init_matching_dialog(g_hWndTabDialog[CONF_MATCHING_TAB]);
-		init_tagging_dialog(g_hWndTabDialog[CONF_TAGGING_TAB]);
-		init_art_dialog(g_hWndTabDialog[CONF_ART_TAB]);
-		init_ui_dialog(g_hWndTabDialog[CONF_UI_TAB]);
-		init_oauth_dialog(g_hWndTabDialog[CONF_OATH_TAB]);
-
-		pushcfg(true);
-
-		conf = CONF;
-		conf_edit = CONF;
-
-		OnChanged();
-
-		on_delete_history(m_hWnd, 0, true);
+	CYesNoApiDialog yndlg;
+	if (!yndlg.query(m_hWnd, { "Reset", "Reset Discogger settings?" })) {
+		return FALSE;
 	}
+
+	foo_conf temp;
+	conf = temp;
+	conf_edit = temp;
+	setting_dlg = true;
+	init_searching_dialog(g_hWndTabDialog[CONF_FIND_RELEASE_TAB], false);
+	init_searching_adv_dialog(g_hWndTabDialog[CONF_FIND_ADV_RELEASE_TAB], false);
+	init_caching_dialog(g_hWndTabDialog[CONF_CACHING_TAB], false);
+	init_matching_dialog(g_hWndTabDialog[CONF_MATCHING_TAB], false);
+	init_tagging_dialog(g_hWndTabDialog[CONF_TAGGING_TAB], false);
+	init_art_dialog(g_hWndTabDialog[CONF_ART_TAB], false);
+	init_ui_dialog(g_hWndTabDialog[CONF_UI_TAB], false);
+	init_oauth_dialog(g_hWndTabDialog[CONF_OATH_TAB], false);
+	setting_dlg = false;
+	pushcfg(true);
+
+	conf = CONF;
+	conf_edit = CONF;
+
+	OnChanged();
+
+	on_delete_history(m_hWnd, 0, true);
+
 	return FALSE;
 }
 
@@ -320,11 +313,11 @@ LRESULT CConfigurationDialog::OnCustomAnvChanged(UINT /*uMsg*/, WPARAM /*wParam*
 }
 
 #ifdef SIM_VA_MA_BETA
-LRESULT CConfigurationDialog::OnCustomVAMulti_Changed(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM lParam, BOOL& /*bHandled*/) {
+LRESULT CConfigurationDialog::OnCustomMsg_VA_as_MA_Reset(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM lParam, BOOL& /*bHandled*/) {
 
 	if (g_hWndTabDialog[CONF_ART_TAB]) {
 		uButton_SetCheck(g_hWndTabDialog[CONF_ART_TAB],
-			IDC_CHK_CFG_ART_SIM_VA, false);
+			IDC_CHK_CFG_ART_SIM_VA_AS_MA, false);
 	}
 	return FALSE;
 }
@@ -345,9 +338,7 @@ void CConfigurationDialog::show_tab(unsigned int itab) {
 		}
 
 		g_current_tab = (t_uint32)::SendDlgItemMessage(m_hWnd, IDC_TAB_CFG, TCM_GETCURSEL, itab, 0);
-
 		g_hWndCurrentTab = g_hWndTabDialog[itab];
-		::ShowWindow(help_link, toggle_title_format_help() ? SW_SHOW : SW_HIDE);
 		::ShowWindow(g_hWndCurrentTab, SW_SHOW);
 	}
 }
@@ -355,6 +346,33 @@ void CConfigurationDialog::show_tab(unsigned int itab) {
 inline void set_window_text(HWND wnd, int IDC, const pfc::string8 &text) {
 	pfc::stringcvt::string_wide_from_ansi wtext(text);
 	::SetWindowText(::uGetDlgItem(wnd, IDC), (LPCTSTR)const_cast<wchar_t*>(wtext.get_ptr()));
+}
+
+enum {
+	rowArtistTitle = 1,
+	rowArtistTrack,
+	rowTitleTrack,
+	rowTitleCredit,
+};
+
+void InitComboQueryType(HWND wnd, UINT id, t_size sel) {
+	std::map<t_size, std::string>rowstylemap;
+	rowstylemap.emplace((t_size)rowArtistTitle, "Artist & Title");
+	rowstylemap.emplace((t_size)rowArtistTrack, "Artist & Track");
+	rowstylemap.emplace((t_size)rowTitleTrack, "Title & Track");
+	rowstylemap.emplace((t_size)rowTitleCredit, "Title & Credit");
+	HWND ctrlwnd = uGetDlgItem(wnd, id);
+
+	LRESULT lr = uSendDlgItemMessage(wnd, id, CB_RESETCONTENT, 0, 0);
+	size_t pos = 0;
+	for (auto& [val, text] : rowstylemap) {
+		lr = uSendDlgItemMessageText(wnd, id, CB_INSERTSTRING, /*pos*/-1, text.c_str());
+		uSendDlgItemMessage(wnd, id, CB_SETITEMDATA, lr, val);
+		if (val == sel) {
+			lr = uSendDlgItemMessageText(wnd, id, CB_SETCURSEL, lr, 0);
+		}
+		++pos;
+	}
 }
 
 enum {
@@ -384,7 +402,31 @@ void InitComboRowStyle(HWND wnd, UINT id, t_size sel) {
 	}
 }
 
-void CConfigurationDialog::init_searching_dialog(HWND wnd) {
+void CConfigurationDialog::init_searching_dialog(HWND wnd, bool subclass) {
+
+	if (subclass) {
+		HWND hwnd_hlp = ::GetDlgItem(wnd, IDC_SYNTAX_HELP_SEARCH);
+		subclass_hyper_link_help_syntax(m_help_link_search, hwnd_hlp, m_dark.IsDark());
+
+		HWND wndStaticHeader = ::GetDlgItem(wnd, IDC_GRP_STATIC_CFG_SEARCH_1);
+
+		m_staticPrefHeader_Search1.SubclassWindow(wndStaticHeader);
+		m_staticPrefHeader_Search1.PaintHeader();
+
+		wndStaticHeader = ::GetDlgItem(wnd, IDC_GRP_STATIC_CFG_SEARCH_2);
+
+		m_staticPrefHeader_Search2.SubclassWindow(wndStaticHeader);
+		m_staticPrefHeader_Search2.PaintHeader();
+
+		wndStaticHeader = ::GetDlgItem(wnd, IDC_GRP_STATIC_CFG_SEARCH_3);
+
+		m_staticPrefHeader_Search3.SubclassWindow(wndStaticHeader);
+		m_staticPrefHeader_Search3.PaintHeader();
+
+		//dark mode
+		m_dark.AddControls(wnd);
+	}
+	::ShowWindow(m_help_link_search, toggle_title_format_help() ? SW_SHOW : SW_HIDE);
 
 	uButton_SetCheck(wnd, IDC_CHK_ENABLE_AUTO_SEARCH, conf.enable_autosearch);
 	uButton_SetCheck(wnd, IDC_CHK_AUTO_REL_LOAD_ON_OPEN, conf.auto_rel_load_on_open);
@@ -394,16 +436,110 @@ void CConfigurationDialog::init_searching_dialog(HWND wnd) {
 	conf.GetFlagVar(CFG_SKIP_MNG_FLAG, fv_skip);
 
 	uButton_SetCheck(wnd, IDC_CHK_SKIP_RELEASE_DLG_IDED, fv_skip.GetFlag(SkipMng::RELEASE_DLG_IDED));
+	bool skip_va_auto_load = fv_skip.GetFlag(SkipMng::RELEASE_DLG_VA_AUTO_LOAD);
+	uButton_SetCheck(wnd, IDC_CHK_SKIP_RELEASE_DLG_VA_AUTO_LOAD, !skip_va_auto_load);
 
 	uSetDlgItemText(wnd, IDC_EDIT_RELEASE_FORMATTING, conf.search_release_format_string);
 	uSetDlgItemText(wnd, IDC_EDIT_MASTER_FORMATTING, conf.search_master_format_string);
 	uSetDlgItemText(wnd, IDC_EDIT_MASTER_SUB_FORMATTING, conf.search_master_sub_format_string);
 
-	//dark mode
-	m_dark.AddControls(wnd);
+	FlgMng fv_init_query;
+	conf.GetFlagVar(CFG_ON_INIT_QUERY_FLAGS, fv_init_query);
+
+	bool enabled = false;
+	enabled = fv_init_query.GetFlag(InitQueryMng::INIT_QUERY_FLAG_ENABLED);
+	uButton_SetCheck(wnd, IDC_CHK_REL_INIT_QUERY_FLAG_ENABLE, enabled);
+
 }
 
-void CConfigurationDialog::init_matching_dialog(HWND wnd) {
+void CConfigurationDialog::init_searching_adv_dialog(HWND wnd, bool subclass) {
+
+	if (subclass) {
+
+		HWND hwnd_hlp = ::GetDlgItem(wnd, IDC_SYNTAX_HELP_SEARCH_ADV);
+		subclass_hyper_link_help_syntax(m_help_link_search_adv, hwnd_hlp, m_dark.IsDark());
+
+		HWND wndStaticHeader = ::GetDlgItem(wnd, IDC_GRP_STATIC_CFG_SEARCH_ADV_1);
+
+		m_staticPrefHeader_SearchAdv1.SubclassWindow(wndStaticHeader);
+		m_staticPrefHeader_SearchAdv1.PaintHeader();
+
+		wndStaticHeader = ::GetDlgItem(wnd, IDC_GRP_STATIC_CFG_SEARCH_ADV_2);
+
+		m_staticPrefHeader_SearchAdv2.SubclassWindow(wndStaticHeader);
+		m_staticPrefHeader_SearchAdv2.PaintHeader();
+
+		wndStaticHeader = ::GetDlgItem(wnd, IDC_GRP_STATIC_CFG_SEARCH_ADV_3);
+
+		m_staticPrefHeader_SearchAdv3.SubclassWindow(wndStaticHeader);
+		m_staticPrefHeader_SearchAdv3.PaintHeader();
+
+		//dark mode
+		m_dark.AddControls(wnd);
+	}
+
+	::ShowWindow(m_help_link_search_adv, toggle_title_format_help() ? SW_SHOW : SW_HIDE);
+
+	FlgMng fv_init_query;
+	conf.GetFlagVar(CFG_ON_INIT_QUERY_FLAGS, fv_init_query);
+
+	bool enabled = fv_init_query.GetFlag(InitQueryMng::INIT_QUERY_PX_LNK_ENABLED);
+	uButton_SetCheck(wnd, IDC_CHK_ON_INIT_QUERY_PX_LNK, enabled);
+
+	enabled = fv_init_query.GetFlag(InitQueryMng::INIT_QUERY_ART_AS_CRED_IN_VA);
+	uButton_SetCheck(wnd, IDC_CHK_INIT_QUERY_FLAG_ART_AS_CRED_IN_VA, enabled);
+
+	enabled = fv_init_query.GetFlag(InitQueryMng::INIT_QUERY_CUST_TF_ENABLED);
+	uButton_SetCheck(wnd, IDC_CHK_ON_INIT_QUERY_FLAG_CUSTOM_TF, enabled);
+
+	uSetDlgItemText(wnd, IDC_EDIT_VARIOUS_PREFIXES, conf.various_prefixes);
+	uSetDlgItemText(wnd, IDC_EDIT_MULT_ART_LINKS, conf.multiple_artists_links);
+	uSetDlgItemText(wnd, IDC_EDIT_REL_INIT_QUERY_TF, conf.on_init_query_tf);
+
+	pfc::string8 buf = PFC_string_formatter() << LOWORD(conf.query_max);
+	uSetDlgItemText(wnd, IDC_EDIT_QUERY_MAX_LOADS, buf);
+
+	buf = PFC_string_formatter() << HIWORD(conf.query_max);
+	uSetDlgItemText(wnd, IDC_EDIT_QUERY_MAX_ITEMS, buf);
+
+	InitComboQueryType(wnd, IDC_COMBO_REL_INIT_QUERY_TYPE, conf.on_init_query_def);
+
+	HWND hcmb = ::uGetDlgItem(wnd, IDC_COMBO_REL_INIT_QUERY_TYPE);
+	BOOL res = ::SendMessage(hcmb, CB_SETMINVISIBLE, 10, 0L);
+
+}
+
+void CConfigurationDialog::init_matching_dialog(HWND wnd, bool subclass) {
+
+	if (subclass) {
+
+		// help
+
+		HWND hwnd_hlp = ::GetDlgItem(wnd, IDC_SYNTAX_HELP_MATCHING);
+		subclass_hyper_link_help_syntax(m_help_link_matching, hwnd_hlp, m_dark.IsDark());
+
+		// headers
+
+		HWND wndStaticHeader = ::GetDlgItem(wnd, IDC_GRP_STATIC_TRK_MATCHING);
+		::ShowWindow(m_help_link_matching, toggle_title_format_help() ? SW_SHOW : SW_HIDE);
+
+		m_staticPrefHeader_Trk_Matching.SubclassWindow(wndStaticHeader);
+		m_staticPrefHeader_Trk_Matching.PaintHeader();
+
+		wndStaticHeader = ::GetDlgItem(wnd, IDC_GRP_STATIC_AUTO_TRK_MATCHING);
+
+		m_staticPrefHeader_Trk_Auto_Matching.SubclassWindow(wndStaticHeader);
+		m_staticPrefHeader_Trk_Auto_Matching.PaintHeader();
+
+		wndStaticHeader = ::GetDlgItem(wnd, IDC_GRP_STATIC_STATBAR_INFO_TRK_MATCHING);
+
+		m_staticPrefHeader_Trk_SB_Matching.SubclassWindow(wndStaticHeader);
+		m_staticPrefHeader_Trk_SB_Matching.PaintHeader();
+
+			//dark mode
+		m_dark.AddControls(wnd);
+	}
+
 	uButton_SetCheck(wnd, IDC_CHK_MATCH_USING_DURATIONS, conf.match_tracks_using_duration);
 	uButton_SetCheck(wnd, IDC_CHK_MATCH_USING_NUMBERS, conf.match_tracks_using_number);
 	uButton_SetCheck(wnd, IDC_CHK_MATCH_ASSUME_SORTED, conf.assume_tracks_sorted);
@@ -411,12 +547,33 @@ void CConfigurationDialog::init_matching_dialog(HWND wnd) {
 	uButton_SetCheck(wnd, IDC_CHK_SKIP_BRAINZ_MIBS_FETCH, conf.skip_mng_flag & SkipMng::BRAINZ_ID_FETCH);
 	uSetDlgItemText(wnd, IDC_EDIT_DISCOGS_FORMATTING, conf.release_discogs_format_string);
 	uSetDlgItemText(wnd, IDC_EDIT_FILE_FORMATTING, conf.release_file_format_string);
+	uSetDlgItemText(wnd, IDC_EDIT_STATUS_BAR_FORMATTING, conf.release_status_bar_info_format_string);
 
-	//dark mode
-	m_dark.AddControls(wnd);
 }
 
-void CConfigurationDialog::init_tagging_dialog(HWND wnd) {
+void CConfigurationDialog::init_tagging_dialog(HWND wnd, bool subclass) {
+
+	if (subclass) {
+
+		HWND wndStaticHeader = ::GetDlgItem(wnd, IDC_GRP_STATIC_CFG_WRITE_TAGS);
+
+		m_staticPrefHeader_Write_Tags.SubclassWindow(wndStaticHeader);
+		m_staticPrefHeader_Write_Tags.PaintHeader();
+
+		wndStaticHeader = ::GetDlgItem(wnd, IDC_GRP_STATIC_CFG_ARTIST_NAMES);
+
+		m_staticPrefHeader_Artist_Names.SubclassWindow(wndStaticHeader);
+		m_staticPrefHeader_Artist_Names.PaintHeader();
+
+		wndStaticHeader = ::GetDlgItem(wnd, IDC_GRP_STATIC_CFG_MULTIVALUES);
+
+		m_staticPrefHeader_Multi_Values.SubclassWindow(wndStaticHeader);
+		m_staticPrefHeader_Multi_Values.PaintHeader();
+
+		//dark mode
+		m_dark.AddControls(wnd);
+	}
+
 	uButton_SetCheck(wnd, IDC_CHK_ENABLE_ANV, conf.replace_ANVs);
 	uButton_SetCheck(wnd, IDC_CHK_MOVE_THE_AT_BEGINNING, conf.move_the_at_beginning);
 	uButton_SetCheck(wnd, IDC_CHK_DISCARD_NUMERIC_SUFFIXES, conf.discard_numeric_suffix);
@@ -424,20 +581,20 @@ void CConfigurationDialog::init_tagging_dialog(HWND wnd) {
 	uButton_SetCheck(wnd, IDC_CHK_SKIP_PREVIEW_DIALOG, conf.skip_mng_flag & SkipMng::PREVIEW_DLG);
 	uButton_SetCheck(wnd, IDC_CHK_REMOVE_OTHER_TAGS, conf.remove_other_tags);
 	uSetDlgItemText(wnd, IDC_EDIT_REMOVE_EXCLUDING_TAGS, conf.raw_remove_exclude_tags);
-	uSetDlgItemText(wnd, IDC_EDIT_CFG_MULTIVALUE_FIELDS, conf.multivalue_fields);
 
+	uSetDlgItemText(wnd, IDC_EDIT_CFG_MULTIVALUE_FIELDS, conf.multivalue_fields);
 	uButton_SetCheck(wnd, IDC_CHK_CFG_TAGSAVE_AUTO_MULTIV_FLAG, conf.tag_save_flags & TAGSAVE_AUTO_MULTIV_FLAG);
+
 	uButton_SetCheck(wnd, IDC_CHK_CFG_TAGSAVE_LOG_FLAG, conf.tag_save_flags & TAGSAVE_LOG_FLAG);
 	uButton_SetCheck(wnd, IDC_CHK_CFG_TAGSAVE_PRV_WRITECLOSE_FLAG, conf.tag_save_flags & TAGSAVE_PREVIEW_STICKY_FLAG);
 
 	HWND hwnd_tag_credits = ::uGetDlgItem(wnd, IDC_BTN_EDIT_CAT_CREDIT);
 	::ShowWindow(hwnd_tag_credits, SW_HIDE);
 
-	//dark mode
-	m_dark.AddControls(wnd);
 }
 
 void CConfigurationDialog::init_memory_cache_buttons(HWND wnd) {
+
 	pfc::string8 text;
 	text << "Releases (" << discogs_interface->release_cache_size() << ")";
 	set_window_text(wnd, IDC_BTN_CLEAR_CACHE_RELEASES, text);
@@ -451,16 +608,37 @@ void CConfigurationDialog::init_memory_cache_buttons(HWND wnd) {
 	text << "Collection (" << discogs_interface->collection_cache_size() << ")";
 	set_window_text(wnd, IDC_BTN_CLEAR_CACHE_COLLECTION, text);
 
-	//dark mode
-	m_dark.AddControls(wnd);
-
 	::EnableWindow(::uGetDlgItem(wnd, IDC_BTN_CLEAR_CACHE_RELEASES), discogs_interface->release_cache_size() ? TRUE : FALSE);
 	::EnableWindow(::uGetDlgItem(wnd, IDC_BTN_CLEAR_CACHE_MASTERS), discogs_interface->master_release_cache_size() ? TRUE : FALSE);
 	::EnableWindow(::uGetDlgItem(wnd, IDC_BTN_CLEAR_CACHE_ARTISTS), discogs_interface->artist_cache_size() ? TRUE : FALSE);
 	::EnableWindow(::uGetDlgItem(wnd, IDC_BTN_CLEAR_CACHE_COLLECTION), discogs_interface->collection_cache_size() ? TRUE : FALSE);
 }
 
-void CConfigurationDialog::init_caching_dialog(HWND wnd) {
+void CConfigurationDialog::init_caching_dialog(HWND wnd, bool subclass) {
+
+	init_memory_cache_buttons(wnd);
+
+	if (subclass) {
+
+		HWND wndStaticHeader = ::GetDlgItem(wnd, IDC_GRP_STATIC_CFG_CACHE_PARSE);
+
+		m_staticPrefHeader_Cache_Parse.SubclassWindow(wndStaticHeader);
+		m_staticPrefHeader_Cache_Parse.PaintHeader();
+
+		wndStaticHeader = ::GetDlgItem(wnd, IDC_GRP_STATIC_CFG_CACHE_MEM);
+
+		m_staticPrefHeader_Cache_Mem.SubclassWindow(wndStaticHeader);
+		m_staticPrefHeader_Cache_Mem.PaintHeader();
+
+		wndStaticHeader = ::GetDlgItem(wnd, IDC_GRP_STATIC_CFG_CACHE_DISK);
+
+		m_staticPrefHeader_Cache_Disk.SubclassWindow(wndStaticHeader);
+		m_staticPrefHeader_Cache_Disk.PaintHeader();
+
+		//dark mode
+		m_dark.AddControls(wnd);
+
+	}
 
 #ifdef CACHE_EXPIRATION
 #else
@@ -487,14 +665,19 @@ void CConfigurationDialog::init_caching_dialog(HWND wnd) {
 	bool bread = fv_offline_cache.GetFlag(ol::CacheFlags::OC_READ);
 	bool bwrite = fv_offline_cache.GetFlag(ol::CacheFlags::OC_WRITE);
 	bool bmerge_subtracks = fv_offline_cache.GetFlag(ol::CacheFlags::MERGE_SUBTRACKS);
+	bool bmerge_tracks_dotted_to_header = fv_offline_cache.GetFlag(ol::CacheFlags::MERGE_TRACKS_DOTTED_TO_HEADER);
 
 	uButton_SetCheck(wnd, IDC_CHK_CFG_CACHE_READ_DSK_CACHE, bread);
 	uButton_SetCheck(wnd, IDC_CHK_CFG_CACHE_WRITE_DSK_CACHE, bwrite);
 	uButton_SetCheck(wnd, IDC_CHK_SUBTRACKS_MERGE_TITLES_CACHE, bmerge_subtracks);
+	uButton_SetCheck(wnd, IDC_CHK_TRACKS_MERGE_DOTTED_TO_HEADER_CACHE, bmerge_tracks_dotted_to_header);
 
 	//memory cache
 
 	original_parsing_merge_titles = conf.parse_hidden_merge_titles;
+	original_parsing_merge_subtracks = conf.cache_offline_cache_flag & ol::CacheFlags::MERGE_SUBTRACKS;
+	original_parsing_tracks_dotted_to_header = conf.cache_offline_cache_flag & ol::CacheFlags::MERGE_TRACKS_DOTTED_TO_HEADER;
+
 	original_parsing = conf.parse_hidden_as_regular;
 	original_skip_video = conf.skip_video_tracks;
 
@@ -508,9 +691,30 @@ void CConfigurationDialog::init_caching_dialog(HWND wnd) {
 	uSetDlgItemText(wnd, IDC_EDIT_CFG_CACHE_EXP_DAYS, num);
 	uButton_SetCheck(wnd, IDC_CHK_CFG_CACHE_EXP_ENABLED, conf.expiration_enabled());
 
-	init_memory_cache_buttons(wnd);
 }
-void CConfigurationDialog::init_art_dialog(HWND wnd) {
+
+void CConfigurationDialog::init_art_dialog(HWND wnd, bool subclass) {
+
+	if (subclass) {
+
+		// help
+
+		HWND hwnd_hlp = ::GetDlgItem(wnd, IDC_SYNTAX_HELP_ARTWORK);
+		subclass_hyper_link_help_syntax(m_help_link_artwork, hwnd_hlp, m_dark.IsDark());
+
+		HWND wndStaticHeader = ::GetDlgItem(wnd, IDC_GRP_STATIC_CFG_ART_ALBUM);
+
+		m_staticPrefHeader_Art_Album.SubclassWindow(wndStaticHeader);
+		m_staticPrefHeader_Art_Album.PaintHeader();
+
+		wndStaticHeader = ::GetDlgItem(wnd, IDC_GRP_STATIC_CFG_ART_ARTIST);
+
+		m_staticPrefHeader_Art_Artist.SubclassWindow(wndStaticHeader);
+		m_staticPrefHeader_Art_Artist.PaintHeader();
+
+			//dark mode
+		m_dark.AddControls(wnd);
+	}
 
 	uButton_SetCheck(wnd, IDC_CHK_SAVE_ALBUM_ART, conf.save_album_art);
 	uButton_SetCheck(wnd, IDC_CHK_ALBUM_ART_FETCH_ALL, conf.album_art_fetch_all);
@@ -521,26 +725,41 @@ void CConfigurationDialog::init_art_dialog(HWND wnd) {
 
 	uButton_SetCheck(wnd, IDC_CHK_SAVE_ARTIST_ART, conf.save_artist_art);
 	uButton_SetCheck(wnd, IDC_CHK_ARTIST_ART_FETCH_ALL, conf.artist_art_fetch_all);
+	//todo: remove not impl
 	uSetDlgItemText(wnd, IDC_EDIT_ARTIST_ART_IDS, conf.artist_art_id_format_string);
 	uButton_SetCheck(wnd, IDC_CHK_ARTIST_ART_EMBED, conf.embed_artist_art);
 	uSetDlgItemText(wnd, IDC_EDIT_ARTIST_ART_DIR, conf.artist_art_directory_string);
 	uSetDlgItemText(wnd, IDC_EDIT_ARTIST_ART_PREFIX, conf.artist_art_filename_string);
 	uButton_SetCheck(wnd, IDC_CHK_ARTIST_ART_OVERWRITE, conf.artist_art_overwrite);
 
-	HWND wndSimVA = ::uGetDlgItem(wnd, IDC_CHK_CFG_ART_SIM_VA);
+	HWND wndSimVA = ::uGetDlgItem(wnd, IDC_CHK_CFG_ART_SIM_VA_AS_MA);
 #ifdef SIM_VA_MA_BETA
 	::ShowWindow(wndSimVA, SW_SHOW);
-	bool sim_va_as_ma = conf.find_release_dlg_flags & CFindReleaseDialog::FLG_VARIOUS_AS_MULTI_ARTIST;
-	uButton_SetCheck(wnd, IDC_CHK_CFG_ART_SIM_VA, sim_va_as_ma);
+	bool sim_va_as_ma = conf.find_release_dlg_flags & CFindReleaseDialog::FLG_VA_AS_MA;
+	uButton_SetCheck(wnd, IDC_CHK_CFG_ART_SIM_VA_AS_MA, sim_va_as_ma);
 #else
 	::ShowWindow(wndSimVA,SW_HIDE);
 #endif
 
-	//dark mode
-	m_dark.AddControls(wnd);
 }
 
-void CConfigurationDialog::init_ui_dialog(HWND wnd) {
+void CConfigurationDialog::init_ui_dialog(HWND wnd, bool subclass) {
+
+	if (subclass) {
+
+		HWND wndStaticHeader = ::GetDlgItem(wnd, IDC_GRP_STATIC_HISTORY);
+
+		m_staticPrefHeader_History.SubclassWindow(wndStaticHeader);
+		m_staticPrefHeader_History.PaintHeader();
+
+		wndStaticHeader = ::GetDlgItem(wnd, IDC_GRP_STATIC_CFG_OTHER);
+
+		m_staticPrefHeader_Other.SubclassWindow(wndStaticHeader);
+		m_staticPrefHeader_Other.PaintHeader();
+
+		//dark mode
+		m_dark.AddControls(wnd);
+	}
 
 	//history
 	uButton_SetCheck(wnd, IDC_CHK_CFG_UI_HISTORY_ENABLED, HIWORD(conf.history_enabled_max));
@@ -548,17 +767,22 @@ void CConfigurationDialog::init_ui_dialog(HWND wnd) {
 	uSetDlgItemText(wnd, IDC_EDIT_UI_HISTORY_MAX_ITEMS, std::to_string(imax).c_str());
 	//enter override
 	uButton_SetCheck(wnd, IDC_CHK_RELEASE_ENTER_KEY_OVR, conf.release_enter_key_override);
-	
 	//release stats
-
 	FlgMng fv_stats;
 	conf.GetFlagVar(CFG_FIND_RELEASE_DIALOG_FLAG, fv_stats);
 	bool bstats = fv_stats.GetFlag(CFindReleaseDialog::FLG_SHOW_RELEASE_TREE_STATS);
 	uButton_SetCheck(wnd, IDC_CHK_FIND_RELEASE_STATS, bstats);
-
 	//list style
+	bool bv2 = core_version_info_v2::get()->test_version(2, 0, 0, 0);
+	if (!bv2) {
+		CONF.custom_font = 0;
+		conf.custom_font = CONF.custom_font;
+	}
 
 	const auto cf = HIWORD(conf.custom_font);
+	uButton_SetCheck(wnd, IDC_CHK_CFG_CUSTOM_FONT_DEFAULT, false);
+	uButton_SetCheck(wnd, IDC_CHK_CFG_CUSTOM_FONT_EXPANDED, false);
+	uButton_SetCheck(wnd, IDC_CHK_CFG_CUSTOM_FONT_FB2K, false);
 
 	if (cf & (1 << 0)) {
 		uButton_SetCheck(wnd, IDC_CHK_CFG_CUSTOM_FONT_EXPANDED, true);
@@ -575,34 +799,50 @@ void CConfigurationDialog::init_ui_dialog(HWND wnd) {
 
 	BOOL res = ::SendMessage(hcmb, CB_SETMINVISIBLE, 10, 0L);
 
-	bool bv2 = core_version_info_v2::get()->test_version(2, 0, 0, 0);
 	if (!bv2) {
 		HWND hwndcustFont = ::uGetDlgItem(wnd, IDC_CHK_CFG_CUSTOM_FONT_FB2K);
 		::EnableWindow(hwndcustFont, FALSE);
 		::ShowWindow(hwndcustFont, SW_HIDE);
 	}
-
-	//dark mode
-	m_dark.AddControls(wnd);
 }
 
-void CConfigurationDialog::init_oauth_dialog(HWND wnd) {
+void CConfigurationDialog::init_oauth_dialog(HWND wnd, bool subclass) {
 
-	m_hwndTokenEdit = ::uGetDlgItem(wnd, IDC_EDIT_OAUTH_TOKEN);
-	m_hwndSecretEdit = ::uGetDlgItem(wnd, IDC_EDIT_OAUTH_SECRET);
-	m_hwndOAuthMsg = ::uGetDlgItem(wnd, IDC_STATIC_CFG_OAUTH_MSG);
+	if (subclass) {
+
+		//dark mode
+		m_dark.AddControls(wnd);
+
+		HWND wndStaticHeader = ::GetDlgItem(wnd, IDC_GRP_STATIC_CFG_OATH_STEP_1);
+
+		m_staticPrefHeader_Oath_S1;
+		m_staticPrefHeader_Oath_S1.SubclassWindow(wndStaticHeader);
+		m_staticPrefHeader_Oath_S1.PaintHeader();
+
+		wndStaticHeader = ::GetDlgItem(wnd, IDC_GRP_STATIC_CFG_OATH_STEP_2);
+
+		m_staticPrefHeader_Oath_S2.SubclassWindow(wndStaticHeader);
+		m_staticPrefHeader_Oath_S2.PaintHeader();
+
+		wndStaticHeader = ::GetDlgItem(wnd, IDC_GRP_STATIC_CFG_OATH_STEP_3);
+
+		m_staticPrefHeader_Oath_S3.SubclassWindow(wndStaticHeader);
+		m_staticPrefHeader_Oath_S3.PaintHeader();
+	}
+
+	m_hwndTokenEdit = ::GetDlgItem(wnd, IDC_EDIT_OAUTH_TOKEN);
+	m_hwndSecretEdit = ::GetDlgItem(wnd, IDC_EDIT_OAUTH_SECRET);
+	m_hwndOAuthMsg = ::GetDlgItem(wnd, IDC_STATIC_CFG_OAUTH_MSG);
 
 	uSetWindowText(m_hwndTokenEdit, conf.oauth_token);
 	uSetWindowText(m_hwndSecretEdit, conf.oauth_token_secret);
 
 	uSetWindowText(m_hwndOAuthMsg, "Click to test if OAuth is working.");
 
-	//dark mode
-	m_dark.AddControls(wnd);
 }
 
 void CConfigurationDialog::show_oauth_msg(pfc::string8 msg, bool iserror) {
-	
+
 	if (g_current_tab != CONF_OATH_TAB) {
 		HWND hWndTab = uGetDlgItem(IDC_TAB_CFG);
 		uSendMessage(hWndTab, TCM_SETCURSEL, CONF_OATH_TAB, 0);
@@ -623,6 +863,8 @@ void CConfigurationDialog::save_searching_dialog(HWND wnd, bool dlgbind) {
 	FlgMng fv_skip;
 	conf_ptr->GetFlagVar(CFG_SKIP_MNG_FLAG, fv_skip);
 	fv_skip.SetFlag(wnd, IDC_CHK_SKIP_RELEASE_DLG_IDED, SkipMng::RELEASE_DLG_IDED);
+	//3th param auto-load label to skip load
+	fv_skip.SetFlag(wnd, IDC_CHK_SKIP_RELEASE_DLG_VA_AUTO_LOAD, SkipMng::RELEASE_DLG_VA_AUTO_LOAD, true);
 
 	pfc::string8 text;
 	uGetDlgItemText(wnd, IDC_EDIT_RELEASE_FORMATTING, text);
@@ -631,6 +873,11 @@ void CConfigurationDialog::save_searching_dialog(HWND wnd, bool dlgbind) {
 	conf_ptr->search_master_format_string = text;
 	uGetDlgItemText(wnd, IDC_EDIT_MASTER_SUB_FORMATTING, text);
 	conf_ptr->search_master_sub_format_string = text;
+
+	FlgMng fv_init_query;
+	conf_ptr->GetFlagVar(CFG_ON_INIT_QUERY_FLAGS, fv_init_query);
+
+	fv_init_query.SetFlag(wnd, IDC_CHK_REL_INIT_QUERY_FLAG_ENABLE, InitQueryMng::INIT_QUERY_FLAG_ENABLED);
 }
 
 bool CConfigurationDialog::cfg_searching_has_changed() {
@@ -653,8 +900,77 @@ bool CConfigurationDialog::cfg_searching_has_changed() {
 	bcmp = stricmp_utf8(conf.search_master_sub_format_string, conf_edit.search_master_sub_format_string);
 	bres |= bcmp;
 
-	bres |= conf.list_style != conf_edit.list_style;
+	bres |= conf.on_init_query_flags != conf_edit.on_init_query_flags;
+	bres |= conf.on_init_query_def != conf_edit.on_init_query_def;
 
+	return bres;
+}
+
+void CConfigurationDialog::save_searching_adv_dialog(HWND wnd, bool dlgbind) {
+
+	foo_conf* conf_ptr = dlgbind ? &conf_edit : &conf;
+
+	FlgMng fv_init_query;
+	conf_ptr->GetFlagVar(CFG_ON_INIT_QUERY_FLAGS, fv_init_query);
+
+	fv_init_query.SetFlag(wnd, IDC_CHK_ON_INIT_QUERY_PX_LNK, InitQueryMng::INIT_QUERY_PX_LNK_ENABLED);
+	fv_init_query.SetFlag(wnd, IDC_CHK_INIT_QUERY_FLAG_ART_AS_CRED_IN_VA, InitQueryMng::INIT_QUERY_ART_AS_CRED_IN_VA);
+	fv_init_query.SetFlag(wnd, IDC_CHK_ON_INIT_QUERY_FLAG_CUSTOM_TF, InitQueryMng::INIT_QUERY_CUST_TF_ENABLED);
+
+	pfc::string8 text;
+
+	uGetDlgItemText(wnd, IDC_EDIT_VARIOUS_PREFIXES, text);
+	conf_ptr->various_prefixes = text;
+	uGetDlgItemText(wnd, IDC_EDIT_MULT_ART_LINKS, text);
+	conf_ptr->multiple_artists_links = text;
+	fv_init_query.SetFlag(wnd, IDC_CHK_ON_INIT_QUERY_FLAG_CUSTOM_TF, InitQueryMng::INIT_QUERY_CUST_TF_ENABLED);
+
+	uGetDlgItemText(wnd, IDC_EDIT_REL_INIT_QUERY_TF, text);
+	conf_ptr->on_init_query_tf = text;
+
+	int s = ::uSendDlgItemMessage(wnd, IDC_COMBO_REL_INIT_QUERY_TYPE, CB_GETCURSEL, 0, 0);
+	conf_ptr->on_init_query_def = ::uSendDlgItemMessage(wnd, IDC_COMBO_REL_INIT_QUERY_TYPE, CB_GETITEMDATA, s, 0);
+
+	size_t max_loads = LOWORD(conf_ptr->query_max);
+	size_t max_items = HIWORD(conf_ptr->query_max);
+
+	bool ok_val = false;
+	uGetDlgItemText(wnd, IDC_EDIT_QUERY_MAX_LOADS, text);
+	if (is_number(text.c_str())) {
+		if (ok_val = (atoi(text) >= 5 && atoi(text) <= 20)) {
+			max_loads = atoi(text);
+			ok_val = true;
+		}
+	}
+
+	uGetDlgItemText(wnd, IDC_EDIT_QUERY_MAX_ITEMS, text);
+	if (is_number(text.c_str())) {
+		if (ok_val = (atoi(text) >= 100 && atoi(text) <= 1000)) {
+			max_items = atoi(text);
+		}
+	}
+
+	if (ok_val) {
+		conf_ptr->query_max = MAKELPARAM(max_loads, max_items);
+	}
+}
+
+bool CConfigurationDialog::cfg_searching_adv_has_changed() {
+
+	bool bres = false;
+	bool bcmp = false;
+
+	bcmp = stricmp_utf8(conf.various_prefixes, conf_edit.various_prefixes);
+	bres |= bcmp;
+	bcmp = stricmp_utf8(conf.on_init_query_tf, conf_edit.on_init_query_tf);
+	bres |= bcmp;
+	bcmp = stricmp_utf8(conf.multiple_artists_links, conf_edit.multiple_artists_links);
+
+	bres |= bcmp;
+
+	bres |= conf.on_init_query_def != conf_edit.on_init_query_def;
+	bres |= conf.query_max != conf_edit.query_max;
+	bres |= conf.on_init_query_flags != conf_edit.on_init_query_flags;
 	return bres;
 }
 
@@ -672,6 +988,9 @@ void CConfigurationDialog::save_matching_dialog(HWND wnd, bool dlgbind) {
 
 	uGetDlgItemText(wnd, IDC_EDIT_FILE_FORMATTING, text);
 	conf_ptr->release_file_format_string = text;
+
+	uGetDlgItemText(wnd, IDC_EDIT_STATUS_BAR_FORMATTING, text);
+	conf_ptr->release_status_bar_info_format_string = text;
 
 	if (uButton_GetCheck(wnd, IDC_CHK_SKIP_RELEASE_DLG))
 		conf_ptr->skip_mng_flag |= SkipMng::RELEASE_DLG_MATCHED;
@@ -698,6 +1017,8 @@ bool CConfigurationDialog::cfg_matching_has_changed() {
 	bres |= bcmp;
 	bcmp = stricmp_utf8(conf.release_file_format_string, conf_edit.release_file_format_string);
 	bres |= bcmp;
+	bcmp = stricmp_utf8(conf.release_status_bar_info_format_string, conf_edit.release_status_bar_info_format_string);
+	bres |= bcmp;
 	return bres;
 }
 
@@ -713,7 +1034,7 @@ void CConfigurationDialog::save_tagging_dialog(HWND wnd, bool dlgbind) {
 		conf_ptr->skip_mng_flag |= SkipMng::PREVIEW_DLG;
 	else
 		conf_ptr->skip_mng_flag &= ~(SkipMng::PREVIEW_DLG);
-	
+
 	conf_ptr->remove_other_tags = uButton_GetCheck(wnd, IDC_CHK_REMOVE_OTHER_TAGS);
 	pfc::string8 text;
 	uGetDlgItemText(wnd, IDC_EDIT_REMOVE_EXCLUDING_TAGS, text);
@@ -782,28 +1103,37 @@ void CConfigurationDialog::save_caching_dialog(HWND wnd, bool dlgbind) {
 	else
 		conf_ptr->cache_offline_cache_flag &= ~(ol::CacheFlags::MERGE_SUBTRACKS);
 
+	if (uButton_GetCheck(wnd, IDC_CHK_TRACKS_MERGE_DOTTED_TO_HEADER_CACHE))
+		conf_ptr->cache_offline_cache_flag |= ol::CacheFlags::MERGE_TRACKS_DOTTED_TO_HEADER;
+	else
+		conf_ptr->cache_offline_cache_flag &= ~(ol::CacheFlags::MERGE_TRACKS_DOTTED_TO_HEADER);
+
 	auto expiration_enabled = uButton_GetCheck(wnd, IDC_CHK_CFG_CACHE_EXP_ENABLED);
 	conf_ptr->set_expiration_enabled(expiration_enabled);
 
 	if (original_parsing_merge_titles != conf_ptr->parse_hidden_merge_titles ||
+		original_parsing_merge_subtracks != (bool)(conf_ptr->cache_offline_cache_flag & ol::CacheFlags::MERGE_SUBTRACKS) ||
+		original_parsing_tracks_dotted_to_header != (bool)(conf_ptr->cache_offline_cache_flag & ol::CacheFlags::MERGE_TRACKS_DOTTED_TO_HEADER) ||
 		original_parsing != conf_ptr->parse_hidden_as_regular ||
 		original_skip_video != conf_ptr->skip_video_tracks) {
 		discogs_interface->reset_release_cache();
+		HWND wndCacheTab = g_hWndTabDialog[CONF_CACHING_TAB];
+		if (wndCacheTab) {
+			init_memory_cache_buttons(wndCacheTab);
+		}
+	}
+	pfc::string8 buffer;
+
+	uGetDlgItemText(wnd, IDC_EDIT_CFG_CACHE_EXP_DAYS, buffer);
+
+	if (is_number(buffer.c_str())) {
+		conf_ptr->set_expiration_days(abs(atoi(buffer)));
 	}
 
-	pfc::string8 text;
+	uGetDlgItemText(wnd, IDC_EDIT_CACHED_OBJECTS, buffer);
 
-	uGetDlgItemText(wnd, IDC_EDIT_CFG_CACHE_EXP_DAYS, text);
-
-	if (is_number(text.c_str())) {
-		conf_ptr->set_expiration_days(abs(atoi(text)));
-	}
-
-
-	uGetDlgItemText(wnd, IDC_EDIT_CACHED_OBJECTS, text);
-
-	if (is_number(text.c_str())) {
-		conf_ptr->cache_max_objects = abs(atol(text));
+	if (is_number(buffer.c_str())) {
+		conf_ptr->cache_max_objects = abs(atol(buffer));
 		discogs_interface->set_cache_size(conf_ptr->cache_max_objects);
 	}
 }
@@ -820,15 +1150,6 @@ bool CConfigurationDialog::cfg_caching_has_changed() {
 	bres |= conf.disk_cache_exp != conf_edit.disk_cache_exp;
 	return bres;
 }
-bool CConfigurationDialog::cfg_db_has_changed() {
-
-	bool bres = false;
-
-	bres |= conf.db_dc_flag != conf_edit.db_dc_flag;
-	bres |= stricmp_utf8(conf.db_dc_path, conf_edit.db_dc_path) != 0;
-
-	return bres;
-}
 
 void CConfigurationDialog::save_art_dialog(HWND wnd, bool dlgbind) {
 
@@ -843,9 +1164,10 @@ void CConfigurationDialog::save_art_dialog(HWND wnd, bool dlgbind) {
 	uGetDlgItemText(wnd, IDC_EDIT_ALBUM_ART_PREFIX, temp);
 	conf_ptr->album_art_filename_string = temp;
 	conf_ptr->album_art_overwrite = uButton_GetCheck(wnd, IDC_CHK_ALBUM_ART_OVR);
-	
+
 	conf_ptr->save_artist_art = uButton_GetCheck(wnd, IDC_CHK_SAVE_ARTIST_ART);
 	conf_ptr->artist_art_fetch_all = uButton_GetCheck(wnd, IDC_CHK_ARTIST_ART_FETCH_ALL);
+	//todo: remove not impl
 	uGetDlgItemText(wnd, IDC_EDIT_ARTIST_ART_IDS, temp);
 	conf_ptr->artist_art_id_format_string = temp;
 	conf_ptr->embed_artist_art = uButton_GetCheck(wnd, IDC_CHK_ARTIST_ART_EMBED);
@@ -856,6 +1178,7 @@ void CConfigurationDialog::save_art_dialog(HWND wnd, bool dlgbind) {
 	conf_ptr->artist_art_overwrite = uButton_GetCheck(wnd, IDC_CHK_ARTIST_ART_OVERWRITE);
 
 	int art_app_flag = LOWORD(conf_ptr->album_art_skip_default_cust);
+	//todo: remove IDC_CHK_CFG_ART_FILE_MATCH
 	bool bfilematch = uButton_GetCheck(wnd, IDC_CHK_CFG_ART_FILE_MATCH);
 	if (bfilematch) {
 		art_app_flag |= ARTSAVE_FILEMATCH_APP_FLAG;
@@ -866,16 +1189,16 @@ void CConfigurationDialog::save_art_dialog(HWND wnd, bool dlgbind) {
 	conf_ptr->album_art_skip_default_cust = MAKELPARAM(art_app_flag, HIWORD(conf_ptr->album_art_skip_default_cust));
 
 #ifdef SIM_VA_MA_BETA
-	bool bsim_va_as_ma = uButton_GetCheck(wnd, IDC_CHK_CFG_ART_SIM_VA);
+	bool bsim_va_as_ma = uButton_GetCheck(wnd, IDC_CHK_CFG_ART_SIM_VA_AS_MA);
 	if (bsim_va_as_ma) {
-		conf_ptr->find_release_dlg_flags |= CFindReleaseDialog::FLG_VARIOUS_AS_MULTI_ARTIST;
+		conf_ptr->find_release_dlg_flags |= CFindReleaseDialog::FLG_VA_AS_MA;
 	}
 	else {
-		conf_ptr->find_release_dlg_flags &= ~CFindReleaseDialog::FLG_VARIOUS_AS_MULTI_ARTIST;
+		conf_ptr->find_release_dlg_flags &= ~CFindReleaseDialog::FLG_VA_AS_MA;
 		g_clear_va_ma_releases();
 	}
 #else
-	//conf_ptr->find_release_dlg_flags &= ~CFindReleaseDialog::FLG_VARIOUS_AS_MULTI_ARTIST;
+	//conf_ptr->find_release_dlg_flags &= ~CFindReleaseDialog::FLG_VA_AS_MA;
 #endif
 }
 
@@ -887,7 +1210,7 @@ bool CConfigurationDialog::cfg_art_has_changed() {
 	bres |= conf.save_album_art != conf_edit.save_album_art;
 	bres |= conf.album_art_fetch_all != conf_edit.album_art_fetch_all;
 	bres |= conf.embed_album_art != conf_edit.embed_album_art;
-	
+
 	bcmp = stricmp_utf8(conf.album_art_directory_string, conf_edit.album_art_directory_string);
 	bres |= bcmp;
 	bcmp = stricmp_utf8(conf.album_art_filename_string, conf_edit.album_art_filename_string);
@@ -896,12 +1219,12 @@ bool CConfigurationDialog::cfg_art_has_changed() {
 	bres |= conf.album_art_overwrite != conf_edit.album_art_overwrite;
 	bres |= conf.save_artist_art != conf_edit.save_artist_art;
 	bres |= conf.artist_art_fetch_all != conf_edit.artist_art_fetch_all;
-
+	//todo: remove not impl
 	bcmp = stricmp_utf8(conf.artist_art_id_format_string, conf_edit.artist_art_id_format_string);
 	bres |= bcmp;
-	
+
 	bres |= conf.embed_artist_art != conf_edit.embed_artist_art;
-	
+
 	bcmp = stricmp_utf8(conf.artist_art_directory_string, conf_edit.artist_art_directory_string);
 	bres |= bcmp;
 
@@ -912,9 +1235,9 @@ bool CConfigurationDialog::cfg_art_has_changed() {
 
 	bres |= conf.album_art_skip_default_cust != conf_edit.album_art_skip_default_cust;
 #ifdef SIM_VA_MA_BETA
-	bool sim_va_as_ma = conf.find_release_dlg_flags & CFindReleaseDialog::FLG_VARIOUS_AS_MULTI_ARTIST;
-	bool sim_va_as_ma_edit = conf_edit.find_release_dlg_flags & CFindReleaseDialog::FLG_VARIOUS_AS_MULTI_ARTIST;
-	
+	bool sim_va_as_ma = conf.find_release_dlg_flags & CFindReleaseDialog::FLG_VA_AS_MA;
+	bool sim_va_as_ma_edit = conf_edit.find_release_dlg_flags & CFindReleaseDialog::FLG_VA_AS_MA;
+
 	bres |= (sim_va_as_ma != sim_va_as_ma_edit);
 #endif
 	return bres;
@@ -929,7 +1252,7 @@ void CConfigurationDialog::save_ui_dialog(HWND wnd, bool dlgbind) {
 
 	conf_ptr->history_enabled_max = MAKELPARAM(max_items, history_enabled ? 1 : 0);
 	conf_ptr->release_enter_key_override = uButton_GetCheck(wnd, IDC_CHK_RELEASE_ENTER_KEY_OVR);
-	
+
 	FlgMng fv_stats;
 	conf_ptr->GetFlagVar(CFG_FIND_RELEASE_DIALOG_FLAG, fv_stats);
 	bool val = fv_stats.SetFlag(wnd, IDC_CHK_FIND_RELEASE_STATS, CFindReleaseDialog::FLG_SHOW_RELEASE_TREE_STATS);
@@ -990,25 +1313,28 @@ bool CConfigurationDialog::cfg_oauth_has_changed() {
 void CConfigurationDialog::init_current_tab() {
 
 	if (g_hWndCurrentTab == g_hWndTabDialog[CONF_FIND_RELEASE_TAB]) {
-		init_searching_dialog(g_hWndTabDialog[CONF_FIND_RELEASE_TAB]);
+		init_searching_dialog(g_hWndTabDialog[CONF_FIND_RELEASE_TAB], false);
+	}
+	else if (g_hWndCurrentTab == g_hWndTabDialog[CONF_FIND_ADV_RELEASE_TAB]) {
+		init_searching_adv_dialog(g_hWndTabDialog[CONF_FIND_ADV_RELEASE_TAB], false);
 	}
 	else if (g_hWndCurrentTab == g_hWndTabDialog[CONF_MATCHING_TAB]) {
-		init_matching_dialog(g_hWndTabDialog[CONF_MATCHING_TAB]);
+		init_matching_dialog(g_hWndTabDialog[CONF_MATCHING_TAB], false);
 	}
 	else if (g_hWndCurrentTab == g_hWndTabDialog[CONF_TAGGING_TAB]) {
-		init_tagging_dialog(g_hWndTabDialog[CONF_TAGGING_TAB]);
+		init_tagging_dialog(g_hWndTabDialog[CONF_TAGGING_TAB], false);
 	}
 	else if (g_hWndCurrentTab == g_hWndTabDialog[CONF_CACHING_TAB]) {
-		init_caching_dialog(g_hWndTabDialog[CONF_CACHING_TAB]);
+		init_caching_dialog(g_hWndTabDialog[CONF_CACHING_TAB], false);
 	}
 	else if (g_hWndCurrentTab == g_hWndTabDialog[CONF_ART_TAB]) {
-		init_art_dialog(g_hWndTabDialog[CONF_ART_TAB]);
+		init_art_dialog(g_hWndTabDialog[CONF_ART_TAB], false);
 	}
 	else if (g_hWndCurrentTab == g_hWndTabDialog[CONF_UI_TAB]) {
-		init_ui_dialog(g_hWndTabDialog[CONF_UI_TAB]);
+		init_ui_dialog(g_hWndTabDialog[CONF_UI_TAB], false);
 	}
 	else if (g_hWndCurrentTab == g_hWndTabDialog[CONF_OATH_TAB]) {
-		init_oauth_dialog(g_hWndTabDialog[CONF_OATH_TAB]);
+		init_oauth_dialog(g_hWndTabDialog[CONF_OATH_TAB], false);
 	}
 }
 
@@ -1017,7 +1343,7 @@ INT_PTR WINAPI CConfigurationDialog::on_tagging_dialog_message(HWND wnd, UINT ms
 	switch (msg) {
 	case WM_INITDIALOG:
 		setting_dlg = true;
-		init_tagging_dialog(wnd);
+		init_tagging_dialog(wnd, true);
 		setting_dlg = false;
 		return TRUE;
 	case WM_COMMAND:
@@ -1078,7 +1404,7 @@ INT_PTR WINAPI CConfigurationDialog::on_caching_dialog_message(HWND wnd, UINT ms
 	switch (msg) {
 		case WM_INITDIALOG:
 			setting_dlg = true;
-			init_caching_dialog(wnd);
+			init_caching_dialog(wnd, true);
 			setting_dlg = false;
 			return TRUE;
 		case WM_COMMAND:
@@ -1136,11 +1462,29 @@ INT_PTR WINAPI CConfigurationDialog::on_searching_dialog_message(HWND wnd, UINT 
 	switch (msg) {
 		case WM_INITDIALOG:
 			setting_dlg = true;
-			init_searching_dialog(wnd);
+			init_searching_dialog(wnd, true);
 			setting_dlg = false;
 			return TRUE;
 		case WM_COMMAND: {
-			switch (wp) {
+
+			int idFrom = LOWORD(wp);
+			int cmd = HIWORD(wp);
+
+			switch (idFrom) {
+			case IDC_COMBO_REL_INIT_QUERY_TYPE:
+				if (!setting_dlg) {
+					int cmd = HIWORD(wp);
+					if (cmd == CBN_SELCHANGE) {
+						int s = ::uSendDlgItemMessage(wnd, IDC_COMBO_REL_INIT_QUERY_TYPE, CB_GETCURSEL, 0, 0);
+						if (s != CB_ERR) {
+							int data = ::uSendDlgItemMessage(wnd, IDC_COMBO_REL_INIT_QUERY_TYPE, CB_GETITEMDATA, s, 0);
+							conf_edit.on_init_query_def = data;
+						}
+						OnChanged();
+						break;
+					}
+				}
+				break;
 			case (IDC_BTN_CONF_LOAD_FORMATTING):
 				on_load_search_formatting(wnd);
 				break;
@@ -1154,6 +1498,65 @@ INT_PTR WINAPI CConfigurationDialog::on_searching_dialog_message(HWND wnd, UINT 
 			}
 			break;
 		}
+	}
+	return FALSE;
+}
+
+INT_PTR WINAPI CConfigurationDialog::searching_adv_dialog_proc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+
+	CConfigurationDialog* p_this;
+	if (msg == WM_INITDIALOG) {
+		p_this = (CConfigurationDialog*)(lParam);
+		::SetWindowLongPtr(hWnd, GWLP_USERDATA, (LPARAM)p_this);
+	}
+	else {
+		p_this = reinterpret_cast<CConfigurationDialog*>(::GetWindowLongPtr(hWnd, GWLP_USERDATA));
+	}
+	return p_this ? p_this->on_searching_adv_dialog_message(hWnd, msg, wParam, lParam) : FALSE;
+}
+
+INT_PTR WINAPI CConfigurationDialog::on_searching_adv_dialog_message(HWND wnd, UINT msg, WPARAM wp, LPARAM lp) {
+
+	switch (msg) {
+	case WM_INITDIALOG:
+		setting_dlg = true;
+		init_searching_adv_dialog(wnd, true);
+		setting_dlg = false;
+		return TRUE;
+	case WM_COMMAND: {
+
+		int idFrom = LOWORD(wp);
+		int cmd = HIWORD(wp);
+
+		switch (idFrom) {
+		case (IDC_BTN_CONF_LOAD_ADV_FORMATTING):
+			on_load_search_adv_formatting(wnd);
+			break;
+		case IDC_CMB_CONFIG_LIST_STYLE:
+			if (!setting_dlg) {
+				if (cmd == CBN_SELCHANGE) {
+					int s = ::uSendDlgItemMessage(wnd, IDC_CMB_CONFIG_LIST_STYLE, CB_GETCURSEL, 0, 0);
+					int data = ::uSendDlgItemMessage(wnd, IDC_CMB_CONFIG_LIST_STYLE, CB_GETITEMDATA, s, 0);
+					if (s != CB_ERR) {
+						conf_edit.list_style = s;
+					}
+					OnChanged();
+					break;
+				}
+			}
+			break;
+		default:
+			//MAX_ITEMS...
+			if (cmd == BN_CLICKED || cmd == EN_UPDATE) {
+				if (!setting_dlg) {
+					save_searching_adv_dialog(wnd, true);
+					OnChanged();
+				}
+			}
+			break;
+		}
+		break;
+	}
 	}
 	return FALSE;
 }
@@ -1176,17 +1579,28 @@ INT_PTR WINAPI CConfigurationDialog::on_matching_dialog_message(HWND wnd, UINT m
 	switch (msg) {
 		case WM_INITDIALOG:
 			setting_dlg = true;
-			init_matching_dialog(wnd);
+			init_matching_dialog(wnd, true);
 			setting_dlg = false;
 			return TRUE;
 		case WM_COMMAND: {
-			if ((HIWORD(wp) == BN_CLICKED) || (HIWORD(wp) == EN_UPDATE)) {
-				if (!setting_dlg) {
-					save_matching_dialog(wnd, true);
-					OnChanged();
+
+			int idFrom = LOWORD(wp);
+			int cmd = HIWORD(wp);
+
+			switch (idFrom) {
+			case (IDC_BTN_CONF_LOAD_MATCH_FORMATTING):
+				on_load_match_formatting(wnd);
+				break;
+			default:
+				if ((HIWORD(wp) == BN_CLICKED) || (HIWORD(wp) == EN_UPDATE)) {
+					if (!setting_dlg) {
+						save_matching_dialog(wnd, true);
+						OnChanged();
+					}
 				}
+				break;
 			}
-			break; 
+			break;
 		}
 	}
 	return FALSE;
@@ -1211,7 +1625,7 @@ INT_PTR WINAPI CConfigurationDialog::on_art_dialog_message(HWND wnd, UINT msg, W
 	switch (msg) {
 		case WM_INITDIALOG:
 			setting_dlg = true;
-			init_art_dialog(wnd);
+			init_art_dialog(wnd, true);
 			setting_dlg = false;
 			return TRUE;
 		case WM_COMMAND: {
@@ -1220,7 +1634,7 @@ INT_PTR WINAPI CConfigurationDialog::on_art_dialog_message(HWND wnd, UINT msg, W
 				  save_art_dialog(wnd, true);
 				  OnChanged();
 				}
-			}	
+			}
 			break;
 		}
 	}
@@ -1245,7 +1659,7 @@ INT_PTR WINAPI CConfigurationDialog::on_ui_dialog_message(HWND wnd, UINT msg, WP
 	switch (msg) {
 		case WM_INITDIALOG:
 			setting_dlg = true;
-			init_ui_dialog(wnd);
+			init_ui_dialog(wnd, true);
 			setting_dlg = false;
 			return TRUE;
 		case WM_COMMAND: {
@@ -1264,7 +1678,7 @@ INT_PTR WINAPI CConfigurationDialog::on_ui_dialog_message(HWND wnd, UINT msg, WP
 						completion_notify::ptr reply;
 						popup_message_v3::query_t query = { "Information",
 							PFC_string_formatter() << "Error(s)", popup_message::icon_error,
-							popup_message_v3::buttonOK,							
+							popup_message_v3::buttonOK,
 							popup_message_v3::iconQuestion,
 							reply
 						};
@@ -1320,7 +1734,7 @@ INT_PTR WINAPI CConfigurationDialog::on_oauth_dialog_message(HWND wnd, UINT msg,
 	switch (msg) {
 		case WM_INITDIALOG:
 			setting_dlg = true;
-			init_oauth_dialog(wnd);
+			init_oauth_dialog(wnd, true);
 			setting_dlg = false;
 			return TRUE;
 
@@ -1351,7 +1765,6 @@ INT_PTR WINAPI CConfigurationDialog::on_oauth_dialog_message(HWND wnd, UINT msg,
 	return FALSE;
 }
 
-
 void CConfigurationDialog::on_load_search_formatting(HWND wnd) {
 
 	CRect rcButton;
@@ -1362,15 +1775,15 @@ void CConfigurationDialog::on_load_search_formatting(HWND wnd) {
 	pt.x = rcButton.left;
 	pt.y = rcButton.bottom;
 
-	enum { MENU_1 = 1, MENU_2, MENU_3, MENU_4, MENU_5 };
+	enum { CMD_1 = 1, CMD_2, CMD_3, CMD_4, CMD_5, CMD_6 };
 	HMENU hSplitMenu = CreatePopupMenu();
 
-	AppendMenu(hSplitMenu, MF_STRING, MENU_1, L"Default &Release formatting");
-	AppendMenu(hSplitMenu, MF_STRING, MENU_2, L"Default &Master formatting");
-	AppendMenu(hSplitMenu, MF_STRING, MENU_3, L"Default Master &Sub-release formatting");
+	AppendMenu(hSplitMenu, MF_STRING, CMD_1, L"Default &Release formatting");
+	AppendMenu(hSplitMenu, MF_STRING, CMD_2, L"Default &Master formatting");
+	AppendMenu(hSplitMenu, MF_STRING, CMD_3, L"Default Master &Sub-release formatting");
 	AppendMenu(hSplitMenu, MF_SEPARATOR, 0, 0);
-	AppendMenu(hSplitMenu, MF_STRING, MENU_4, L"Default R&elease with artist role");
-	AppendMenu(hSplitMenu, MF_STRING, MENU_5, L"Default M&aster with artist role");
+	AppendMenu(hSplitMenu, MF_STRING, CMD_4, L"Default R&elease with artist role");
+	AppendMenu(hSplitMenu, MF_STRING, CMD_5, L"Default M&aster with artist role");
 
 	int cmd = TrackPopupMenu(hSplitMenu, TPM_LEFTALIGN | TPM_TOPALIGN | TPM_RETURNCMD, pt.x, pt.y, 0, m_hWnd, NULL);
 	DestroyMenu(hSplitMenu);
@@ -1383,27 +1796,31 @@ void CConfigurationDialog::on_load_search_formatting(HWND wnd) {
 
 	switch (cmd)
 	{
-	case MENU_1:
+	case CMD_1:
 		uid = IDC_EDIT_RELEASE_FORMATTING;
 		frm_string << tmpcfg.search_release_format_string;
 		break;
-	case MENU_2:
+	case CMD_2:
 		uid = IDC_EDIT_MASTER_FORMATTING;
 		frm_string << tmpcfg.search_master_format_string;
 		break;
-	case MENU_3:
+	case CMD_3:
 		uid = IDC_EDIT_MASTER_SUB_FORMATTING;
 		frm_string << tmpcfg.search_master_sub_format_string;
 		break;
 
-	case MENU_4:
+	case CMD_4:
 		uid = IDC_EDIT_RELEASE_FORMATTING;
-		frm_string << "[\'[\'%RELEASE_SEARCH_ROLES%\']\' ]$join($append(%RELEASE_TITLE%,%RELEASE_SEARCH_LABELS%,%RELEASE_SEARCH_MAJOR_FORMATS%,%RELEASE_SEARCH_FORMATS%,%RELEASE_YEAR%,%RELEASE_SEARCH_CATNOS%))";
+		frm_string << "[\'[\'%RELEASE_SEARCH_ROLES%\']\' ]" << tmpcfg.search_release_format_string;,[%RELEASE_QUERY_MAJOR_FORMATS_QTY%:]%RELEASE_SEARCH_MAJOR_FORMATS%,%RELEASE_SEARCH_FORMATS%,%RELEASE_YEAR%,%RELEASE_SEARCH_CATNOS%, [%RELEASE_COUNTRY%]))";
 		break;
-	case MENU_5:
+	case CMD_5: {
 		uid = IDC_EDIT_MASTER_FORMATTING;
-		frm_string << "\'[T]\' [\'[\'%MASTER_RELEASE_SEARCH_ROLES%\']\' ]$join($append(%MASTER_RELEASE_TITLE%,%MASTER_RELEASE_YEAR%))";
+		pfc::string8 buff(tmpcfg.search_master_format_string);
+		size_t dolpos = buff.find_first('$');
+		frm_string << "\'[T]\' [\'[\'%MASTER_RELEASE_SEARCH_ROLES%\']\' ]" << buff.subString(dolpos);
 		break;
+	}
+
 	defualt:
 		//quit
 		return;
@@ -1414,14 +1831,145 @@ void CConfigurationDialog::on_load_search_formatting(HWND wnd) {
 	OnChanged();
 
 }
+
+void CConfigurationDialog::on_load_search_adv_formatting(HWND wnd) {
+
+	CRect rcButton;
+	HWND hwndCtrl = ::GetDlgItem(wnd, IDC_BTN_CONF_LOAD_ADV_FORMATTING);
+	::GetWindowRect(hwndCtrl, rcButton);
+
+	POINT pt = {};
+	pt.x = rcButton.left;
+	pt.y = rcButton.bottom;
+
+	const LONG ui_ids[3] = { IDC_EDIT_VARIOUS_PREFIXES, IDC_EDIT_MULT_ART_LINKS, IDC_EDIT_REL_INIT_QUERY_TF };
+	const pfc::array_t<pfc::string8> rep_strs; 
+
+	CConf tmpcfg;
+	size_t i = 0;
+
+	pfc::string8 cmd_1_dlgstr = uGetDlgItemText(wnd, ui_ids[i++]);
+	pfc::string8 cmd_2_dlgstr = uGetDlgItemText(wnd, ui_ids[i++]);
+	pfc::string8 cmd_3_dlgstr = uGetDlgItemText(wnd, ui_ids[i++]);
+
+	pfc::string8 cmd_1_repstr = tmpcfg.various_prefixes;
+	pfc::string8 cmd_2_repstr = tmpcfg.multiple_artists_links;
+	pfc::string8 cmd_3_repstr = tmpcfg.on_init_query_tf;
+
+	enum { CMD_1 = 1, CMD_2, CMD_3/*, CMD_4, CMD_5, CMD_6*/ };
+	HMENU hSplitMenu = CreatePopupMenu();
+
+	AppendMenu(hSplitMenu, MF_STRING | (cmd_1_dlgstr.equals(cmd_1_repstr) ? MF_DISABLED | MF_GRAYED : 0), CMD_1, L"&Default Various artists prefixes");
+	AppendMenu(hSplitMenu, MF_STRING | (cmd_2_dlgstr.equals(cmd_2_repstr) ? MF_DISABLED | MF_GRAYED : 0), CMD_2, L"D&efault Multiple artists joins");
+	AppendMenu(hSplitMenu, MF_STRING | (cmd_3_dlgstr.equals(cmd_3_repstr) ? MF_DISABLED | MF_GRAYED : 0), CMD_3, L"De&fault Custom query format");
+
+	int cmd = TrackPopupMenu(hSplitMenu, TPM_LEFTALIGN | TPM_TOPALIGN | TPM_RETURNCMD, pt.x, pt.y, 0, m_hWnd, NULL);
+	DestroyMenu(hSplitMenu);
+
+	if (!cmd) return;
+
+	UINT uid = 0;
+	pfc::string8 frm_string = "";
+
+	switch (cmd)
+	{
+	case CMD_1:
+		uid = ui_ids[0];
+		frm_string << cmd_1_repstr;
+		break;
+	case CMD_2:
+		uid = ui_ids[1];
+		frm_string << cmd_2_repstr;
+		break;
+	case CMD_3:
+		uid = ui_ids[2];
+		frm_string << cmd_3_repstr;
+		break;
+	defualt:
+		//quit
+		return;
+	}
+
+	uSetDlgItemText(wnd, uid, frm_string);
+	save_searching_adv_dialog(g_hWndTabDialog[CONF_FIND_ADV_RELEASE_TAB], true);
+	OnChanged();
+
+}
+
+void CConfigurationDialog::on_load_match_formatting(HWND wnd) {
+
+	CRect rcButton;
+	HWND hwndCtrl = ::GetDlgItem(wnd, IDC_BTN_CONF_LOAD_MATCH_FORMATTING);
+	::GetWindowRect(hwndCtrl, rcButton);
+
+	POINT pt = {};
+	pt.x = rcButton.left;
+	pt.y = rcButton.bottom;
+
+	const LONG ui_ids[3] = { IDC_EDIT_DISCOGS_FORMATTING, IDC_EDIT_FILE_FORMATTING, IDC_EDIT_STATUS_BAR_FORMATTING };
+	const pfc::array_t<pfc::string8> rep_strs;
+
+	CConf tmpcfg;
+	size_t i = 0;
+
+	pfc::string8 cmd_1_dlgstr = uGetDlgItemText(wnd, ui_ids[i++]);
+	pfc::string8 cmd_2_dlgstr = uGetDlgItemText(wnd, ui_ids[i++]);
+	pfc::string8 cmd_3_dlgstr = uGetDlgItemText(wnd, ui_ids[i++]);
+	uSetDlgItemText(wnd, IDC_EDIT_DISCOGS_FORMATTING, conf.release_discogs_format_string);
+	uSetDlgItemText(wnd, IDC_EDIT_FILE_FORMATTING, conf.release_file_format_string);
+	uSetDlgItemText(wnd, IDC_EDIT_STATUS_BAR_FORMATTING, conf.release_status_bar_info_format_string);
+	pfc::string8 cmd_1_repstr = tmpcfg.release_discogs_format_string;
+	pfc::string8 cmd_2_repstr = tmpcfg.release_file_format_string;
+	pfc::string8 cmd_3_repstr = tmpcfg.release_status_bar_info_format_string;
+
+	enum { CMD_1 = 1, CMD_2, CMD_3/*, CMD_4, CMD_5, CMD_6*/ };
+	HMENU hSplitMenu = CreatePopupMenu();
+
+	AppendMenu(hSplitMenu, MF_STRING | (cmd_1_dlgstr.equals(cmd_1_repstr) ? MF_DISABLED | MF_GRAYED : 0), CMD_1, L"&Default Discogs track formatting string");
+	AppendMenu(hSplitMenu, MF_STRING | (cmd_2_dlgstr.equals(cmd_2_repstr) ? MF_DISABLED | MF_GRAYED : 0), CMD_2, L"D&efault File formatting string");
+	AppendMenu(hSplitMenu, MF_STRING | (cmd_3_dlgstr.equals(cmd_3_repstr) ? MF_DISABLED | MF_GRAYED : 0), CMD_3, L"De&fault Status bar release info");
+
+	int cmd = TrackPopupMenu(hSplitMenu, TPM_LEFTALIGN | TPM_TOPALIGN | TPM_RETURNCMD, pt.x, pt.y, 0, m_hWnd, NULL);
+	DestroyMenu(hSplitMenu);
+
+	if (!cmd) return;
+
+	UINT uid = 0;
+	pfc::string8 frm_string = "";
+
+	switch (cmd)
+	{
+	case CMD_1:
+		uid = ui_ids[0];
+		frm_string << cmd_1_repstr;
+		break;
+	case CMD_2:
+		uid = ui_ids[1];
+		frm_string << cmd_2_repstr;
+		break;
+	case CMD_3:
+		uid = ui_ids[2];
+		frm_string << cmd_3_repstr;
+		break;
+	defualt:
+		//quit
+		return;
+	}
+
+	uSetDlgItemText(wnd, uid, frm_string);
+	save_matching_dialog(g_hWndTabDialog[CONF_MATCHING_TAB], true);
+	OnChanged();
+
+}
+
 void CConfigurationDialog::on_delete_history(HWND wnd, size_t max, bool zap) {
 
 	if (g_discogs->find_release_dialog) {
 		g_discogs->find_release_dialog->get_oplogger()->zap_vhistory();
 	}
 
-	/* todo: service */
-	sqldb db;	
+	// todo: service
+	sqldb db;
 	size_t inc = db.recharge_history(kcmdHistoryDeleteAll, ~0, {});
 	db.close();
 }
@@ -1481,6 +2029,9 @@ bool CConfigurationDialog::HasChanged() {
 
 	if (g_hWndCurrentTab == g_hWndTabDialog[CONF_FIND_RELEASE_TAB]) {
 		bchanged = cfg_searching_has_changed();
+	}
+	else if (g_hWndCurrentTab == g_hWndTabDialog[CONF_FIND_ADV_RELEASE_TAB]) {
+		bchanged = cfg_searching_adv_has_changed();
 	}
 	else if (g_hWndCurrentTab == g_hWndTabDialog[CONF_MATCHING_TAB]) {
 		bchanged = cfg_matching_has_changed();
