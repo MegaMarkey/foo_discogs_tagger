@@ -95,11 +95,15 @@ extern inline void init_scroolbars(HWND wnd);
 extern inline bool enable_multiline_list_input(HWND wnd, CFontHandle font, const float col_width, const pfc::string8& str);
 
 struct nota_info {
-	bool is_number;
+	bool is_number = false;
 	size_t disk;	//zero based
 	size_t track;	//zero based
 	pfc::string8 discogs_track_number;
 };
+
+extern inline bool remove_continous_space(pfc::string8 in, pfc::string8& out);
+extern inline std::string any_case_substring(std::string s, std::string a, const std::string& b);
+
 
 extern pfc::string8 sanitize_track_semi_media(const pfc::string8& tracks);
 extern pfc::string8 sanitize_track_commas(const pfc::string8& tracks);

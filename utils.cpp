@@ -64,6 +64,52 @@ inline pfc::string EscapeWin(pfc::string8 keyWord) {
 	out_keyWord.replace_string("&", "&&");
 	return out_keyWord;
 }
+
+inline bool remove_continous_space(pfc::string8 in, pfc::string8& out) {
+
+	std::string tmpstr = in;
+	std::regex regex_v;
+	try {
+		regex_v = std::regex("\\s*[ ]\\s*");
+	}
+	catch (std::regex_error e) {
+		return false;
+	}
+
+	try {
+		tmpstr = std::regex_replace(tmpstr, regex_v, " ");
+	}
+	catch (std::regex_error e) {
+		return false;
+	}
+
+	out.set_string(tmpstr.c_str());
+	return tmpstr.length() != in.length();
+}
+
+std::string any_case_substring(std::string s, std::string a, const std::string& b)
+{
+	if (a.empty())
+		return s;
+
+	std::string res = s;
+	std::transform(s.begin(), s.end(), s.begin(), ::tolower);
+	std::transform(a.begin(), a.end(), a.begin(), ::tolower);
+
+	size_t pos = s.rfind(a);
+	while (pos != std::string::npos)
+	{
+		res.replace(res.begin() + pos, res.begin() + pos + a.length(), b);
+
+		if (pos == 0)
+			return res;
+
+		pos = s.rfind(a, pos - 1);
+	}
+
+	return res;
+}
+
 pfc::string8 sanitize_track_semi_media(const pfc::string8& tracks) {
 
 	pfc::string8 res;
