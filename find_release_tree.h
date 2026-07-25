@@ -2,10 +2,9 @@
 #include <atltypes.h>
 #include <windef.h>
 #include "resource.h"
-#include "libPPUI\clipboard.h"
 
-#include "discogs.h"
-#include "discogs_interface.h"
+#include "multiformat.h"
+
 
 #include "history_oplog.h"
 #include "find_release_utils.h"
@@ -18,7 +17,7 @@ enum FilterFlag {
 
 	Versions = 1 << 0,
 	RoleMain = 1 << 4,
-	
+	RoleMainAT = 1 << 5
 };
 
 class CFindReleaseDialog;
@@ -133,8 +132,8 @@ public:
 
 	// -- UPDRELSRC
 	//
-	
-	void on_get_artist_done(cupdRelSrc cupdsrc, Artist_ptr& artist);
+
+	void on_get_artist_done(cupdRelSrc cupdsrc, const Artist_ptr artist);
 	std::pair<rppair_t, rppair_t> update_releases(const pfc::string8& filter, updRelSrc updsrc, bool init_expand, bool brolemain_filter);
 
 	//
@@ -142,9 +141,6 @@ public:
 
 	LRESULT apply_filter(pfc::string8 strFilter, bool force_redraw, bool force_rebuild);
 
-	void set_selected_notifier(std::function<bool(int)>stdf_notifier) {
-		stdf_on_release_selected_notifier = stdf_notifier;
-	}
 	titleformat_hook_impl_multiformat_ptr get_hook() { return m_hook; }
 
 	const Artist_ptr Get_Artist();
@@ -213,6 +209,12 @@ private:
 	Artist_ptr get_find_release_artist() {
 		return m_find_release_artist;
 	}
+
+	//check for full or partial release loaded
+	bool find_release_artist_releases_available() {
+		return m_find_release_artist.get() && (m_find_release_artist->master_releases.get_count() || m_find_release_artist->releases.get_count());
+	}
+
 	//set artist releases
 	void set_find_release_artist(Artist_ptr find_release_artist_p/*, id_tracer idtracer*/) {
 		m_find_release_artist = find_release_artist_p;
@@ -221,10 +223,6 @@ private:
 	pfc::array_t<Artist_ptr> get_find_release_artists() {
 		return m_find_release_artists;
 	}
-	//artists releases
-	void set_find_release_artists(pfc::array_t<Artist_ptr> find_release_artists_p) {
-		m_find_release_artists = find_release_artists_p;
-	}
 	//..
 
 	void init_titles(Artist_ptr artist, pfc::string8 & out_hint);
@@ -232,11 +230,12 @@ private:
 	pfc::string8 get_edit_filter_string() { return uGetWindowText(m_edit_filter); }
 
 	void init_tracker_i(Artist_ptr artist, pfc::string8 filter_master, pfc::string8 filter_release, bool expanded, bool fast);
-	
+
 	void rebuild_treeview();
 	void context_menu(size_t param_mr, POINT screen_pos);
 
-	LRESULT OnReleaseTreeGetInfo(WORD /*wNotifyCode*/, LPNMHDR hdr, BOOL& /*bHandled*/);
+	LRESULT OnReleaseTreeGetInfo(WORD, LPNMHDR hdr, BOOL&);
+	LRESULT OnReleaseTreeGetInfoTip(WORD, LPNMHDR hdr, BOOL& bHandled);
 	LRESULT OnReleaseTreeExpanding(int, LPNMHDR hdr, BOOL&);
 	LRESULT OnReleaseTreeSelChanged(int, LPNMHDR hdr, BOOL& bHandled);
 	LRESULT OnReleaseTreeDoubleClickRelease(int, LPNMHDR hdr, BOOL&);
@@ -259,20 +258,19 @@ private:
 	HTREEITEM m_hit = NULL;
 
 	CImageList m_hImageList;
-	HICON hiconItem;
 
 	Artist_ptr m_find_release_artist;
 	pfc::array_t<Artist_ptr> m_find_release_artists;
 
+	QueryDefMap m_current_qdm;
+
 	bool m_dispinfo_enabled;
+
 	size_t m_post_selection_param;
 
 	pfc::string8 m_results_filter;
 	pfc::string8 m_init_master_title;
 	pfc::string8 m_init_release_title;
-
-	std::function<bool(int lparam)>stdf_on_release_selected_notifier;
-	std::function<bool()>stdf_on_ok_notifier;
 
 	pfc::string8 get_param_id(mounted_param myparam);
 	int get_param_id_master(mounted_param myparam);
@@ -284,7 +282,7 @@ private:
 
 	metadb_handle_list m_items;
 
-	playable_location_impl location;
+	playable_location_impl m_location;
 	file_info_impl* m_info_p;
 	titleformat_hook_impl_multiformat_ptr m_hook;
 

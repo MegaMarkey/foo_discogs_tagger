@@ -1,5 +1,8 @@
 #include "stdafx.h"
 
+#include "libPPUI\clipboard.h"
+
+#include "discogs_interface.h"
 #include "find_release_dialog.h"
 #include "find_artist_list.h"
 
@@ -18,15 +21,32 @@ size_t CArtistList::get_next_role_pos() {
 	return ++m_last_role_pos;
 }
 
-void CArtistList::on_get_artist_done(cupdRelSrc updsrc, Artist_ptr& artist) {
+void CArtistList::on_get_artist_done(cupdRelSrc updsrc, const Artist_ptr artist) {
 
-	if (updsrc == updRelSrc::Undef || updsrc == updRelSrc::UndefFast) {
+	if (CONF.awt_get_alt_mode()) {
+		return;
+	}
+
+	if (updsrc == updRelSrc::Undef || updsrc == updRelSrc::UndefFast || updsrc == updRelSrc::ArtistSearchAT) {
 
 		//from on init
 
 		m_find_release_artist = artist;
 		m_artist_exact_matches.force_reset();
 		m_artist_other_matches.force_reset();
+
+		if (updsrc == updRelSrc::ArtistSearchAT) {
+
+			CFindReleaseDialog* dlg = static_cast<CFindReleaseDialog*>(m_host);
+			rppair rpempty;
+			dlg->print_root_stats(rpempty, false);
+
+			fb2k::inMainThread([dlg, rpempty] {
+				dlg->print_root_stats(rpempty, false);
+				});
+
+		}
+
 		set_artists(true, false, artist, m_artist_exact_matches, m_artist_other_matches);
 		return;
 	}
@@ -95,16 +115,16 @@ void CArtistList::fill_artist_list(bool dlgexact, bool force_exact, updRelSrc up
 		switch_exact_matches(dlgexact, false);
 	}
 
-	else if (updsrc == updRelSrc::Undef || updsrc == updRelSrc::UndefFast) {
+	else if (updsrc == updRelSrc::Undef || updsrc == updRelSrc::UndefFast ) {
 
 		//  ON INIT DIALOG
 
-		if (!get_size()) {
+		if (!get_size() || updsrc == updRelSrc::ArtistSearchAT) {
 
 			set_artists(true, false, m_find_release_artist, m_artist_exact_matches, m_artist_other_matches);
 		}
 	}
-	else if (updsrc == updRelSrc::ArtistList || updsrc != updRelSrc::ArtistProfile) {
+	else if (updsrc == updRelSrc::ArtistList || updsrc == updRelSrc::ArtistSearchAT || updsrc != updRelSrc::ArtistProfile ) {
 
 		// ARTIST LIST AND .ANY NON-ARTIST PROFILE. ?
 
@@ -121,23 +141,36 @@ void CArtistList::fill_artist_list(bool dlgexact, bool force_exact, updRelSrc up
 			}
 		}
 
-		t_size pos = GetFirstSelected();
+		t_size pos = ~0;
+		if (updsrc == updRelSrc::ArtistSearchAT) {
+			if (Get_Artists().get_count()) {
+				pos = 0;
+			}
+		}
+		else {
+			pos = GetFirstSelected();
+		}
 
 		// * CHANGE CURRENT ARTIST
 
-		m_find_release_artist = Get_Artists()[pos];
+		if (pos != SIZE_MAX && Get_Artists().get_count() > pos) {
+			m_find_release_artist = Get_Artists()[pos];
+			m_idtracer_p->artist_check(m_find_release_artist->id, 0);
+		}
+		else {
+			m_idtracer_p->artist_check(0, 0);
+		}
 
 		//..
 		//refresh lv images
 
 		ListView_RedrawItems(this->m_hWnd, pos, pos);
-		
+
 		if (prev_list_pos != ~0 && prev_list_pos != pos) {
-			
+
 			//refresh prev item
 			ListView_RedrawItems(this->m_hWnd, prev_list_pos, prev_list_pos);
 		}
-		m_idtracer_p->artist_check(m_find_release_artist->id, 0);
 	}
 }
 
@@ -179,7 +212,9 @@ void CArtistList::switch_find_releases(size_t op, bool append) {
 		m_find_release_artists = m_artist_exact_matches;
 		break;
 	case 1:
-		m_artist_exact_matches.add_item(m_find_release_artist);
+		if (m_find_release_artist) {
+			m_artist_exact_matches.add_item(m_find_release_artist);
+		}
 		m_find_release_artists = m_artist_exact_matches;
 		break;
 	case 2:
@@ -213,10 +248,11 @@ void CArtistList::switch_find_releases(size_t op, bool append) {
 
 	auto citems = get_size();
 	bool bskip_idded_release_dlg = CONF.skip_mng_flag & SkipMng::RELEASE_DLG_IDED;
-	if (!bskip_idded_release_dlg || (bskip_idded_release_dlg && !m_idtracer_p->has_release()) && !append == true && ((CONF.enable_autosearch && op == 3) ||
-		(CONF.auto_rel_load_on_open && op == 1 && citems == 1) ||
-		(CONF.auto_rel_load_on_open && op == 3) ||
-		(op == 0 && citems == 1 && append == false)))
+	if (!bskip_idded_release_dlg
+		|| (bskip_idded_release_dlg && !m_idtracer_p->has_release()) && !append == true && ((CONF.enable_autosearch && op == 3)
+		|| (CONF.auto_rel_load_on_open && op == 1 && citems == 1)
+		|| (CONF.auto_rel_load_on_open && op == 3)
+		|| (op == 0 && citems == 1 && append == false)))
 	{
 		SetSelectionAt(0, true);
 	}
@@ -368,6 +404,12 @@ void CArtistList::Default_Action() {
 	// * CONVEY ARTIST-LIST
 
 	CFindReleaseDialog* dlg = static_cast<CFindReleaseDialog*>(m_host);
+
+	if (!artist->loaded_releases && (artist->search_order_master.get_count() || artist->releases.get_count())) {
+		dlg->ShowArtistSearchResults(artist);
+		return;
+	}
+
 	cupdRelSrc upd(updRelSrc::ArtistList);
 	upd.extended = true;
 	dlg->convey_artist_list_selection(upd);
@@ -451,7 +493,7 @@ void CArtistList::context_menu(size_t list_index, POINT screen_pos) {
 
 			bool bexact_matches = ::IsDlgButtonChecked(dlg->m_hWnd, IDC_CHK_ONLY_EXACT_MATCHES);
 
-			uAppendMenu(menu, MF_STRING | (!artist ? MF_DISABLED | MF_GRAYED : 0), ID_CMD_LOAD_RELEASES, "&Load artist releases");
+			uAppendMenu(menu, MF_STRING | (!artist ? MF_DISABLED | MF_GRAYED : 0), ID_CMD_LOAD_RELEASES, dlg->m_query_mode& SearchMode::AT ? "L&oad releases (partial)" : "&Load releases");
 			uAppendMenu(menu, MF_SEPARATOR, 0, 0);
 			uAppendMenu(menu, MF_STRING | (!artist ? MF_DISABLED | MF_GRAYED : 0), ID_CLP_COPY_ROW, copyrow);
 			uAppendMenu(menu, MF_SEPARATOR, 0, 0);
@@ -499,7 +541,9 @@ void CArtistList::context_menu(size_t list_index, POINT screen_pos) {
 		}
 		case ID_ARTIST_DEL_CACHE:
 		{
-			discogs_interface->delete_artist_cache(artist->id);
+			if (discogs_interface->delete_artist_cache(artist->id)) {
+				artist->loaded_releases_offline = false;
+			}
 			break;
 		}
 		case ID_ARTIST_EXACT_MATCHES: {

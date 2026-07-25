@@ -17,14 +17,14 @@ public:
 
 	// serves dlg->expand_master_release, convey
 	const Artist_ptr Get_Artist() { return m_find_release_artist; }
-	pfc::array_t<Artist_ptr> Get_Artists() { return m_find_release_artists;	}
+	pfc::array_t<Artist_ptr> Get_Artists() const { return m_find_release_artists; }
 	const pfc::string8 Get_Selected_Id () { auto p = get_selected_artist(); return p ? p->id : ""; }
 
 	// serves dlg
 	void ShowArtistProfile();
 
 	// updrelsrc
-	void on_get_artist_done(cupdRelSrc updsrc, Artist_ptr& artist);
+	void on_get_artist_done(cupdRelSrc updsrc, const Artist_ptr artist);
 	void fill_artist_list(bool dlgexcact, bool force_exact, updRelSrc updsrc);
 
 	size_t get_artist_id(size_t pos);
@@ -49,8 +49,6 @@ public:
 
 		AddColumnEx("Artist", colw, LVCFMT_LEFT, true);
 
-		if (CONF.awt_get_alt_mode())
-			::EnableWindow(m_hWnd, FALSE);
 	}
 
 	// (nVKReturn)
@@ -100,9 +98,6 @@ private:
 
 	pfc::array_t<Artist_ptr> m_artist_exact_matches;
 	pfc::array_t<Artist_ptr> m_artist_other_matches;
-
-	std::function<bool(int lparam)>stdf_on_artist_selected_notifier;
-	std::function<bool()>stdf_on_ok_notifier;
 
 	size_t m_last_role_pos = 0;
 	CImageList m_hImageList;

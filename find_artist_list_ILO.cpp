@@ -34,19 +34,21 @@ void ILOD_artist_list::listItemAction(ctx_t, size_t) {
 
 void ILOD_artist_list::listSelChanged(ctx_t) {
 
-	bool bva = false;
-
-	if (get_uilist()->Get_Artists().get_count() == 1) {
-		auto artist = get_uilist()->Get_Artists()[0];
-		if (artist->id.equals("194")/*various artists*/) {
-			get_uilist()->Default_Action();
-			return;
-		}
+	if (!get_uilist()->GetSelectedCount()) {
+		return;
 	}
 
 	cupdRelSrc in_cupdsrc(updRelSrc::ArtistProfile);
-	in_cupdsrc.extended = (ol::full_cache() && CONF.auto_rel_load_on_select);
+
+	in_cupdsrc.extended = CONF.auto_load_releases_on_select_ready();
 
 	auto dlg = dynamic_cast<CFindReleaseDialog*>(this);
+
+	if (CONF.auto_load_releases_on_select_ready()) {
+
+		if (search_query::IsRunnable(dlg->m_search_expression)) {
+			dlg->m_query_mode |= SearchMode::AT;
+		}
+	}
 	dlg->convey_artist_list_selection(in_cupdsrc);
 }

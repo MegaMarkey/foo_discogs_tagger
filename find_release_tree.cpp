@@ -1,7 +1,10 @@
 #include "stdafx.h"
+
+#include "libPPUI\clipboard.h"
+
+#include "discogs_interface.h"
 #include "foo_discogs.h"
 #include "multiformat.h"
-#include "db_fetcher_component.h"
 
 #include "find_release_utils.h"
 #include "find_release_dialog.h"
@@ -13,6 +16,7 @@ const size_t CHILDREN_DONE_IMG_NDX = 6;
 const size_t TRACER_CHILDREN_DONE_IMG_NDX = 7;
 
 //
+namespace fs = std::filesystem;
 
 pfc::string8 CFindReleaseTree::run_hook_columns(row_col_data& row_data, int item_data) {
 
@@ -23,21 +27,21 @@ pfc::string8 CFindReleaseTree::run_hook_columns(row_col_data& row_data, int item
 	row_data.col_data_list.clear();
 
 	if (myparam.is_master()) {
-		CONF.search_master_format_string->run_hook(location, m_info_p, m_hook.get(), search_formatted, nullptr);
+		CONF.search_master_format_string->run_hook(m_location, m_info_p, m_hook.get(), search_formatted, nullptr);
 
 		id << m_find_release_artist->master_releases[myparam.master_ndx]->id;
 	}
 	else {
 
 		if (myparam.is_release()) {
-			CONF.search_master_sub_format_string->run_hook(location, m_info_p, m_hook.get(), search_formatted, nullptr);
+			CONF.search_master_sub_format_string->run_hook(m_location, m_info_p, m_hook.get(), search_formatted, nullptr);
 			pfc::string8 main_release_id = m_find_release_artist->master_releases[myparam.master_ndx]->main_release->id;
 			pfc::string8 this_release_id = m_find_release_artist->master_releases[myparam.master_ndx]->sub_releases[myparam.release_ndx]->id;
 			id << this_release_id;
 		}
 		else
 		{
-			CONF.search_release_format_string->run_hook(location, m_info_p, m_hook.get(), search_formatted, nullptr);
+			CONF.search_release_format_string->run_hook(m_location, m_info_p, m_hook.get(), search_formatted, nullptr);
 			id << m_find_release_artist->releases[myparam.release_ndx]->id;
 		}
 	}
@@ -54,7 +58,6 @@ void CFindReleaseTree::rebuild_treeview() {
 	std::shared_ptr<vec_t>& priv_vec = m_rt_cache.get_vec_ref();
 	for (auto& walk : *priv_vec)
 	{
-
 		TVINSERTSTRUCT tvis = { 0 };
 
 		tvis.item.mask = TVIF_TEXT | TVIF_IMAGE | TVIF_SELECTEDIMAGE | TVIF_CHILDREN | TVIF_PARAM | TVIF_STATE;
@@ -125,6 +128,33 @@ bool check_match(pfc::string8 str, pfc::string8 filter, pfc::array_t<pfc::string
 
 //
 
+void fake_hook_undefined_release(Release_ptr r, pfc::string8 &out) {
+
+	out << r->title;
+	out << ", " << pfc::format_array(r->search_major_formats);
+	out << ", " << r->search_formats;
+	out << ", " << r->search_labels;
+
+	if (r->search_catno.get_length())
+		out << ", " << r->search_catno;
+	if (r->barcode.get_length())
+		out << ", " << r->barcode;
+	if (r->country.get_length())
+		out << ", " << r->country;
+	if (r->release_year.get_length())
+		out << ", " << r->release_year;
+
+}
+
+void fake_hook_undefined_master(MasterRelease_ptr mr, pfc::string8& out) {
+
+	out << mr->title;
+
+	if (mr->release_year.get_length())
+		out << ", " << mr->release_year;
+
+}
+
 std::pair<rppair_t, rppair_t> release_tree_cache::update_releases(const pfc::string8& filter, updRelSrc updsrc, bool init_expand, id_tracer* tracer_p, bool brolemain_filter) {
 
 	std::pair<size_t, size_t> vec_lv_reserve_slow;
@@ -149,7 +179,7 @@ std::pair<rppair_t, rppair_t> release_tree_cache::update_releases(const pfc::str
 	if (delete_on_enter) {
 
 		//CALC CACHE - FILTERED
-		rppair_t r = init_filter(find_release_artist, filter, true, false, true,tracer_p);
+		rppair_t r = init_filter(find_release_artist, filter, brolemain_filter, true, false, true,tracer_p);
 		vec_lv_reserve_slow = r.first;
 		master_rel_stat_slow = r.second;
 		//CLEAR AND RESERVE NEW REF CACHE
@@ -184,7 +214,7 @@ std::pair<rppair_t, rppair_t> release_tree_cache::update_releases(const pfc::str
 	if (rebuild_tree_cache) {
 
 		//CALC CACHE - NOT FILTERED
-		reserve = init_filter(find_release_artist, "", true, true, true, tracer_p);
+		reserve = init_filter(find_release_artist, "", brolemain_filter, true, true, true, tracer_p);
 		vec_lv_reserve_fast = reserve.first;
 		master_rel_stat_fast = reserve.second;
 		m_cache_ptr->cache.reserve(find_release_artist->search_order_master.get_count());
@@ -208,10 +238,28 @@ std::pair<rppair_t, rppair_t> release_tree_cache::update_releases(const pfc::str
 				str_role = std::string(find_release_artist->master_releases[master_index]->search_role);
 				mounted_param thisparam(master_index, ~0, true, false);
 				item_data = thisparam.lparam();
+
 				if (updsrc != updRelSrc::Filter)
 				{
-					hook->set_master(&(find_release_artist->master_releases[master_index]));
-					item = m_rt_manager->run_hook_columns(row_data, item_data);
+
+					if (search_query::is_undefined_artist(find_release_artist->id, true)) {
+						mounted_param myparam((LPARAM)item_data);
+
+						pfc::string8 search_formatted;
+						fake_hook_undefined_master(find_release_artist->master_releases[master_index], search_formatted);
+
+						pfc::string8 id = find_release_artist->master_releases[master_index]->id;
+
+						row_data.col_data_list.clear();
+						row_data.col_data_list.emplace_back(std::make_pair(0, search_formatted));
+						row_data.id = atoi(id);
+
+						item = search_formatted;
+					}
+					else {
+						hook->set_master(&(find_release_artist->master_releases[master_index]));
+						item = m_rt_manager->run_hook_columns(row_data, item_data);
+					}
 				}
 				else
 					get_cached_find_release_node(item_data, item, row_data);
@@ -225,8 +273,30 @@ std::pair<rppair_t, rppair_t> release_tree_cache::update_releases(const pfc::str
 				item_data = thisparam.lparam();
 				if (updsrc != updRelSrc::Filter)
 				{
-					hook->set_release(&(find_release_artist->releases[release_index]));
-					item = m_rt_manager->run_hook_columns(row_data, item_data);
+
+					if (search_query::is_undefined_artist(find_release_artist->id, false)) {
+
+
+						mounted_param myparam((LPARAM)item_data);
+						pfc::string8 search_formatted;
+
+						fake_hook_undefined_release(find_release_artist->releases[release_index], search_formatted);
+
+						pfc::string8 id = find_release_artist->releases[release_index]->id;
+
+						row_data.col_data_list.clear();
+						row_data.col_data_list.emplace_back(std::make_pair(0/*walk_cfg.icol*/, search_formatted));
+						row_data.id = atoi(id);
+
+						item = search_formatted;
+
+					}
+					else {
+
+						hook->set_release(&(find_release_artist->releases[release_index]));
+						item = m_rt_manager->run_hook_columns(row_data, item_data);
+					}
+
 				}
 				else
 					get_cached_find_release_node(item_data, item, row_data);
@@ -321,9 +391,30 @@ std::pair<rppair_t, rppair_t> release_tree_cache::update_releases(const pfc::str
 					pfc::string8 sub_item;
 					if (updsrc != updRelSrc::Filter)
 					{
-						//set hook release
-						hook->set_release(&(find_release_artist->master_releases[master_index]->sub_releases[j]));
-						sub_item = m_rt_manager->run_hook_columns(row_data, item_data);
+
+						if (search_query::is_undefined_artist(find_release_artist->id, true)) {
+
+							mounted_param myparam((LPARAM)item_data);
+
+							pfc::string8 search_formatted;
+
+							fake_hook_undefined_release(find_release_artist->master_releases[master_index]->sub_releases[j], search_formatted);
+
+							pfc::string8 id = find_release_artist->master_releases[master_index]->sub_releases[j]->id;
+
+							row_data.col_data_list.clear();
+							row_data.col_data_list.emplace_back(std::make_pair(0/*walk_cfg.icol*/, search_formatted));
+							row_data.id = atoi(id);
+
+							item = search_formatted;
+
+						}
+						else {
+
+							//set hook release
+							hook->set_release(&(find_release_artist->master_releases[master_index]->sub_releases[j]));
+							sub_item = m_rt_manager->run_hook_columns(row_data, item_data);
+						}
 					}
 					else
 						get_cached_find_release_node(item_data, sub_item, row_data);
@@ -446,8 +537,6 @@ std::pair<rppair_t, rppair_t> release_tree_cache::update_releases(const pfc::str
 // from get_artist_done() and apply_filter()
 
 std::pair<rppair_t, rppair_t> CFindReleaseTree::update_releases(const pfc::string8& filter, updRelSrc updsrc, bool init_expand, bool brolemain_filter) {
-	
-	EnableDispInfo(false);
 
 	std::pair<rppair_t, rppair_t> res;
 
@@ -461,25 +550,15 @@ std::pair<rppair_t, rppair_t> CFindReleaseTree::update_releases(const pfc::strin
 
 		res = m_rt_cache.update_releases(filter, updsrc, init_expand, m_idtracer_p, brolemain_filter);
 
-		Artist_ptr artist = get_artist();
-
-		rppair rp = rppair(std::pair(std::to_string(res.second.first.first).c_str(), std::to_string(res.second.first.second).c_str()),
-			std::pair(artist->name, artist->id));
-
-		// print root stats
-		if (artist->loaded_releases)
-			m_dlg->print_root_stats(rp);
-
 	}
 	catch (foo_discogs_exception& e) {
-		EnableDispInfo(true);
+
 		foo_discogs_exception ex;
 		ex << "Error formating release list item [" << e.what() << "]";
 		throw ex;
 	}
 
 	rebuild_treeview();
-	EnableDispInfo(true);
 
 	return res;
 }
@@ -620,10 +699,47 @@ void CFindReleaseTree::init_titles(Artist_ptr artist, pfc::string8 & filter_hint
 
 	filter_hint = filter;
 }
-void CFindReleaseTree::on_get_artist_done(cupdRelSrc cupdsrc, Artist_ptr& artist) {
 
-	if (m_find_release_artist.get() && atoi(m_find_release_artist->id) == atoi(artist->id)) {
+void CFindReleaseTree::on_get_artist_done(cupdRelSrc cupdsrc, const Artist_ptr artist) {
+
+	if (CONF.awt_get_alt_mode()) {
 		return;
+	}
+
+	size_t artist_id = artist ? atoi(artist->id) : ~0;
+	size_t frartist_id = m_find_release_artist ? atoi(m_find_release_artist->id) : ~0;
+
+	bool b_same_id = artist_id == frartist_id;
+	bool b_same_artist_instance = m_find_release_artist.get() == artist.get();
+
+	FieldValPair fvp_curr_qdm;
+	FieldValPair fvp_new_qdm;
+
+	bool b_same_qdm = false;
+	bool b_qdm_skip = false;
+	bool b_no_qdm_skip = false;
+
+	search_query::MapToText(m_current_qdm,fvp_curr_qdm, false);
+	search_query::MapToText(m_dlg->m_qdm_search_query,fvp_new_qdm, false);
+
+	b_same_qdm = !fvp_curr_qdm.first.compare(fvp_new_qdm.first);
+	b_qdm_skip = m_current_qdm.size() && Get_Size() && m_find_release_artist.get() && m_find_release_artist.get()->releases.get_count() && b_same_qdm;
+	b_qdm_skip &= b_same_id;
+
+	b_no_qdm_skip = Get_Size() && m_find_release_artist.get() && m_find_release_artist.get()->loaded_releases && b_same_id;
+
+	bool bskip = m_dlg->m_qdm_search_query.size() ? b_qdm_skip : b_no_qdm_skip;
+	bskip |= b_same_artist_instance;
+
+	if (bskip) {
+		//Still same 194 ?
+		bool check_same_various = true;
+		if (artist.get() && atoi(m_find_release_artist->id) == 194) {
+			check_same_various = b_same_artist_instance;
+		}
+		if (check_same_various) {
+			return;
+		}
 	}
 
 	if (cupdsrc == updRelSrc::ArtistProfile && !cupdsrc.extended) {
@@ -635,19 +751,40 @@ void CFindReleaseTree::on_get_artist_done(cupdRelSrc cupdsrc, Artist_ptr& artist
 		return;
 	}
 
-	m_rt_cache.vec_Clear();
-	m_rt_cache.bulk_Clear();
-	m_rt_cache.new_Version();
-	
-	m_idtracer_p->set_artist_ovr_id(atoi(artist->id));
+	m_current_qdm = m_dlg->m_qdm_search_query;
+
+	{
+		try {
+			std::lock_guard<std::mutex> guard(g_discogs->tree_locked_mutex);
+
+			m_rt_cache.vec_Clear();
+			m_rt_cache.bulk_Clear();
+			m_rt_cache.new_Version();
+
+		}
+		catch (...) {
+			pfc::string8 kk;
+			kk = kk;
+			return;
+		}
+	}
+
+	if (artist) {
+		m_idtracer_p->set_artist_ovr_id(atoi(artist->id));
+	}
+	else {
+		m_idtracer_p->set_artist_ovr_id(~0);
+	}
 
 	g_discogs->find_release_dialog->UpdateArtistProfile(artist);
+
+	set_find_release_artist(artist);
+
 	// INIT HOOK
 	pfc::string8 hint;
 	init_titles(artist, hint);
 	//
-	
-	if (m_dlg->is_filter_autofill_enabled() && artist.get()/*get_artist()*/) {
+	if (m_dlg->is_filter_autofill_enabled() && artist.get()) {
 
 		m_results_filter.set_string(hint);
 
@@ -673,15 +810,14 @@ void CFindReleaseTree::on_get_artist_done(cupdRelSrc cupdsrc, Artist_ptr& artist
 		}
 	}
 
-	set_find_release_artist(artist);
-	
 	//filter string...
 	if (m_idtracer_p->has_amr()) {
 
 		init_tracker_i(artist, m_results_filter, m_results_filter, false, true);
 	}
 
-	bool brolemain_filter = m_dlg->config().find_release_filter_flag & FilterFlag::RoleMain;
+	bool rolemainAT = m_dlg->m_query_mode & SearchMode::AT || m_dlg->m_query_mode & SearchMode::VA;  //m_dlg->config().find_release_dlg_flags & FilterFlag::RoleMainAT;
+	bool brolemain_filter = !rolemainAT &&  (m_dlg->config().find_release_filter_flag & FilterFlag::RoleMain);
 
 	//
 
@@ -689,21 +825,83 @@ void CFindReleaseTree::on_get_artist_done(cupdRelSrc cupdsrc, Artist_ptr& artist
 
 	//
 
-	std::pair<rppair_t, rppair_t>  res = update_releases(m_results_filter, cupdsrc, true, brolemain_filter);
+	std::pair<rppair_t, rppair_t>  res = {};
+
+	{
+		try {
+			std::lock_guard<std::mutex> guard(g_discogs->tree_locked_mutex);
+			bool bak_disp_info = m_dispinfo_enabled;
+			if (!m_dlg->config().auto_load_releases_on_select_ready()) {
+				m_dispinfo_enabled = false;
+			}
+
+				if (m_results_filter.get_length() && cupdsrc == updRelSrc::ArtistProfile/* && init_expand*/) {
+
+					res = update_releases(m_results_filter, cupdsrc, false, brolemain_filter);
+
+					//moved from another artist with an active filter
+					//TODO!
+					abort_callback_dummy dummy_abort;
+					fake_threaded_process_status fake_ps_status;
+					apply_filter(m_results_filter, brolemain_filter, true, true, fake_ps_status, dummy_abort);
+				}
+				else {
+					res = update_releases(m_results_filter, cupdsrc, true, brolemain_filter);
+				}
+
+				if (!m_dlg->config().auto_load_releases_on_select_ready()) {
+					m_dispinfo_enabled = bak_disp_info;
+				}
+
+		}
+		catch (...) {
+			return;
+		}
+	}
+
+	std::pair<pfc::string8, pfc::string8> pair_name_id = std::pair("", "");
+	if (artist) {
+		pair_name_id = std::pair(artist->name, artist->id);
+		if (!artist->loaded_releases) {
+			bool bpartial = cupdsrc == updRelSrc::ArtistSearchAT || (artist->master_releases.get_count() || artist->releases.get_count());
+			pair_name_id.first << (bpartial ? " (partial)" : "");
+		}
+	}
+
+	auto ut = [res, pair_name_id] {
+		try {
+			g_discogs->find_release_dialog->InvalidateSearchDisplay(true);
+
+			rppair rp = rppair(std::pair(std::to_string(res.second.first.first).c_str(), std::to_string(res.second.first.second).c_str()),
+				pair_name_id);
+			g_discogs->find_release_dialog->print_root_stats(rp);
+		}
+		catch (...) {}
+	};
+
+	fb2k::inMainThread(ut);
 
 }
 
-
 const foo_conf* release_tree_cache::get_conf() { return &m_rt_manager->m_dlg->config(); }
 
-rppair_t release_tree_cache::init_filter(const Artist_ptr artist, pfc::string8 filter, bool expanded, bool fast, bool no_alloc, id_tracer* tracer_p) {
+rppair_t release_tree_cache::init_filter(const Artist_ptr artist, pfc::string8 filter, bool brolemain_filter, bool expanded, bool fast, bool no_alloc, id_tracer* tracer_p) {
+
+	int pos = -1;
+	int master_ndx = 0;
+	int release_ndx = 0;
+	bool master_done = false;
+	bool release_done = false;
+	std::pair<t_size, t_size> reserve = std::pair(0, 0);
+
+	if (!artist) {
+		return rppair_t(reserve, { master_ndx, release_ndx });
+	}
 
 	titleformat_hook_impl_multiformat_ptr hook = m_rt_manager->get_hook();
 
 	bool bversions_filter = get_conf()->find_release_filter_flag & FilterFlag::Versions;
-	bool brolemain_filter = get_conf()->find_release_filter_flag & FilterFlag::RoleMain;
 
-	std::pair<t_size, t_size> reserve = std::pair(0, 0);
 	if (no_alloc) {
 		fast = false; expanded = true;
 	}
@@ -713,11 +911,6 @@ rppair_t release_tree_cache::init_filter(const Artist_ptr artist, pfc::string8 f
 	pfc::array_t<pfc::string> lcf_words;
 	bool filtered = filter.get_length() && tokenize_filter(filter, lcf_words);
 
-	int pos = -1;
-	int master_ndx = 0;
-	int release_ndx = 0;
-	bool master_done = false;
-	bool release_done = false;
 
 	for (size_t walk = 0; walk < artist->search_order_master.get_size(); walk++) {
 
@@ -739,8 +932,26 @@ rppair_t release_tree_cache::init_filter(const Artist_ptr artist, pfc::string8 f
 			if (filtered) {
 
 				row_col_data row_data{};
-				hook->set_master(&mr_p);
-				pfc::string8 item = m_rt_manager->run_hook_columns(row_data, (master_ndx << 16) | 9999);
+
+				pfc::string8 item;
+
+				if (search_query::is_undefined_artist(artist->id, true)) {
+
+					pfc::string8 search_formatted;
+
+					fake_hook_undefined_master(mr_p, search_formatted);
+
+					pfc::string8 id = mr_p->id;
+					row_data.col_data_list.emplace_back(std::make_pair(0, search_formatted));
+					row_data.id = atoi(id);
+
+					item = search_formatted;
+					hook->set_master(&mr_p);
+				}
+				else {
+					hook->set_master(&mr_p);
+					item = m_rt_manager->run_hook_columns(row_data, (master_ndx << 16) | 9999);
+				}
 
 				matches_master = check_match(item, filter, lcf_words);
 			}
@@ -778,9 +989,24 @@ rppair_t release_tree_cache::init_filter(const Artist_ptr artist, pfc::string8 f
 				//>check sub-release
 				if (bversions_filter && filtered) {
 
+					pfc::string8 sub_item;
 					row_col_data row_data{};
-					hook->set_release(&(artist->master_releases[master_ndx]->sub_releases[j]));
-					pfc::string8 sub_item = m_rt_manager->run_hook_columns(row_data, (master_ndx << 16) | j);
+					if (search_query::is_undefined_artist(artist->id, true)) {
+						pfc::string8 search_formatted;
+						fake_hook_undefined_release(artist->master_releases[master_ndx]->sub_releases[j], search_formatted);
+
+						pfc::string8 id = artist->master_releases[master_ndx]->sub_releases[j]->id;
+						row_data.col_data_list.emplace_back(std::make_pair(0, search_formatted));
+						row_data.id = atoi(id);
+
+						sub_item = search_formatted;
+						hook->set_release(&(artist->master_releases[master_ndx]->sub_releases[j]));
+					}
+					else {
+						hook->set_release(&(artist->master_releases[master_ndx]->sub_releases[j]));
+						sub_item = m_rt_manager->run_hook_columns(row_data, (master_ndx << 16) | j);
+					}
+
 					matches_release = check_match(sub_item, filter, lcf_words);
 				}
 				//<end check
@@ -815,8 +1041,26 @@ rppair_t release_tree_cache::init_filter(const Artist_ptr artist, pfc::string8 f
 			if (filtered) {
 
 				row_col_data row_data{};
-				hook->set_release(&(artist->releases[release_ndx]));
-				pfc::string8 item = m_rt_manager->run_hook_columns(row_data, (9999 << 16) | release_ndx);
+				pfc::string8 item;
+
+				if (search_query::is_undefined_artist(artist->id, false)) {
+					pfc::string8 search_formatted;
+
+					fake_hook_undefined_release(artist->releases[release_ndx], search_formatted);
+
+					pfc::string8 id = artist->releases[release_ndx]->id;
+					row_data.col_data_list.emplace_back(std::make_pair(0, search_formatted));
+					row_data.id = atoi(id);
+
+					item = search_formatted;
+					hook->set_release(&(artist->releases[release_ndx]));
+				}
+				else {
+
+					hook->set_release(&(artist->releases[release_ndx]));
+					item = m_rt_manager->run_hook_columns(row_data, (9999 << 16) | release_ndx);
+				}
+
 				matches_release = check_match(item, filter, lcf_words);
 			}
 
@@ -1000,8 +1244,11 @@ void CFindReleaseTree::on_release_selected(int src_lparam) {
 	vec_iterator_t vecpos;
 	find_vec_by_lparam(*vec_items, src_lparam, vecpos);
 
-	if (vecpos == vec_items->end())
+	if (vecpos == vec_items->end()) {
+		//..
 		return;
+		//..
+	}
 
 	int selection_index = std::distance(vec_items->begin(), vecpos);
 	mounted_param myparam(vec_items->at(selection_index).first->first);
@@ -1019,6 +1266,7 @@ void CFindReleaseTree::on_release_selected(int src_lparam) {
 			MasterRelease_ptr& master_release = m_find_release_artist->master_releases[myparam.master_ndx];
 
 			if (master_release->sub_releases.get_size()) {
+
 				abort_callback_dummy dummy;
 				fake_threaded_process_status fstatus;
 
@@ -1423,7 +1671,6 @@ void CFindReleaseTree::on_expand_master_release_done(const MasterRelease_ptr& ma
 
 		std::shared_ptr<filter_cache>& cache_ptr = m_rt_cache.get_bulk();
 
-		
 		int ival = 1; // * NODE EXPANDED
 		cache_ptr->SetCacheFlag(lparam, NodeFlag::expanded, ival);
 	}
@@ -1501,10 +1748,10 @@ LRESULT CFindReleaseTree::OnReleaseTreeExpanding(int, LPNMHDR hdr, BOOL&) {
 		mounted_param myparam(pItemExpanding->lParam);
 		auto& cache_parent = cache_ptr->cache.find(pItemExpanding->lParam);
 
-		bool children_done;
+		bool children_done = false;
 		cache_ptr->GetCacheFlag(cache_parent, NodeFlag::added, &children_done);
 
-		bool tree_children_done;
+		bool tree_children_done = false;
 		bool tree_children_done_ver = cache_ptr->GetCacheFlag(cache_parent, NodeFlag::tree_created, &tree_children_done);
 
 		if (children_done) {
@@ -1521,7 +1768,7 @@ LRESULT CFindReleaseTree::OnReleaseTreeExpanding(int, LPNMHDR hdr, BOOL&) {
 
 						bool ival = false;
 						cache_ptr->GetCacheFlag(walk_children, NodeFlag::spawn, &ival);
-						bool bfilter;
+						bool bfilter = false;
 						bool bfilter_ver = cache_ptr->GetCacheFlag(walk_children, NodeFlag::filterok, &bfilter);
 
 						//..
@@ -1735,14 +1982,16 @@ LRESULT CFindReleaseTree::OnReleaseTreeGetInfo(WORD /*wNotifyCode*/, LPNMHDR hdr
 	}
 
 	if (pItem->mask & TVIF_IMAGE) {
-	
-		auto cit = cache_ptr->cache.find(lparam);
+
 
 		int img_ndx;
+
+		auto cit = cache_ptr->cache.find(lparam);
+
 		if (on_tree_display_cell_image(myparam.master_ndx, myparam.release_ndx, cit->second.first.id, cit, img_ndx)) {
 
-			pItem->iImage = /*TRACER_IMG_NDX*/img_ndx;
-			pItem->iSelectedImage = /*TRACER_IMG_NDX*/img_ndx;
+			pItem->iImage = img_ndx;
+			pItem->iSelectedImage = img_ndx;
 		}
 		else {
 			pItem->iImage = I_IMAGECALLBACK;
@@ -1972,11 +2221,11 @@ void CFindReleaseTree::vkreturn_test_master_expand_release() {
 		else {
 
 			HTREEITEM hsel = TreeView_GetSelection(m_hwndTreeView);
-			TVITEM tvi;
+			TVITEM tvi = {};
 			tvi.hItem = hsel;
 			tvi.mask = TVIF_STATE;
 			TreeView_GetItem(m_hwndTreeView, &tvi);
-			if ((tvi.state & TVIS_EXPANDED) == TVIS_EXPANDED) {				
+			if ((tvi.state & TVIS_EXPANDED) == TVIS_EXPANDED) {
 				TreeView_Expand(m_hwndTreeView, hsel, TVE_COLLAPSE);
 			}
 			else {
@@ -2083,8 +2332,10 @@ void CFindReleaseTree::context_menu(size_t param_mr, POINT screen_pos) {
 		HMENU menu = CreatePopupMenu();
 
 		foo_conf cfg = m_dlg->config();
+
 		bool enabled_versions = cfg.find_release_filter_flag & FilterFlag::Versions;
-		bool enabled_rolemain = cfg.find_release_filter_flag & FilterFlag::RoleMain;
+		bool rolemainAT = m_dlg->m_query_mode & SearchMode::AT || m_dlg->m_query_mode & SearchMode::VA;
+		bool enabled_rolemain = !rolemainAT && (cfg.find_release_filter_flag & FilterFlag::RoleMain);
 		bool enabled_filter = uGetDlgItemText(m_dlg->m_hWnd, IDC_EDIT_FILTER).get_length();
 
 		pfc::string8 release_id;
@@ -2113,7 +2364,7 @@ void CFindReleaseTree::context_menu(size_t param_mr, POINT screen_pos) {
 		}
 
 		uAppendMenu(menu, MF_STRING | (enabled_versions ? MF_CHECKED: 0), ID_DLG_FILTER_TOGGLE, filterversions);
-		uAppendMenu(menu, MF_STRING | (enabled_rolemain ? MF_CHECKED : 0), ID_DLG_MAIN_ROLE_TOGGLE, mainrole);
+		uAppendMenu(menu, MF_STRING | (rolemainAT ? MF_DISABLED | MF_GRAYED : 0) |(enabled_rolemain ?  MF_CHECKED : 0), ID_DLG_MAIN_ROLE_TOGGLE, mainrole);
 		uAppendMenu(menu, MF_SEPARATOR, 0, 0);
 
 		if (boffExists && !empty_sel && release_id.get_length()) {
