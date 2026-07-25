@@ -61,8 +61,10 @@ void CConfigurationDialog::InitTabs() {
 }
 
 CConfigurationDialog::~CConfigurationDialog() {
+
 	if (g_discogs) {
 		g_discogs->configuration_dialog = nullptr;
+
 	}
 }
 
@@ -86,6 +88,7 @@ LRESULT CConfigurationDialog::OnInitDialog(UINT /*uMsg*/, WPARAM /*wParam*/, LPA
 	}
 
 	InitTabs();
+
 	HWND hWndTab = uGetDlgItem(IDC_TAB_CFG);
 
 	//darkmode
@@ -201,6 +204,7 @@ LRESULT CConfigurationDialog::OnChangeTab(WORD /*wNotifyCode*/, LPNMHDR /*lParam
 	g_hWndCurrentTab = nullptr;
 
 	g_current_tab = (t_uint32)::SendDlgItemMessage(m_hWnd, IDC_TAB_CFG, TCM_GETCURSEL, 0, 0);
+
 	if (g_current_tab < tabsize(g_hWndTabDialog)) {
 		g_hWndCurrentTab = g_hWndTabDialog[g_current_tab];
 		::ShowWindow(help_link, toggle_title_format_help() ? SW_SHOW : SW_HIDE);
@@ -250,7 +254,7 @@ void CConfigurationDialog::pushcfg(bool reset) {
 		if (!reset) conf = conf_edit;
 
 		bool brefresh_tagmap_multivalues = !conf.multivalue_fields.equals(CONF.multivalue_fields);
-		
+
 		conf_edit = foo_conf(conf);
 		conf_edit.SetName("CfgEdit");
 
@@ -1111,7 +1115,6 @@ INT_PTR WINAPI CConfigurationDialog::on_caching_dialog_message(HWND wnd, UINT ms
 		}
 	return FALSE;
 }
-
 
 INT_PTR WINAPI CConfigurationDialog::searching_dialog_proc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 

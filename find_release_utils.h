@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include "pfc/pfc.h"
 #include <CommCtrl.h>
 
@@ -198,7 +198,7 @@ public:
 						release_pos = 0;
 						return true;
 					}
-				}			
+				}
 			}
 			else {
 				if (need_release()) {
@@ -249,12 +249,12 @@ public:
 				if (vartists.size() == 0) {
 					vartists.emplace_back(artist_id);
 				}
-				
+
 				if (std::find(vartists.begin(), vartists.end(),	sz_id) == vartists.end()) {
 					vartists.emplace_back(sz_id);
 				}
 			}
-		}	
+		}
 	}
 
 	bool id_tracer::init_tracker_tags(metadb_handle_list items) {

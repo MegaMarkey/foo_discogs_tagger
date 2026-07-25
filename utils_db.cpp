@@ -99,7 +99,7 @@ int sqldb::prepare(pfc::string8 query, sqlite3_stmt** stmt_query, pfc::string8& 
 	}
 
 	if (m_error_msg.get_length()) {
-		
+
 		foo_db_cmd_exception ex(m_ret, "prepare", m_error_msg);
 		throw ex;
 	}
@@ -115,7 +115,7 @@ bool sqldb::debug_sql_return(int ret, pfc::string8 op, pfc::string8 msg_subject,
 	do {
 
 		if (!stricmp_utf8(op, "open")) {
-		
+
 			if (SQLITE_OK != ret && SQLITE_DONE != ret)
 			{
 				out_msg = ext_subject << ": " << sqlite3_errmsg(m_pDb);

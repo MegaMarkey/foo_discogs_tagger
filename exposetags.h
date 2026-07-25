@@ -24,7 +24,7 @@ public:
 		std::map<const char*, std::pair<string_encoded_array(ExposedTags::*)()const, void(ExposedTags::*)(threaded_process_status&, abort_callback&, bool)>, cmp_str> m;
 		return m;
 	}
-	
+
 	virtual string_encoded_array get_data(pfc::string8 &tag_name, threaded_process_status &p_status, abort_callback &p_abort) override;
 	virtual string_encoded_array get_sub_data(pfc::string8 &tag_name, threaded_process_status &p_status, abort_callback &p_abort);
 
@@ -52,7 +52,7 @@ string_encoded_array ExposedTags<T>::get_data(pfc::string8 &tag_name, threaded_p
 			auto load_func = std::bind(pair.second, ((T*)this), std::ref(p_status), std::ref(p_abort), false);
 			load_func();
 		}
-		
+
 		pfc::string8 out = x();
 		return out;
 	}

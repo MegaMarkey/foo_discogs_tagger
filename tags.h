@@ -45,7 +45,7 @@ public:
 
 	tag_mapping_entry(GUID guid, const char *tn, bool ew, bool eu, bool fw, bool fu, bool ft, const char *fs) : guid_tag(guid),
 		tag_name(tn), enable_write(ew), enable_update(eu), freeze_write(fw), freeze_update(fu), freeze_tag_name(ft), formatting_script(fs) {
-	
+
 		is_multival_meta = is_multivalue_meta(pfc::string8(tn));
 	}
 
@@ -84,9 +84,8 @@ FB2K_STREAM_READER_OVERLOAD(tag_mapping_entry) {
 	pfc::string8 tag_name, formatting_string;
 
 	pfc::string8 buffer;
-
 	stream >> buffer;
-	
+
 	//todo: rev. fix nulls introduced by uncomplete fix v1.0.19.1
 	if (buffer.equals(pfc::print_guid(pfc::guid_null))) {
 		buffer = pfc::print_guid(pfc::createGUID());
@@ -96,10 +95,10 @@ FB2K_STREAM_READER_OVERLOAD(tag_mapping_entry) {
 	GUID guid_check = pfc::GUID_from_text(buffer);
 
 	//TODO: rev (quick fix 0.19.1 tag mapping guids)
-	auto ol = buffer.get_length();           // 36
-	auto tb = buffer.replace_char('-', '-'); //  4
-	auto fp = buffer.find_first('-');        //  8
-	auto fl = buffer.find_last('-');         // 23
+	auto ol = buffer.get_length();           //36
+	auto tb = buffer.replace_char('-', '-'); // 4
+	auto fp = buffer.find_first('-');        // 8
+	auto fl = buffer.find_last('-');         //23
 	bool bpattern = (ol == 36 && tb == 4 && fp == 8 && fl == 23);
 
 	if (!bpattern || pfc::guid_equal(guid_check, pfc::guid_null)) {

@@ -1,4 +1,4 @@
-#include "stdafx.h"
+﻿#include "stdafx.h"
 #include "resource.h"
 #include "conf.h"
 #include "find_release_artist_dlg.h"
@@ -57,7 +57,7 @@ void CFindReleaseArtistDialog::UpdateProfile(Artist_ptr& artist, pfc::string8 mo
 			m_id = id;
 			m_loaded = loaded;
 		}
-		
+
 	}
 	else {
 

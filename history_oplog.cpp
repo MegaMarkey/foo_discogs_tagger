@@ -23,7 +23,6 @@ bool history_oplog::init(bool enabled, size_t max_items) {
 	size_t inc = db.recharge_history(kcmdHistoryWashup, max_items, out_history);
 
 	return inc != pfc_infinite;
-
 }
 
 //serves config dialog

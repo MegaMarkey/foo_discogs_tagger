@@ -332,7 +332,7 @@ bool string_encoded_array::branch_execute(bool(string_encoded_array::*func)(cons
 	const bool array2 = other2.has_array();
 	if (m_depth > depth) {
 		const size_t count = get_width();
-		
+
 		if (other_depth > other1.m_depth) {
 			array_param_too_shallow(2, other1.m_depth, other_depth);
 		}

@@ -303,7 +303,7 @@ inline void Discogs::Release::set_master_release(MasterRelease_ptr master) {
 pfc::string8 Discogs::remove_number_suffix(const pfc::string8& src) {
 
 	if (src.get_length() < 4) {
-		
+
 		return src.c_str();
 	}
 
@@ -444,7 +444,6 @@ void Discogs::parseReleaseCredits(json_t* element, pfc::array_t<ReleaseCredit_pt
 			credit->artists.append_single(artist);
 
 			try {
-
 				pfc::array_t<pfc::string8> array_parts;
 
 				pfc::string8 sani_to_tracks = sanitize_track_to(tracks);
@@ -819,6 +818,7 @@ struct ptp_nfo {
 
 		bformat_incl_vol = false;
 		bformat_incl_sideb = false;
+
 	}
 };
 
@@ -1145,7 +1145,6 @@ void parseTrackPosition(ReleaseTrack_ptr& track, const std::pair<ReleaseFormat_p
 		_trk_div_pos = trk_name.tn_nosub_chopped.find_last("-");
 	}
 
-	
 	if (_trk_div_pos != ~0) {
 		tmp_pre = substr(trk_name.tn_nosub_chopped, 0, _trk_div_pos);
 		tmp_post = substr(trk_name.tn_nosub_chopped, _trk_div_pos + 1);
@@ -1252,7 +1251,7 @@ void parseTrackPosition(ReleaseTrack_ptr& track, const std::pair<ReleaseFormat_p
 					ptpos.hidden_postfix = halpha;
 				}
 
-			} 
+			}
 
 		}
 
@@ -1266,7 +1265,7 @@ void parseTrackPosition(ReleaseTrack_ptr& track, const std::pair<ReleaseFormat_p
 			ptpos.vol_preffix = std::to_string(curr_vol_number).c_str();
 			ptpos.trk_postfix = tmp_post;
 		}
-		
+
 		if (std::stoi(tmp_post.get_ptr()) >= next_track_number || trk_name.isIndex) {
 			ptpos.vol_preffix = tmp_pre;
 			ptpos.trk_postfix = tmp_post;
@@ -1288,7 +1287,7 @@ void parseTrackPosition(ReleaseTrack_ptr& track, const std::pair<ReleaseFormat_p
 			}
 		}
 	}
-	
+
 	else {
 
 		// ALPHA tmp_pre or tmp_post leftovers
@@ -1599,7 +1598,6 @@ void Discogs::parseReleaseTrack(json_t* element, pfc::array_t<ReleaseTrack_ptr>&
 
 	track->discogs_track_number = JSONAttributeString(element, "position");
 
-
 	if (index != nullptr) {
 
 		// BUILD INDEX SUBTRACK CONTAINER
@@ -1695,11 +1693,10 @@ void Discogs::parseReleaseTrack(json_t* element, pfc::array_t<ReleaseTrack_ptr>&
 		index_p->title = JSONAttributeString(element, "title");
 		index_p->duration = JSONAttributeString(element, "duration");
 		pfc::string8 str_pos = JSONAttributeString(element, "position");
-		
 
 		has_indexes->indexes.add_item(std::move(index_p));
 		track->title = JSONAttributeString(element, "title");
-		
+
 		json_t* sub_tracks = json_object_get(element, "sub_tracks");
 
 		// PARSE SUBTRACKS
@@ -1787,7 +1784,7 @@ void Discogs::parseRelease(Release *release, json_t *root) {
 	release->styles = JSONAttributeStringArray(root, "styles");
 
 	release->barcode = JSONAttributeObjectArrayAttributeStringWhere(root, "identifiers", "value", "type", "Barcode");
-	
+
 	pfc::array_t<pfc::string8> tokens;
 	release->release_date_raw = JSONAttributeString(root, "released");
 	int num_tokens = tokenize(release->release_date_raw, "-", tokens, false);
@@ -1868,7 +1865,6 @@ void Discogs::parseRelease(Release *release, json_t *root) {
 
 	json_t *jsTrackList = json_object_get(root, "tracklist");
 
-
 	// PARSE ALL RELEASE TRACKS
 
 	parseAllReleaseTracks(jsTrackList, true, /*has track list*/release,/*has artists*/ release, /*has indexes*/ release);
@@ -1895,7 +1891,7 @@ void Discogs::parseRelease(Release *release, json_t *root) {
 	json_t* series = json_object_get(root, "series");
 	parseReleaseSeries(series, release->series);
 	release->weight = JSONAttributeString(root, "estimated_weight");
-		
+
 	json_t* community = json_object_get(root, "community");
 	if (json_is_object(community)) {
 		release->discogs_status = JSONAttributeString(community, "status");
@@ -2222,7 +2218,7 @@ void initialize_null_artist(Artist *artist) {
 }
 
 void Discogs::ReleaseArtist::load(threaded_process_status& p_status, abort_callback& p_abort, bool throw_all) {
-	
+
 	if (!preload || loaded) { loaded = true; return; }
 	Artist_ptr artist;
 	if (id.get_length() && !id.equals("0")) {
@@ -2236,7 +2232,7 @@ void Discogs::ReleaseArtist::load(threaded_process_status& p_status, abort_callb
 }
 
 void Discogs::Artist::load(threaded_process_status &p_status, abort_callback &p_abort, bool throw_all) {
-	
+
 	if (loaded) {
 		return;
 	}
@@ -2321,7 +2317,7 @@ void Discogs::Artist::load(threaded_process_status &p_status, abort_callback &p_
 				bool bFolderReady = ol::create_offline_entity_folder(id, ol::GetFrom::Artist);
 
 				if (bFolderReady) {
-				
+
 					//PENDING
 					bool bmark_loading = ol::stamp_download("", n8_rel_path, false/*done*/);
 
@@ -2426,7 +2422,6 @@ void Discogs::Release::load(threaded_process_status &p_status, abort_callback &p
 			pfc::string8 url;
 			url << "https://api.discogs.com/releases/" << id;
 			discogs_interface->fetcher->fetch_html(url, "", json, p_abort);
-		
 		}
 		else {
 			discogs_interface->get_entity_offline_cache(ol::GetFrom::Release, artist_id, release_id, json, p_abort, "Fetching offline release...", p_status);
@@ -2456,9 +2451,9 @@ void Discogs::Release::load(threaded_process_status &p_status, abort_callback &p
 				n8_rel_path = ol::get_offline_path(offlineArtistId, ol::GetFrom::Release, id, true);
 
 				bool bFolderReady = ol::create_offline_entity_folder(target_artist_id, ol::GetFrom::Release, id);
-				
+
 				if (bFolderReady) {
-				
+
 					//mark PENDING
 					bool bmark_loading = ol::stamp_download(pfc::string_formatter() << date_added << " " << date_changed, n8_rel_path, false/*done*/);
 
@@ -2602,26 +2597,26 @@ void Discogs::Artist::load_releases(threaded_process_status &p_status, abort_cal
 						bool bfolder_ready = ol::create_offline_subpage_folder(id, art_src::unknown, pfc_infinite, ol::GetFrom::ArtistReleases, "");
 
 						if (bfolder_ready) {
-						
+
 							pfc::string8 markcontent = JSONString(json_object_get(pages[i]->root, "items"));
 
 							//mark pending job
 							bmark_pending = ol::stamp_download(markcontent, n8_rel_path, false/*done*/);
 						}
 					}
-					
+
 					//create page-n folder
 					if (bmark_pending) {
-					
+
 						bool bfolder_ready = ol::create_offline_subpage_folder(id, art_src::unknown, i, ol::GetFrom::ArtistReleases, "");
 
 						if (bfolder_ready) {
 						
 							pfc::string8 n8_page_path = ol::get_offline_pages_path(id, i, ol::GetFrom::ArtistReleases, "", true);
 							n8_page_path << "\\root.json";
-					
+
 							bCacheSaved &= discogs_interface->offline_cache_save(n8_page_path, pages[i]->root);
-						}					
+						}
 					}
 					else {
 						bCacheSaved = false;
@@ -2637,7 +2632,7 @@ void Discogs::Artist::load_releases(threaded_process_status &p_status, abort_cal
 			if (btransient && offline_can_write) {
 
 				if ((i == count - 1) && (bCacheSaved)) {
-					
+
 					try {
 
 						loaded_releases_offline = ol::stamp_download("", n8_rel_path, true/*done*/);
@@ -2679,7 +2674,7 @@ void Discogs::MasterRelease::load_releases(threaded_process_status &p_status, ab
 	bool offline_can_read = ol::can_read();
 	bool offline_can_write = ol::can_write();
 	bool offline_can_overwrite = ol::can_ovr();
-	
+
 
 	ol::GetFrom gfVersions = ol::GetFrom::Versions;
 	pfc::string8 n8_rel_path;
@@ -2727,7 +2722,7 @@ void Discogs::MasterRelease::load_releases(threaded_process_status &p_status, ab
 						bool bfolder_ready = ol::create_offline_subpage_folder(artist_id, art_src::unknown, pfc_infinite, gfVersions, master_id);
 
 						if (bfolder_ready) {
-						
+
 							pfc::string8 markcontent = JSONString(json_object_get(pages[i]->root, "items"));
 
 							//mark as pending
@@ -2741,10 +2736,10 @@ void Discogs::MasterRelease::load_releases(threaded_process_status &p_status, ab
 						bool bfolder_ready = ol::create_offline_subpage_folder(artist_id, art_src::unknown, i, gfVersions, master_id);
 
 						if (bfolder_ready) {
-						
+
 							pfc::string8 n8_page_path = ol::get_offline_pages_path(artist_id, i, gfVersions, master_id, true);
 							n8_page_path << "\\root.json";
-					
+
 							bCacheSaved &= discogs_interface->offline_cache_save(n8_page_path, pages[i]->root);
 						}
 					}
@@ -2780,7 +2775,7 @@ void Discogs::MasterRelease::load_releases(threaded_process_status &p_status, ab
 }
 
 void Discogs::parseIdentity(json_t *root, Identity *identity) {
-	
+
 	assert_is_object(root);
 
 	identity->user_id = JSONAttributeString(root, "id");
@@ -2791,7 +2786,7 @@ void Discogs::parseIdentity(json_t *root, Identity *identity) {
 }
 
 void Discogs::parseCollection(json_t *root, pfc::array_t<pfc::string8> &collection) {
-	
+
 	assert_is_object(root);
 
 	json_t *releases = json_object_get(root, "releases");

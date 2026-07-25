@@ -19,7 +19,7 @@ protected:
 		error << (fatal ? "(FATAL) " : "(skipped) ") << "Error: " << msg;
 		errors.append_single(error);
 	}
-	
+
 	void add_error(foo_discogs_exception &e, bool fatal = false) {
 		fatal_error = fatal_error || fatal;
 		pfc::string8 error;

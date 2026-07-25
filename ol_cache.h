@@ -74,17 +74,17 @@ namespace Offline {
 			PFC_ASSERT(false);
 		}
 
-		if (native) 			
+		if (native) {
 			extract_native_path(ol_path, ol_path);
 
 		return ol_path;
 	}
 
 	static pfc::string8 get_thumbnail_cache_path(pfc::string8 id, art_src artSrc, bool native) {
+
 		pfc::string8 path =  profile_path(OC_NAME, true);
 		path << "\\thumbnails\\";
 		path << (artSrc == art_src::alb ? "releases" :	artSrc == art_src::art ? "artists" : "unknown") << "\\" << id;
-		
 		return path;
 	}
 
@@ -94,23 +94,30 @@ namespace Offline {
 		pfc::array_t<pfc::string8> filenames;
 
 		pfc::string8 n8_rel_path = get_thumbnail_cache_path(id, artSrc, native);
+
 		pfc::string8 n8_full_path(n8_rel_path);
 		n8_full_path << "\\thumb_" << (iImageList == LVSIL_NORMAL ? "150x150" : "48x48") << "_";
-		
-		if (ndx == pfc_infinite) {
+
+		if (ndx == SIZE_MAX) {
+
 			filenames.append_single(n8_full_path);
+			//..
 			return filenames;
+			//..
 		}
 
 		n8_full_path << ndx << THUMB_EXTENSION;
+
 		std::filesystem::path os_path = std::filesystem::u8path(n8_rel_path.get_ptr());
 
 		try {
 			std::filesystem::directory_iterator dirpos{ os_path};
 			for (auto walk_dir : dirpos) {
 				auto u8str = walk_dir.path().u8string();
+
 				folders.add_item(u8str.c_str());
 			}
+
 		}
 		catch (std::filesystem::filesystem_error e) {
 			//auto t = e.what();
@@ -131,17 +138,20 @@ namespace Offline {
 	}
 
 	static pfc::string8 get_offline_pages_path(pfc::string8 id, size_t page, GetFrom getFrom, pfc::string8 secid, bool native) {
-		
+
 		PFC_ASSERT(getFrom == GetFrom::ArtistReleases || getFrom == GetFrom::Versions);
 		PFC_ASSERT(getFrom != GetFrom::Versions || (!STR_EQUAL(id, secid) && secid.get_length()));
-		
+
 		pfc::string8 page_path(get_offline_path(id, getFrom, secid, native));
 		page_path << "\\page-";
-		if (page != pfc_infinite)
+
+		if (page != SIZE_MAX) {
 			page_path << page;
-		
+		}
+
 		return page_path;
 	}
+
 	static bool check_offline_entity_folder(pfc::string8 id, GetFrom getFrom, pfc::string8 secid) {
 
 		PFC_ASSERT(getFrom == GetFrom::Artist || getFrom == GetFrom::Release || getFrom == GetFrom::ArtistReleases || getFrom == GetFrom::Versions);
@@ -152,6 +162,7 @@ namespace Offline {
 
 		bool debug_path_exists = false;
 		bool req_check = false;
+
 		size_t req_files;
 		size_t req_dirs;
 
@@ -199,7 +210,7 @@ namespace Offline {
 	//sets folder job: 'loading.' or 'TaskReg.txt' (done param value)
 
 	bool static stamp_download(pfc::string8 fcontent, pfc::string8 path, bool done) {
-		
+
 		bool bok = false;
 		
 		if (!done) {
@@ -207,15 +218,13 @@ namespace Offline {
 			//delete if exists
 
 			fs::path os_file = fs::u8path(path.c_str());
-			
+
 			try {
 				fs::remove_all(os_file);
 			}
 			catch (...) {
 				return false;
 			}
-
-			//..
 
 			//pending
 
@@ -352,7 +361,7 @@ namespace Offline {
 		pfc::string8 n8_rel_path = get_offline_path(id, getFrom, secid, true);
 
 		fs::path os_path = fs::u8path(n8_rel_path.c_str());
-		
+
 		try {
 			std::error_code ec;
 			bool bdone = fs::create_directories(os_path, ec);
@@ -362,18 +371,19 @@ namespace Offline {
 			return false;
 		}
 	}
+
+
 	class ol_cache
 	{
 
 	public:
-
-		// constructor
 
 		ol_cache() {
 
 			//..
 
 		}
+
 		json_t* Read_JSON(const char* offlinepath = nullptr) const {
 
 			pfc::string8 path = offlinepath;
@@ -381,14 +391,14 @@ namespace Offline {
 
 			log_msg(path.replace(n8_cache_prefix, "(cache)"));
 
-	
 			fs::path os_ol = fs::u8path(path.c_str());
 
 			int srclen = -1;
-			
+
 			if (fs::exists(os_ol)) {
 
 				srclen = fs::file_size(os_ol);
+
 			}
 
 			json_t* root = json_array();

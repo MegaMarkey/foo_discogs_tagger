@@ -253,7 +253,7 @@ void init_tag_mappings() {
 				const size_t count = sizeof(default_tag_mappings) / sizeof(tag_mapping_entry);
 				bool found = false;
 				for (size_t j = 0; j < count; j++) {
-					
+
 					if (STR_EQUAL(default_tag_mappings[j].tag_name, cfg_tag_mappings[i].tag_name)) {
 						found = true;
 						break;
@@ -374,7 +374,7 @@ void set_cfg_tag_mappings(pfc::list_t<tag_mapping_entry> *mappings) {
 }
 
  bool awt_get_release_mod_flag(tag_mapping_entry& out) {
-	for (auto& tag_entry : cfg_tag_mappings) {		
+	for (auto& tag_entry : cfg_tag_mappings) {
 		bool release_id_mod = STR_EQUAL(TAG_RELEASE_ID, tag_entry.tag_name.get_ptr());
 		if (release_id_mod) {
 			out = tag_entry;

@@ -40,8 +40,6 @@ class foo_discogs : public ErrorManager
 {
 public:
 
-	// custom fonts
-
 	class ui_v2_config_callback : public ui_config_callback {
 		ui_v2_config_callback(foo_discogs* pdiscogs) : p_discogs(pdiscogs) {};
 		virtual void ui_fonts_changed() override;

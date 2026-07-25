@@ -98,7 +98,7 @@ multi_uartwork::multi_uartwork(const CConf& conf, Discogs::Release_ptr release) 
 			size_t walk_artists_ndx = 0;
 			size_t ndx;
 			while (walk_artists_ndx < cartist_art) {
-				
+
 				if (discogs_interface->img_artists_ndx_to_artist(release, walk_artists_ndx, artist, ndx)) {
 					if (ndx == 0) {
 						setflag(af::art_sd, walk_artists_ndx, true);
@@ -228,7 +228,7 @@ pfc::string8 round_file_size_units(size_t size) {
 
 	double size_d = (float)size + (float)rem / 1024.0;
 	size_d = roundOff(size_d);
-	
+
 	char cftos[10 + 1];
 	pfc::float_to_string(cftos, 10, size_d, 0, false);
 	pfc::string8 result(cftos, 10);
@@ -305,7 +305,7 @@ imgpairs MemoryBlockToTmpBitmap(std::pair<pfc::string8, pfc::string8> n8_cache_p
 		g.ScaleTransform(horizontalScalingFactor, verticalScalingFactor);
 
 		gdi_res = g.DrawImage(/*(Gdiplus::Image*)*/ &bmSmall, 0, 0);
-		
+
 		PFC_ASSERT(gdi_res == Gdiplus::Ok);
 
 		auto jf = _wopen(os_file_mini.wstring().c_str(), _O_CREAT | _O_TRUNC | _O_RDWR | _O_BINARY, _S_IWRITE);
@@ -441,11 +441,11 @@ imgpairs GenerateTmpBitmapsFromRealSize(pfc::string8 release_id, size_t pos,
 	HICON hIconSmall, hIconMini;
 
 	if (bmSmall.GetHBITMAP(Color(255, 255, 255)/*Color::Black*/, &hBmSmall) == Gdiplus::Ok) {
-		
+
 		Gdiplus::Graphics gmini(/*(Image*)*/&bmSmall);
 		Gdiplus::Status gdi_res = gmini.DrawImage(/*(Gdiplus::Image*)*/ &bmSmall, 0, 0);
 		PFC_ASSERT(gdi_res == Gdiplus::Ok);
-		
+
 		int inWidth = bmSmall.GetWidth();
 		int inHeight = bmSmall.GetHeight();
 		int newWidth = 48;
@@ -481,10 +481,9 @@ imgpairs GenerateTmpBitmapsFromRealSize(pfc::string8 release_id, size_t pos,
 		gdi_res = g.DrawImage(/*(Gdiplus::Image*)*/ &bmSmall, 0, 0);
 		bmSmall.GetHICON(&hIconSmall);
 		PFC_ASSERT(gdi_res == Gdiplus::Ok);
-		
+
 		uGetTempPath(temp_path);
 		uGetTempFileName(temp_path, "fb2k", 0, temp_file_name_mini);
-		
 
 		std::filesystem::path tmp_file_min = std::filesystem::u8path(temp_file_name_mini.c_str());
 
@@ -587,10 +586,10 @@ MemoryBlock MemoryBlockToPngIcon(MemoryBlock buffer) {
 
 		return {};
 	}
-	
+
 	hres = poutStream->Seek(li, STREAM_SEEK_SET, NULL);
 	poutStream->Commit(STGC_DEFAULT);
-	
+
 	STATSTG outstats;
 	poutStream->Stat(&outstats, STATFLAG_NONAME);
 
@@ -617,7 +616,7 @@ MemoryBlock MemoryBlockToPngIcon(MemoryBlock buffer) {
 int static ReadSizeFromFile(pfc::string8 full_path) {
 
 	std::filesystem::path p = std::filesystem::u8path(full_path.get_ptr());
-	
+
 	return std::filesystem::exists(p) ? std::filesystem::file_size(p) : -1;
 }
 
@@ -639,7 +638,7 @@ std::pair<pfc::string8, pfc::string8> ReadDimSizeFromFile(pfc::string8 path, pfc
 		dims << std::to_string(w).c_str() << "x" << std::to_string(h).c_str();
 
 		return std::pair(dims, size);
-	
+
 	}
 	else {
 		return std::pair("", "");

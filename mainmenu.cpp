@@ -256,7 +256,7 @@ public:
 		unsigned displayflags;
 		pfc::string8 out;
 		context_get_display(p_index, p_data, out, displayflags, p_caller);
-		
+
 		if (displayflags & FLAG_GRAYED) {
 			//exit
 			return;
@@ -293,7 +293,6 @@ public:
 				::SetFocus(g_discogs->tag_mappings_dialog->m_hWnd);
 			}
 			break;
-
 		case Configuration:
 			static_api_ptr_t<ui_control>()->show_preferences(guid_pref_page);
 			break;
@@ -324,7 +323,7 @@ public:
 			p_displayflags = g_discogs->tag_mappings_dialog ? FLAG_GRAYED : 0;
 			break;
 		case Configuration:
-			p_displayflags = /*g_discogs->configuration_dialog ? FLAG_GRAYED :*/ 0;
+			p_displayflags = 0;
 			break;
 		}
 		return true;

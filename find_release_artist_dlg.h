@@ -9,7 +9,7 @@ class CFindReleaseArtistDialog :
 
 public:
 	enum { IDD = IDD_DIALOG_FIND_ARTIST };
-	
+
 	BEGIN_MSG_MAP(CFindReleaseArtistDialog)
 		MSG_WM_INITDIALOG(OnInitDialog)
 		MSG_WM_DESTROY(OnDestroy)

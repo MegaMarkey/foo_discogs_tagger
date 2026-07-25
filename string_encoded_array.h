@@ -252,7 +252,7 @@ public:
 
 	void split(const pfc::string8 &delim = DEFAULT_JOIN_DELIM);
 	void increase_width(size_t length);
-	
+
 	void unique();
 	void flatten();
 	void force_array(size_t depth=1);

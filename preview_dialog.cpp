@@ -110,7 +110,7 @@ bool CPreviewTagsDialog::build_current_cfg() {
 
 	int colwidth1 = m_uilist.GetColumnWidthF(0);
 	int colwidth2 = m_uilist.GetColumnWidthF(1);
-	
+
 	//columns
 	if (colwidth1 != conf.preview_tags_dialog_col1_width || colwidth2 != conf.preview_tags_dialog_col2_width) {
 		conf.preview_tags_dialog_col1_width = colwidth1;
@@ -170,7 +170,7 @@ bool CPreviewTagsDialog::build_current_cfg() {
 	}
 #pragma warning( pop )
 
-	conf.album_art_skip_default_cust = MAKELPARAM(lo, hi);	
+	conf.album_art_skip_default_cust = MAKELPARAM(lo, hi);
 
 	if (CONF.album_art_skip_default_cust != conf.album_art_skip_default_cust) {
 
@@ -217,7 +217,7 @@ inline bool get_diff_release_name(TagWriter_ptr tag_writer, pfc::string8& rel_de
 		CONF.search_master_sub_format_string->run_hook(location, &info, &hook, compact_release, nullptr);
 		tag_writer_rel_id = tw_release->id;
 	}
-	
+
 	diff_rel_id = bdiffid ? "" : tag_writer_rel_id;
 	rel_desc = bdiffid ? "!! " : "";
 	rel_desc << ltrim(compact_release);
@@ -272,7 +272,7 @@ LRESULT CPreviewTagsDialog::OnInitDialog(UINT /*uMsg*/, WPARAM /*wParam*/, LPARA
 			cfg_listview.colmap.at(5).enabled = true;
 	}
 	if (!cfg_listview.colmap.at(2).width) {
-			auto dpiX = QueryScreenDPIEx(m_hWnd).cx;	
+			auto dpiX = QueryScreenDPIEx(m_hWnd).cx;
 			auto sbwitch = GetSystemMetrics(SM_CXVSCROLL);
 			int fw = MulDiv(sbwitch, dpiX, USER_DEFAULT_SCREEN_DPI);
 
@@ -289,7 +289,7 @@ LRESULT CPreviewTagsDialog::OnInitDialog(UINT /*uMsg*/, WPARAM /*wParam*/, LPARA
 
 	m_uilist.CreateInDialog(m_hWnd, IDC_PREVIEW_LIST, m_results_list);
 	m_results_list = m_uilist.m_hWnd;
-	
+
 	m_uilist.InitializeHeaderCtrl(HDS_FULLDRAG);
 	m_uilist.SetRowStyle(conf.list_style);
 
@@ -347,7 +347,7 @@ LRESULT CPreviewTagsDialog::OnInitDialog(UINT /*uMsg*/, WPARAM /*wParam*/, LPARA
 
 	if (conf.edit_tags_dlg_flags & FLG_TAGMAP_DLG_ATTACHED) {
 		uButton_SetCheck(m_hWnd, IDC_CHK_BIND_TAGS_DLG, true);
-		
+
 		if (conf.edit_tags_dlg_flags & FLG_TAGMAP_DLG_OPENED) {
 			BOOL bdummy = false;
 			OnButtonEditTagMappings(0, 0, NULL, bdummy);
@@ -409,7 +409,7 @@ LRESULT CPreviewTagsDialog::OnContextMenu(UINT uMsg, WPARAM wParam, LPARAM lPara
 
 	HWND hwndCtrl = (HWND)wParam;
 	size_t iItem = m_uilist.GetFirstSelected();
-		
+
 	m_uilist.GetContextMenuPoint(lParam);
 
 	context_menu_show(hwndCtrl, iItem, lParam);
@@ -439,8 +439,8 @@ bool CPreviewTagsDialog::context_menu_show(HWND wnd, size_t isel, LPARAM lParamP
 		point.x = GET_X_LPARAM(lParamPos);
 		point.y = GET_Y_LPARAM(lParamPos);
 	}
-	auto tw_release = m_tag_writer->GetRelease();
 
+	auto tw_release = m_tag_writer->GetRelease();
 	pfc::string8 discogs_release_id(tw_release->id);
 	pfc::string8 master_release_id(tw_release->master_id);
 	pfc::string8 artist_id(tw_release->artists[0]->full_artist->id);
@@ -475,7 +475,7 @@ bool CPreviewTagsDialog::context_menu_show(HWND wnd, size_t isel, LPARAM lParamP
 			}
 		}
 
-		bool bskip = IsDlgButtonChecked(IDC_CHK_SKIP_ARTWORK);		
+		bool bskip = IsDlgButtonChecked(IDC_CHK_SKIP_ARTWORK);
 		bool bshowstats = IsDlgButtonChecked(IDC_CHK_PREV_DLG_SHOW_STATS);
 
 		bool bnormal = IsDlgButtonChecked(IDC_VIEW_NORMAL);
@@ -506,7 +506,7 @@ bool CPreviewTagsDialog::context_menu_show(HWND wnd, size_t isel, LPARAM lParamP
 			auto citems = m_uilist.GetItemCount();
 			size_t fpos = 0;
 			while ((fpos = selmask.find_first(true, fpos, citems)) < citems) {
-				
+
 				if (pv == PreView::Diff || pv == PreView::Normal) {
 					auto tmpdif = ((ILOD_preview*)this)->GetListRow(fpos, pv);
 					selmask.set(fpos, (bool)tmpdif.get_length());
@@ -550,7 +550,7 @@ bool CPreviewTagsDialog::context_menu_switch(HWND wnd, POINT point, int cmd, bit
 
 	// WRITE TAGS
 	case ID_PREVIEW_CMD_WRITE_TAGS: {
-	
+
 		m_tag_writer->ResetMask();
 
 		//todo: param 1 to stick or crash
@@ -572,7 +572,6 @@ bool CPreviewTagsDialog::context_menu_switch(HWND wnd, POINT point, int cmd, bit
 		pfc::bit_array_bittable tag_mask(bit_array_false(), TAGS.get_count());
 		auto fpos = 0;
 		while ((fpos = selmask.find_first(true, fpos, selmask.size())) < selmask.size()) {
-	
 			tag_mask.set(fpos, true);
 			fpos++;
 		}
@@ -590,7 +589,7 @@ bool CPreviewTagsDialog::context_menu_switch(HWND wnd, POINT point, int cmd, bit
 	case ID_PREVIEW_CMD_BACK: {
 
 		BOOL bDummy;
-		return OnButtonBack(0, 0, NULL, bDummy);		
+		return OnButtonBack(0, 0, NULL, bDummy);
 	}
 	case ID_PREVIEW_CMD_SKIP_ARTWORK: {
 
@@ -704,7 +703,7 @@ bool CPreviewTagsDialog::context_menu_switch(HWND wnd, POINT point, int cmd, bit
 }
 
 bool CPreviewTagsDialog::check_write_tags_status() {
-	
+
 	auto checkstate = m_tristate.GetState();
 	bool skip_art = checkstate == BST_CHECKED;
 
@@ -754,7 +753,7 @@ void CPreviewTagsDialog::reset_tag_result_stats() {
 }
 
 void CPreviewTagsDialog::replace_tag_result(size_t item, tag_result_ptr result) {
-	
+
 	if (STR_EQUAL(m_tag_writer->tag_results[item]->tag_entry->tag_name, result->tag_entry->tag_name)) {
 		m_tag_writer->tag_results[item]->value = result->value;
 	}
@@ -856,7 +855,7 @@ LRESULT CPreviewTagsDialog::OnChangePreviewMode(WORD /*wNotifyCode*/, WORD wID, 
 	SendMessage(m_results_list, WM_SETREDRAW, TRUE, 0);
 
 	m_uilist.Invalidate(1);
-	
+
 	return FALSE;
 }
 
@@ -905,6 +904,7 @@ void CPreviewTagsDialog::pushcfg() {
 
 LRESULT CPreviewTagsDialog::OnDestroy(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/) {
 	pushcfg();
+
 	if (g_discogs->tag_mappings_dialog &&
 		(conf.edit_tags_dlg_flags & (FLG_TAGMAP_DLG_ATTACHED | FLG_TAGMAP_DLG_OPENED)) == (FLG_TAGMAP_DLG_ATTACHED | FLG_TAGMAP_DLG_OPENED)) {
 		g_discogs->tag_mappings_dialog->destroy();
@@ -924,7 +924,7 @@ LRESULT CPreviewTagsDialog::OnCancel(WORD /*wNotifyCode*/, WORD wID, HWND /*hWnd
 LRESULT CPreviewTagsDialog::OnListDoubleClick(LPNMHDR lParam) {
 
 	if (lParam->idFrom == IDC_PREVIEW_LIST) {
-	
+
 		NMITEMACTIVATE* info = reinterpret_cast<NMITEMACTIVATE*>(lParam);
 
 		if (info->iItem != -1 && info->iSubItem != 1) {
@@ -961,7 +961,7 @@ bool CPreviewTagsDialog::delete_selection() {
 }
 
 LRESULT CPreviewTagsDialog::OnListKeyDown(LPNMHDR lParam) {
-	
+
 	NMLVKEYDOWN * info = reinterpret_cast<NMLVKEYDOWN*>(lParam);
 
 	switch (info->wVKey) {
@@ -1274,7 +1274,7 @@ void CPreviewTagsDialog::reset_default_columns(bool breset, bool bshowstats) {
 	auto ccols = m_uilist.GetColumnCount();
 
 	if (breset && !bshowstats && ccols > COL_STATS_FIRST_COL && conf.preview_tags_dialog_w_width != 0) {
-	
+
 		int acc_stats_width = 0;
 
 		for (int walk_stat_ndx = COL_STATS_FIRST_COL; walk_stat_ndx < COL_STATS_FIRST_COL + COL_STAT_NCOLS; walk_stat_ndx++) {
@@ -1307,7 +1307,7 @@ void CPreviewTagsDialog::reset_default_columns(bool breset, bool bshowstats) {
 			int c0 =  fw / 3; int c1 = fw / 3 * 2;
 
 			if (walk_cfg.enabled) {
-				
+
 				if (walk_cfg.icol == 0) walk_cfg.width = c0;
 				if (walk_cfg.icol == 1) walk_cfg.width = c1;
 
@@ -1378,7 +1378,7 @@ void CPreviewTagsDialog::fix_sorted_icol_map(bool reset, bool bshowstats) {
 }
 
 LRESULT CPreviewTagsDialog::OnCheckPreviewShowStats(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/) {
-	
+
 	bool old_bshow_stats = m_cfg_bshow_stats;
 	m_cfg_bshow_stats = ::IsDlgButtonChecked(m_hWnd, IDC_CHK_PREV_DLG_SHOW_STATS);
 	bool bshowstats_changed = old_bshow_stats != m_cfg_bshow_stats;

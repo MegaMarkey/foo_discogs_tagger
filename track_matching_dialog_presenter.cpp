@@ -31,7 +31,7 @@ void coord_presenters::InitFormMode(lsmode mode, UINT id_lvleft, UINT id_lvright
 void coord_presenters::SetTagWriter(TagWriter_ptr tag_writer) {
 	m_tag_writer = tag_writer;
 	m_tag_writer_release = tag_writer->GetRelease();
-	
+
 	m_discogs_track_libui_presenter.SetTagWriter(tag_writer);
 	m_file_track_libui_presenter.SetTagWriter(tag_writer);
 
@@ -118,7 +118,7 @@ size_t coord_presenters::GetFileArtAtLvPos(size_t list_position, getimages_file_
 }
 
 void coord_presenters::InitUiList(HWND hwnd, lsmode mode, bool tracks, CListControlOwnerData* uilist) {
-	
+
 	auto bin = form_mode[mode];
 	track_presenter* uipres;
 
@@ -133,11 +133,11 @@ void coord_presenters::InitUiList(HWND hwnd, lsmode mode, bool tracks, CListCont
 }
 
 std::pair<size_t, presenter*> coord_presenters::columnHitTest(CPoint point) {
-	
+
 	auto bin = form_mode[lsmode::tracks_ui];
 
 	size_t icol = pfc_infinite;
-	
+
 	//testhit tracks
 
 	track_presenter* uipres = dynamic_cast<track_presenter*>(&bin->first);
@@ -161,12 +161,12 @@ std::pair<size_t, presenter*> coord_presenters::columnHitTest(CPoint point) {
 
 	if (icol != pfc_infinite)
 		return std::pair(icol, uipres);
-	
+
 	return std::pair(pfc_infinite, nullptr);
 }
 
 void coord_presenters::SetUiColumnFormat(size_t icol, presenter* pres, size_t fmt) {
-	
+
 	try {
 		track_presenter* uipres = dynamic_cast<track_presenter*>(pres);
 		uipres->SetHeaderColumnFormat(icol, fmt);
@@ -177,7 +177,7 @@ void coord_presenters::SetUiColumnFormat(size_t icol, presenter* pres, size_t fm
 size_t coord_presenters::GetUiColumnFormat(size_t icol, presenter *pres) {
 	size_t fmt = pfc_infinite;
 
-	try {	
+	try {
 		track_presenter* uipres = dynamic_cast<track_presenter*>(pres);
 		fmt = uipres->GetHeaderColumnFormat(icol);
 	}
@@ -201,7 +201,7 @@ bool coord_presenters::ColumnRowToggle() {
 
 size_t coord_presenters::ListUserCmd(HWND hwnd, lsmode mode, int cmd,
 	bit_array_bittable cmdmask, bit_array_bittable are_albums, pfc::array_t<size_t> order, bool cmdmod) {
-	
+
 	size_t nextfocus = ~0;
 
 	presenter* pres = nullptr;
@@ -216,7 +216,7 @@ size_t coord_presenters::ListUserCmd(HWND hwnd, lsmode mode, int cmd,
 	switch (cmd) {
 
 		case ID_REMOVE: {
-			
+
 			//context menu or keyboard
 
 			nextfocus = ListUserCmdDELETE(hwnd, mode, cmd, cmdmask, are_albums, cmdmod);
@@ -243,7 +243,7 @@ size_t coord_presenters::ListUserCmdDELETE(HWND hwnd, lsmode mode, int cmd, bit_
 			if (!are_albums.size()) {
 				((discogs_artwork_presenter*)pres)->GetAreAlbumMask(are_albums);
 			}
-		}	
+		}
 	}
 
 	bool bcrop = cmdmod;
@@ -326,7 +326,7 @@ bool coord_presenters::ShowFormMode(lsmode mode, bool showleft, bool showright ,
 	else {
 		//insert artwork mapping
 		if (populate)	populate_artwork_mode();
-		
+
 		if (invalidate) {
 
 			((track_presenter*)&m_discogs_art_presenter)->ListInvalidate();
@@ -422,7 +422,7 @@ void coord_presenters::reorder_map_elements(HWND hwnd, size_t const* order, size
 
 	else if (fm->second.GetListView() == hwnd)
 		pres = &fm->second;
-	
+
 	if (pres) pres->ReorderMapItem(order, count);
 }
 
@@ -445,14 +445,14 @@ void coord_presenters::PushConf(lsmode mode, bool tracks, bool loadwoas) {
 	track_presenter* pres;
 
 	if (tracks) {
-		if (loadwoas) {			
+		if (loadwoas) {
 			form_mode[mode]->first.define_columns();
 		}
 		pres = (track_presenter*)&form_mode[mode]->first;
 		pres->SetUIList();
 
 	}
-		
+
 	else {
 		if (loadwoas) {
 			form_mode[mode]->second.define_columns();;
@@ -529,7 +529,7 @@ void discogs_track_libui_presenter::AddRow(std::any track) {
 	if (!m_vtracks.size()) {
 		m_vtracks.reserve(m_tag_writer->m_track_mappings.get_count());
 	}
-	
+
 	m_vtracks.push_back(std::any_cast<track_match_t>(track));
 	m_lvtracks.emplace(m_lvtracks.end(), std::pair<size_t, track_it>(m_lvtracks.size(), --m_vtracks.end()));
 }
@@ -538,7 +538,7 @@ size_t discogs_track_libui_presenter::GetVRow(size_t list_position, var_it_t& ou
 
 	if (list_position >= GetDataLvSize()) {
 
-		return ~0;	
+		return ~0;
 	}
 
 	std::vector<V>::iterator v_it = m_lvtracks.begin();
@@ -680,7 +680,7 @@ void presenter::update_imagelist(size_t img_ndx, size_t max_img, std::pair<HBITM
 				if (hRES.first)
 					res = imgList->Replace(i, hRES.first, 0);
 				if (hRES.second)
-					res = imgListSmall->Replace(i, hRES.second, 0);				
+					res = imgListSmall->Replace(i, hRES.second, 0);
 			}
 			else {
 				int res = 0;
@@ -722,7 +722,7 @@ void presenter::update_imagelist(size_t img_ndx, size_t max_img, std::pair<HBITM
 	bres = DeleteObject(hBmDefaultMini);
 
 	//non-zero = ok
-	
+
 	if (hRES.first)
 		bres = DeleteObject(hRES.first);
 	if (hRES.second)
@@ -752,7 +752,7 @@ void track_presenter::SetUIList(CListControlOwnerData* ui_replace_list) {
 		m_ui_list->AddColumnEx("#", scw * 3, HDF_CENTER, true);
 		return;
 	}
-	
+
 	for (size_t walk = 0; walk < m_conf_col_woa.size(); walk++) {
 
 		LPARAM woa = m_conf_col_woa[walk];
@@ -804,7 +804,7 @@ void track_presenter::SetHeaderColumnFormat(size_t icol, size_t fmt) {
 }
 
 size_t track_presenter::GetHeaderColumnFormat(size_t icol) {
-	
+
 	size_t fmt = pfc_infinite;
 	CHeaderCtrl header = m_ui_list->GetHeaderCtrl();
 	if (!header) {
@@ -835,7 +835,7 @@ size_t track_presenter::columnHitTest(CPoint point) {
 
 	if (lptest.flags == HHT_ONHEADER) {
 		icol = lptest.iItem;
-	}	
+	}
 	return icol;
 }
 
@@ -868,7 +868,7 @@ size_t discogs_artwork_presenter::get_icon_id(size_t iImageList) {
 void discogs_artwork_presenter::AddRow(std::any imagerow) {
 
 	populated = true;
-	
+
 	if (!m_vimages.size()) {
 		m_vimages.reserve(m_tag_writer->m_track_mappings.get_count());
 	}
@@ -877,7 +877,7 @@ void discogs_artwork_presenter::AddRow(std::any imagerow) {
 
 	if (m_lvimages.size() == 0) {
 		//fix no primary album art
-		
+
 		pfc::string8 artype = ndximginfo.second.at(0);
 		bool fixed = fixPrimary(artype);
 	}
@@ -892,7 +892,7 @@ size_t discogs_artwork_presenter::GetVRow(size_t list_position, var_it_t& out) {
 
 	if (list_position >= GetDataLvSize()) {
 
-		return ~0;	
+		return ~0;
 	}
 
 	std::vector<V>::iterator v_it = m_lvimages.begin();
@@ -925,7 +925,7 @@ void discogs_artwork_presenter::SetUIList(CListControlOwnerData* ui_replace_list
 		col_align = LOWORD(woa) / 10;
 
 		if (col_align == 0 && walk > 1) col_align = HDF_CENTER;
-		
+
 		auto dbg = HIWORD(woa);
 		//if tile expand walk 0 and minimize the rest
 		col_width = HIWORD(woa);
@@ -1120,7 +1120,7 @@ void files_artwork_presenter::GetExistingArtwork() {
 
 	std::vector<std::pair<size_t, pfc::string8>> album_art_prefs;
 	album_art_prefs.reserve(album_art_ids::num_types());
-	
+
 	std::vector<std::pair<size_t, pfc::string8>>::iterator artist_it;
 	std::vector<std::pair<size_t, pfc::string8>>::iterator disc_it;
 
@@ -1143,7 +1143,7 @@ void files_artwork_presenter::GetExistingArtwork() {
 			album_art_prefs.push_back(std::pair(i, file_name));
 		}
 	}
-	
+
 	std::swap(album_art_prefs[artist_num], album_art_prefs[disc_num]);
 
 	for (auto fb_art_pref : album_art_prefs) {
@@ -1152,7 +1152,7 @@ void files_artwork_presenter::GetExistingArtwork() {
 		pfc::string8 directory;
 		file_info_impl info;
 		threaded_process_status p_status;
-		
+
 		titleformat_hook_impl_multiformat hook(p_status, &m_release);
 		CONF.album_art_directory_string->run_hook(item->get_location(), &info, &hook, directory, nullptr);
 
@@ -1164,13 +1164,13 @@ void files_artwork_presenter::GetExistingArtwork() {
 
 		ndx_image_file_t ndx_image_file = std::pair<size_t, GUID>(fb_art_pref.first, album_art_ids::query_type(fb_art_pref.first));
 		ndx_image_file_info_row_t ndximgfileinfo = std::pair(ndx_image_file, image_info);
-			
+
 		AddRow(ndximgfileinfo);
 	}
 }
 
 void files_artwork_presenter::Populate() {
-	
+
 	PFC_ASSERT(m_release->id.get_length());
 
 	Reset();
@@ -1183,7 +1183,7 @@ void files_artwork_presenter::Populate() {
 }
 
 void files_artwork_presenter::Add_template(GUID template_guid, size_t template_size) {
-	
+
 	metadb_handle_ptr item = m_tag_writer->m_finfo_manager->get_item_handle(0);
 
 	for (size_t walk_append = 0; walk_append < template_size; walk_append++) {
@@ -1197,7 +1197,7 @@ void files_artwork_presenter::Add_template(GUID template_guid, size_t template_s
 		titleformat_hook_impl_multiformat hook(p_status, &m_release);
 
 		CONF.album_art_directory_string->run_hook(item->get_location(), &info, &hook, directory, nullptr);
-		
+
 		pfc::string8 tmpl_file_name = template_art_ids::name_of(template_guid);
 
 		if (walk_append)
@@ -1244,7 +1244,7 @@ size_t files_artwork_presenter::AddFileArtwork(size_t img_ndx, art_src art_sourc
 			getimages_file_it img_it = std::get<3>(elem).second;
 			ndx_image_file_t ndx_image = img_it->first;
 
-			sz_res = ndx_image.first;			
+			sz_res = ndx_image.first;
 			return (discogs_img_pos == list_param_ndx);
 			});
 
@@ -1253,7 +1253,7 @@ size_t files_artwork_presenter::AddFileArtwork(size_t img_ndx, art_src art_sourc
 		}
 	}
 	else {
-		list_pos = img_ndx;		
+		list_pos = img_ndx;
 	}
 	auto param = std::pair(callback_pair_memblock.first.second, callback_pair_memblock.second.second);
 	if (list_pos != ~0) {
@@ -1318,9 +1318,9 @@ void files_artwork_presenter::update_img_defs(size_t img_ndx, size_t album_art_i
 }
 
 void files_artwork_presenter::ImageListReset(pfc::array_t<GUID> album_art_ids) {
-	
+
 	for (int i = 0; i < album_art_ids.get_count(); i++) {
-		
+
 		auto find_it = std::find_if(m_vimage_files.begin(), m_vimage_files.end(), [&](ndx_image_file_info_row_t const& elem) {
 
 			ndx_image_file_t ndx_image = elem.first;
@@ -1336,11 +1336,11 @@ void files_artwork_presenter::ImageListReset(pfc::array_t<GUID> album_art_ids) {
 				size_t discogs_img_pos = std::get<3>(elem).first;
 				getimages_file_it img_it = std::get<3>(elem).second;
 				ndx_image_file_t ndx_image = img_it->first;
-				size_t image_src = ndx_image.first;				
+				size_t image_src = ndx_image.first;
 				return (image_src == pos_v);
 				});
 			if (find_lvit != m_lvimage_files.end()) {
-				pos_lv = std::distance(m_lvimage_files.begin(), find_lvit);				
+				pos_lv = std::distance(m_lvimage_files.begin(), find_lvit);
 			}
 
 			update_imagelist(pos_v, album_art_ids.get_count(), std::pair<HBITMAP, HBITMAP>(NULL, NULL));
@@ -1377,10 +1377,10 @@ void discogs_artwork_presenter::update_list_width(bool initcontrols = false) {
 	for (pfc::string8 htitle : m_vtitles) {
 
 		DWORD fmtFlags = icol > 1 ? HDF_CENTER : HDF_LEFT;
-				
+
 		if (htitle.equals("#")) col_width = slot / 2;
 		else col_width = slot;
-		
+
 		LVCOLUMN lvcol = {};
 		lvcol.iSubItem = col_width;
 		lvcol.cx = col_width;
@@ -1541,7 +1541,7 @@ bool discogs_artwork_presenter::AddArtwork(size_t img_ndx, art_src artSrc, Memor
 
 	pfc::string8 n8_cache_path_small = Offline::get_thumbnail_cache_path_filenames(
 		id, artSrc, LVSIL_NORMAL, true, pfc_infinite)[0];
-	
+
 	pfc::string8 n8_cache_path_mini = Offline::get_thumbnail_cache_path_filenames(
 		id, artSrc, LVSIL_SMALL, true, pfc_infinite)[0];
 
@@ -1569,8 +1569,8 @@ bool discogs_artwork_presenter::AddArtwork(size_t img_ndx, art_src artSrc, Memor
 			ndx_image_t ndx_image = img_it->first;
 			size_t image_src = ndx_image.first;
 			return (discogs_img_pos == list_param_ndx && image_src == (size_t)artSrc);
-			});	
-			
+			});
+
 		if (find_it != m_lvimages.end()) {
 			list_pos = std::distance(m_lvimages.begin(), find_it);
 		}
@@ -1610,7 +1610,7 @@ art_src discogs_artwork_presenter::get_vimages_src_type_at_pos(size_t list_posit
 size_t discogs_artwork_presenter::get_ndx_at_pos(size_t list_position) {
 	if (list_position >= m_vimages.size()) {
 		return pfc_infinite;
-	}	
+	}
 	else {
 		std::variant vv_it = m_lvimages[list_position];
 		std::pair<size_t, getimages_it> rowpair = std::get<2>(vv_it);
@@ -1673,7 +1673,7 @@ void coord_presenters::populate_track_ui_mode() {
 	int debugrejected = 0;
 
 	for (size_t i = 0; i < cmax; i++) {
-		
+
 		if (i >= citems) {
 
 			debugrejected++;
@@ -1732,7 +1732,7 @@ void coord_presenters::populate_track_ui_mode() {
 				disc = tw_release->discs[mapping.discogs_disc];
 				track = disc->tracks[mapping.discogs_track];
 			}
-			
+
 			m_hook.set_release(&tw_release);
 			m_hook.set_disc(&disc);
 			m_hook.set_track(&track);
@@ -1740,7 +1740,7 @@ void coord_presenters::populate_track_ui_mode() {
 			if (i == 0) {
 				file_info_impl finfo;
 				m_tag_writer->m_finfo_manager->items[0]->get_info(finfo);
-				
+
 				pfc::string8 local_release_id;
 
 				const char* ch_local_rel = finfo.meta_get("DISCOGS_RELEASE_ID", 0);
@@ -1755,10 +1755,10 @@ void coord_presenters::populate_track_ui_mode() {
 
 				pfc::string8 release_desc = bdiffid ? "!! " : "";
 				release_desc << ltrim(compact_release);
-				
+
 				uSetDlgItemText(m_hWnd, IDC_STATIC_MATCH_TRACKING_REL_NAME, release_desc);
-			}			
-			
+			}
+
 			pfc::string8 dc_track_desc, time;
 			CONF.release_discogs_format_string->run_hook(m_location, &m_info, &m_hook, dc_track_desc, nullptr);
 
@@ -1800,7 +1800,7 @@ void coord_presenters::populate_artwork_mode(size_t select) {
 }
 
 void coord_presenters::FileArtDeleteImageList(pfc::array_t<GUID> album_art_ids) {
-	
+
 	m_file_art_presenter.ImageListReset(album_art_ids);
 }
 

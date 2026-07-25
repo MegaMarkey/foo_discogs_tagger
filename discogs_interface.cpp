@@ -12,12 +12,12 @@ Release_ptr DiscogsInterface::get_release(const size_t lkey, bool bypass_is_cach
 	assert_release_id_not_deleted(release_id);
 
 	Release_ptr release = bypass_is_cache && bypass ? nullptr : get_release_from_cache(lkey);
-	
+
 	if (!release) {
-		
+
 		std::pair<int, unsigned long> dec = decode_mr(lkey);
 		release = std::make_shared<Release>(release_id);
-		
+
 		if (!(bypass_is_cache && bypass)) {
 			add_release_to_cache(lkey, release);
 		}
@@ -76,7 +76,7 @@ MasterRelease_ptr DiscogsInterface::get_master_release(const size_t lkey, bool b
 
 MasterRelease_ptr DiscogsInterface::get_master_release(const pfc::string8& master_id, const pfc::string8& artist_id, bool bypass_cache) {
 
-	unsigned long lkey = encode_mr(atoi(artist_id), atoi(master_id));	
+	unsigned long lkey = encode_mr(atoi(artist_id), atoi(master_id));
 
 	MasterRelease_ptr master = bypass_cache ? nullptr : get_master_release_from_cache(lkey);
 
@@ -288,7 +288,7 @@ pfc::array_t<JSONParser_ptr> DiscogsInterface::get_all_pages(pfc::string8 &url, 
 			status << " page " << page << "/" << last << " (100 x page)";
 		}
 		p_status.set_item(status);
-		
+
 		pfc::string8 page_params;
 		page_params << params;
 		page_params << "&page=" << page;
@@ -383,7 +383,7 @@ void DiscogsInterface::get_entity_offline_cache(ol::GetFrom getfrom, pfc::string
 	p_status.set_item(status);
 
 	pfc::string8 json_path;
-	
+
 	if (getfrom == ol::GetFrom::Artist) {
 		json_path = ol::get_offline_path(artist_id, ol::GetFrom::Artist, "", true);
 	}
@@ -394,7 +394,7 @@ void DiscogsInterface::get_entity_offline_cache(ol::GetFrom getfrom, pfc::string
 	json_path << "\\root.json";
 
 	json_t* js_obj = offline_cache.Read_JSON(json_path.get_ptr());
-	
+
 	// checking js_obj prevents crash on invalid offline files
 
 	if (js_obj) {
@@ -446,7 +446,7 @@ pfc::array_t<pfc::string8> DiscogsInterface::get_collection(threaded_process_sta
 	try {
 		pfc::string8 json;
 		pfc::string8 url;
-		url << "https://api.discogs.com/users/" << username << "/collection/folders";		
+		url << "https://api.discogs.com/users/" << username << "/collection/folders";
 
 		fetcher->fetch_html(url, "per_page=100", json, p_abort);
 		JSONParser jp(json);
@@ -456,7 +456,7 @@ pfc::array_t<pfc::string8> DiscogsInterface::get_collection(threaded_process_sta
 		url = urls[0];
 		url << "/releases";
 		pfc::array_t<JSONParser_ptr> pages = get_all_pages(url, "", p_abort, "Loading collection...", p_status);
-		
+
 		for (size_t i = 0; i < pages.get_count(); i++) {
 
 			parseCollection(pages[i]->root, collection);
@@ -467,6 +467,7 @@ pfc::array_t<pfc::string8> DiscogsInterface::get_collection(threaded_process_sta
 	}
 	return collection;
 }
+
 bool DiscogsInterface::get_thumbnail_from_cache(Release_ptr release, bool isArtist, size_t img_ndx, MemoryBlock& small_art,
 	threaded_process_status& p_status, abort_callback& p_abort) {
 
@@ -481,7 +482,7 @@ bool DiscogsInterface::get_thumbnail_from_cache(Release_ptr release, bool isArti
 
 		id = release->id;
 		if (!release->images.get_size() || release->images.get_size() < (img_ndx + 1) || (!release->images[img_ndx]->url150.get_length())) {
-			
+
 			pfc::string8 msg = "Unable to read album thumbnail from cache, index: ";
 			msg << img_ndx;
 			log_msg(msg);
@@ -532,7 +533,7 @@ bool DiscogsInterface::get_thumbnail_from_cache(Release_ptr release, bool isArti
 		try {
 
 			std::filesystem::path os_file = std::filesystem::u8path(n8_file_name.get_ptr());
-			
+
 			if (std::filesystem::exists(os_file)) {
 
 				int filesize = std::filesystem::file_size(os_file);
@@ -651,7 +652,7 @@ bool DiscogsInterface::delete_artist_cache(const pfc::string8& artist_id, const 
 
 			std::filesystem::remove_all(os_path, ec);
 			delres &= !(!!ec.value());
-			
+
 			//remove all artwork from its releases
 			for (size_t walk = 0; walk < artist->releases.get_count(); walk++) {
 

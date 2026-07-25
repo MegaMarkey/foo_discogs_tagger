@@ -23,7 +23,7 @@ public:
 protected:
 	// implement task here. catches foo_discogs exceptions.
 	virtual void safe_run(threaded_process_status &p_status, abort_callback &p_abort) = 0;
-	
+
 	// success callback
 	virtual void on_success(HWND p_wnd) {};
 
@@ -166,7 +166,7 @@ private:
 	file_info_manager m_finfo_manager;
 	metadb_handle_list m_items;
 	metadb_handle_list m_deleted_items;
-	
+
 	void safe_run(threaded_process_status &p_status, abort_callback &p_abort) override;
 	void on_success(HWND p_wnd) override;
 	void on_abort(HWND p_wnd) override; 

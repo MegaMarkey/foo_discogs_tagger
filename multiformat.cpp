@@ -78,7 +78,7 @@ bool titleformat_hook_impl_multiformat::process_field(titleformat_text_out * p_o
 	result.expand_depth(multi_depth);
 	result.encode();
 	p_out->write(titleformat_inputtypes::unknown, result.get_cvalue(), pfc::infinite_size);
-	
+
 	p_found_flag = result.get_cvalue().get_length() != 0;
 	return true;
 }
@@ -387,7 +387,7 @@ bool titleformat_hook_impl_multiformat::process_function(titleformat_text_out * 
 				wrong_param_count = true;
 			}
 		}
-		
+
 		else if (pfc::strcmp_ex(p_name, p_name_length, "multi_div", pfc::infinite_size) == 0) {
 			if (param_count > 1) {
 				for (size_t i = 1; i < param_count; i++) {
@@ -735,7 +735,7 @@ bool titleformat_hook_impl_multiformat::process_function(titleformat_text_out * 
 				wrong_param_count = true;
 			}
 		}
-		
+
 		else if (store != nullptr && pfc::strcmp_ex(p_name, p_name_length, "pput", pfc::infinite_size) == 0) {
 			if (param_count == 2) {
 				store->put(params[0].get_cvalue(), params[1].get_cvalue());

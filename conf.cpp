@@ -47,7 +47,7 @@ bool copy_dbf_file(pfc::string8 src_dbpath, pfc::string8 dst_dbpath) {
 	try {
 
 		//copy dbf...
-		
+
 		if (std::filesystem::exists(os_dst)) {
 
 			log_msg("a previous foo_discogger.cfg.db file version was found");
@@ -115,15 +115,15 @@ bool prepare_dbf_and_cache(bool bimport = true) {
 		}
 	}
 	catch (...) {
-		
+
 		log_msg("unexpected exception installing configuration files");
 		return false;
-	
+
 	}
 
 	try {
 		//create offline cache folder
-		pfc::string8 n8_olPath = profile_path(OC_NAME);		
+		pfc::string8 n8_olPath = profile_path(OC_NAME);
 		std::filesystem::path os_olDst = std::filesystem::u8path(n8_olPath.c_str());
 		std::filesystem::create_directory(os_olDst);
 		bres &= true;
@@ -151,7 +151,7 @@ bool CConf::load() {
 	vspec v210{ &vec_specs, 27, 52, 16 }; // 1.0.21
 
 	vspec* vlast = &vec_specs.at(vec_specs.size() - 1);
-	
+
 	vspec vLoad = {
 		nullptr,
 		cfg_bool_entries.get_count(),
@@ -177,6 +177,7 @@ bool CConf::load() {
 			uMessageBox(core_api::get_main_window(), msg, title, MB_APPLMODAL | MB_ICONASTERISK);
 
 			save();
+
 			//EXIT
 			return prepare_dbf_and_cache(false);
 		}
@@ -316,6 +317,7 @@ bool CConf::load() {
 
 		cfg_int_entries.add_item(make_conf_entry(CFG_FIND_RELEASE_DIALOG_FLAG, find_release_dlg_flags));
 	}
+
 	//..
 
 	for (unsigned int i = 0; i < cfg_string_entries.get_count(); i++) {
@@ -587,7 +589,7 @@ bool CConf::int_load(const conf_int_entry& item) {
 	case CFG_DISCOGS_ARTWORK_TL_INDEX_WIDTH:
 		match_discogs_artwork_tl_index_width = item.value;
 		break;
-	
+
 	case CFG_CUSTOM_FONT:
 		custom_font = item.value;
 		break;

@@ -85,6 +85,7 @@ pfc::string8 sanitize_track_semi_media(const pfc::string8& tracks) {
 	}
 	return res;
 }
+
 pfc::string8 sanitize_track_commas(const pfc::string8& tracks) {
 
 	std::regex regex_v;
@@ -158,7 +159,6 @@ pfc::string8 sanitize_track_to(const pfc::string8& tracks) {
 	int occurrences = 0;
 	pfc::string8 res;
 	std::sregex_iterator i = begin;
-
 	if (i->prefix().matched) {
 		res << i->prefix().str().c_str();
 	}
@@ -171,7 +171,6 @@ pfc::string8 sanitize_track_to(const pfc::string8& tracks) {
 		//recursion
 		res << sanitize_track_to(trim(i->suffix().str().c_str()));
 	}
-	
 	return res;
 }
 
@@ -226,7 +225,7 @@ inline pfc::string8 rtrim(const pfc::string8 &str, const char *ch) {
 }
 
 extern void szcstr(size_t n, pfc::string8& out) {
-	out = std::to_string(n).c_str();	
+	out = std::to_string(n).c_str();
 }
 
 bool is_number(const std::string& s)
@@ -266,7 +265,7 @@ size_t split(pfc::string8 str, pfc::string8 token, size_t index, std::vector<pfc
 size_t encode_mr(const int a, const unsigned long b) {
 	//search artists array ndx (last 6)
 	size_t enc_a = (size_t)a << 26;
-	//marter id (first 26)	
+	//master id (first 26)
 	size_t coded = enc_a | b;
 	return coded;
 }
@@ -308,7 +307,7 @@ pfc::string8 join(const pfc::array_t<pfc::string8> &in, const pfc::string8 &join
 }
 
 int tokenize(const pfc::string8 &src, const pfc::string8 &delim, pfc::array_t<pfc::string8> &tokens, bool remove_blanks) {
-	
+
 	tokens.force_reset();
 	if (!src.get_length()) return 0;
 
@@ -479,7 +478,7 @@ pfc::string8 urlEscape(const pfc::string8 &src) {
 			case '=': dst << "%3D"; break;
 			case '&': dst << "%26"; break;
 			case '$': dst << "%24"; break;
-			
+
 			case '*': dst << "%2A"; break;
 			case '(': dst << "%28"; break;
 			case ')': dst << "%29"; break;
@@ -610,7 +609,6 @@ void load_dlls()
 	dllinflateEnd = (dll_inflateEnd)GetProcAddress(hGetProcIDDLL, "inflateEnd");
 	dlladler32 = (dll_adler32)GetProcAddress(hGetProcIDDLL, "adler32");
 }
-
 
 void unload_dlls()
 {
@@ -746,12 +744,9 @@ bool check_os_wine() {
 void CustomFont(HWND hwndParent, size_t flag, bool check_font, bool apply) {
 
 	if (!flag) {
-
 		if (check_font) {
-
 			g_hFont = (HFONT)::GetStockObject(DEFAULT_GUI_FONT);
 			g_hFontTabs = (HFONT)::GetStockObject(DEFAULT_GUI_FONT);
-
 		}
 	}
 	else if (flag & (1 << 0)) {
@@ -772,7 +767,6 @@ void CustomFont(HWND hwndParent, size_t flag, bool check_font, bool apply) {
 			bool bv2 = core_version_info_v2::get()->test_version(2, 0, 0, 0);
 			if (bv2) {
 				auto ui_cfg_mng = ui_config_manager::get();
-
 				if (!g_hFont) {
 					g_hFont = ui_cfg_mng->query_font(ui_font_lists);
 				}

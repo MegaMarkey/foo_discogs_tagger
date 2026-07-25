@@ -44,7 +44,7 @@ public:
 #pragma warning( disable : 26454 )
 
 	BEGIN_MSG_MAP(CFindReleaseDialog)
-		
+
 		MSG_WM_TIMER(OnTypeFilterTimer)
 		
 		MESSAGE_HANDLER(WM_INITDIALOG, OnInitDialog)
@@ -215,7 +215,6 @@ private:
 	std::function<bool(HWND hwnd, wchar_t* editval)> m_stdf_call_history = [&](HWND hwnd, wchar_t* wstrt) {
 
 		oplog_type optype =
-
 			hwnd == this->m_edit_artist ? oplog_type::artist :
 			hwnd == this->m_edit_release ? oplog_type::release :
 			hwnd == this->m_edit_filter ? oplog_type::filter : oplog_type::filter;

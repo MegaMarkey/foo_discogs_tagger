@@ -52,7 +52,7 @@ void CArtistList::on_get_artist_done(cupdRelSrc updsrc, Artist_ptr& artist) {
 		Artist_ptr selected_artist = get_selected_artist();
 		size_t selected_id = selected_artist ? atoi(selected_artist->id) : pfc_infinite;
 		if (selected_id == pfc_infinite || atoi(artist->id) == selected_id) {
-	
+
 			CFindReleaseDialog* dlg = static_cast<CFindReleaseDialog*>(m_host);
 			{
 				std::lock_guard<std::mutex> guard(dlg->m_loading_selection_rw_mutex);
@@ -357,7 +357,7 @@ void CArtistList::Default_Action() {
 	size_t pos = GetFirstSelected();
 
 	if (pos == ~0) return;
-	
+
 	Artist_ptr artist = m_find_release_artists[pos];
 
 	if (atoi(artist->id) != m_idtracer_p->get_artist_id()) {
@@ -397,7 +397,7 @@ void CArtistList::ShowArtistProfile() {
 	//serves dlg bind panel checkbox
 
 	size_t pos = GetFirstSelected();
-	
+
 	open_artist_profile(pos);
 }
 
@@ -413,9 +413,9 @@ void CArtistList::open_artist_profile(size_t list_index) {
 		Artist_ptr artist = get_artist_inlist(list_index);
 
 		if (artist) {
-			
+
 			g_discogs->find_release_dialog->UpdateArtistProfile(artist);
-		}		
+		}
 	}
 
 	::SetFocus(g_discogs->find_release_artist_dialog->m_hWnd);
@@ -464,7 +464,7 @@ void CArtistList::context_menu(size_t list_index, POINT screen_pos) {
 			}
 			uAppendMenu(menu, MF_STRING | (!artist ? MF_DISABLED | MF_GRAYED : 0), ID_VIEW_PAGE, sourcepage);
 		}
-		
+
 		int cmd = TrackPopupMenu(menu, TPM_RIGHTBUTTON | TPM_NONOTIFY | TPM_RETURNCMD, screen_pos.x, screen_pos.y, 0, dlg->m_hWnd, 0);
 		DestroyMenu(menu);
 
@@ -480,7 +480,7 @@ void CArtistList::context_menu(size_t list_index, POINT screen_pos) {
 		case ID_VIEW_PAGE:
 		{
 			pfc::string8 url;
-			url << "https://www.discogs.com/artist/" << artist->id;			
+			url << "https://www.discogs.com/artist/" << artist->id;
 			display_url(url);
 			break;
 		}
@@ -501,7 +501,7 @@ void CArtistList::context_menu(size_t list_index, POINT screen_pos) {
 		{
 			discogs_interface->delete_artist_cache(artist->id);
 			break;
-		}	
+		}
 		case ID_ARTIST_EXACT_MATCHES: {
 
 			bool prev = ::IsDlgButtonChecked(dlg->m_hWnd, IDC_CHK_ONLY_EXACT_MATCHES);

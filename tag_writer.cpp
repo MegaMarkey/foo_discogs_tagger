@@ -108,11 +108,11 @@ int TagWriter::route_discogs_track_order(track_mappings_list_type &mappings) {
 		for (size_t j = 0; j < (release ? release->discs[i]->tracks.get_count() : 0); j++) {
 			track_mapping& tm = mappings[cf_ndx];
 			tm.file_index = cf_ndx < citems ? cf_ndx : -1;
-			tm.enabled = false;			
+			tm.enabled = false;
 			tm.discogs_disc = i; //zero based
 			tm.discogs_track = j;
 			cf_ndx++;
-		}		
+		}
 	}
 	if (ctracks != m_finfo_manager->items.get_count()) {
 		return MATCH_FAIL;
@@ -182,11 +182,11 @@ int TagWriter::order_tracks_by_duration(track_mappings_list_type &mappings) {
 	if (!CONF.match_tracks_using_duration) {
 		return MATCH_NA;
 	}
-	
+
 	const size_t citems = m_finfo_manager->items.get_count();
 	// first try to match tracks on nearest track length if the release has lengths
 	metadb_handle_ptr item;
-	
+
 	if (release && release->has_tracklengths()) {
 		// max delta of 5 seconds per track
 		const unsigned MAX_DELTA = citems * 5;
@@ -202,7 +202,7 @@ int TagWriter::order_tracks_by_duration(track_mappings_list_type &mappings) {
 			item = m_finfo_manager->items.get_item(i);
 			int min_delta = 0xFFFFFF;
 			int bad_min_delta = 0xFFFFFF;
-			
+
 			int min_delta_index = 0;
 			int min_delta_disc = 0;
 			int min_delta_track = 0;
@@ -258,7 +258,7 @@ int TagWriter::order_tracks_by_number(track_mappings_list_type &mappings) {
 	const size_t citems = m_finfo_manager->items.get_count();
 	int missing = 0;
 	metadb_handle_ptr item;
-	
+
 	pfc::array_t<std::pair<size_t, size_t>> used;
 
 	file_info_impl finfo;
@@ -351,7 +351,7 @@ void TagWriter::generate_tags(tag_mapping_list_type* alt_mappings, threaded_proc
 	}
 	else {
 		ptags = &TAGS;
-	} 
+	}
 
 	atm_tag_results_ready = false;
 
@@ -400,7 +400,7 @@ void TagWriter::generate_tags(tag_mapping_list_type* alt_mappings, threaded_proc
 
 
 			if (masksize) {
-				
+
 				++mask_count_enabled;
 
 				if (!mask_left) {
@@ -498,11 +498,11 @@ void TagWriter::generate_tags(tag_mapping_list_type* alt_mappings, threaded_proc
 					// APPROVING 1/2 (count based)
 
 					if (old_count == 0) {
-						
+
 						//note: does not approve replacing empty val with another empty val
 						bool approved;
 						string_encoded_array newvalue(result->value[result->value.get_count() - 1]);
-						
+
 						approved = !newvalue.has_blank() && entry.enable_write;
 						result->r_approved.append_single(approved);
 						token_added = true;
@@ -538,7 +538,7 @@ void TagWriter::generate_tags(tag_mapping_list_type* alt_mappings, threaded_proc
 					string_encoded_array oldvalue(result->old_value[last_val_ndx]);
 					meta_changed = oldvalue.has_diffs(newvalue);
 					result->changed |= meta_changed;
-					
+
 					// SUBITEMS APPROVING 2/2 (change based)
 
 					if (!token_added) {
@@ -582,7 +582,7 @@ void TagWriter::generate_tags(tag_mapping_list_type* alt_mappings, threaded_proc
 void check_mem(const tag_mapping_entry* tag_entry, const string_encoded_array* value) {
 	if (STR_EQUAL(tag_entry->tag_name, TAG_ARTIST_ID) ||
 		STR_EQUAL(tag_entry->tag_name, TAG_RELEASE_ID)) {
-		
+
 		bool berror = false;
 		std::string buffer;
 		if (value->has_array()) {
@@ -689,8 +689,8 @@ void process_result(const metadb_handle_ptr item, file_info* info, size_t ndx_tr
 			check_mem(result->tag_entry, value);
 
 			value->limit_depth(1);
-			
-			//WRITE array
+
+			//WRITE
 			out_write_info.item = item;
 			out_write_info.info = info;
 			out_write_info.entry = *(result->tag_entry);
@@ -703,8 +703,8 @@ void process_result(const metadb_handle_ptr item, file_info* info, size_t ndx_tr
 
 			pfc::string8 catch_mem = value_lf;
 			check_mem(result->tag_entry, value);
-			
-			//WRITE single
+
+			//WRITE
 			out_write_info.item = item;
 			out_write_info.info = info;
 			out_write_info.entry = *(result->tag_entry);
@@ -715,11 +715,11 @@ void process_result(const metadb_handle_ptr item, file_info* info, size_t ndx_tr
 }
 
 void TagWriter::write_tags() {
-	
+
 	m_finfo_manager->invalidate_all();
 
 	bit_array_bittable info_man_validate_mask(bit_array_false(), m_finfo_manager->items.get_count());
-	
+
 	bool bhasmask = tag_results_mask.size();
 
 	//tracks
@@ -742,9 +742,7 @@ void TagWriter::write_tags() {
 
 
 		if (!tag_results_mask.size()) {
-		
-			// bulk
-			
+
 			// walk track results
 			for (size_t j = 0; j < tag_results.get_size(); j++) {
 
@@ -777,14 +775,12 @@ void TagWriter::write_tags() {
 		}
 
 		else {
-		
-			//selection
-		
+
 			size_t mask_size = tag_results_mask.size();
 			size_t fpos = 0;
 
 			while ((fpos = tag_results_mask.find_first(true, fpos, mask_size)) < mask_size) {
-			
+
 				const tag_result_ptr& result = tag_results[fpos];
 				//todo:
 				bool release_id_mod = STR_EQUAL(TAG_RELEASE_ID, result->tag_entry->tag_name.get_ptr());
@@ -792,8 +788,8 @@ void TagWriter::write_tags() {
 
 				bool bvalidate = false;
 				write_tag_nfo out_write_info = { 0 };
-				process_result(item, &info, i , result, bhasmask, tag_results_mask_force_wu, mask_size, bvalidate, out_write_info);
-				
+				process_result(item, &info, i, result, bhasmask, tag_results_mask_force_wu, mask_size, bvalidate, out_write_info);
+
 				if (out_write_info.item.get_ptr()) {
 					if (out_write_info.tag_values_array.get_count()) {
 						write_tag(out_write_info.item, *(out_write_info.info), out_write_info.entry, out_write_info.tag_values_array);
@@ -806,7 +802,7 @@ void TagWriter::write_tags() {
 
 				fpos++;
 			}
-		
+
 		}
 
 		// keep on walking this track...
@@ -819,9 +815,9 @@ void TagWriter::write_tags() {
 			//loop metas
 
 			for (size_t j = 0; j < jcount; j++) {
-				
+
 				const char * tag_name = info.meta_enum_name(j);
-				
+
 				//do not remove current map tags
 				for (size_t k = 0; k < TAGS.get_size(); k++) {
 					const auto &tag = TAGS.get_item_ref(k);
@@ -897,7 +893,7 @@ void TagWriter::write_tag(metadb_handle_ptr item, file_info &info, const tag_map
 		//log
 		if (blog) {
 			logmsg << logtrack << "Tw < set " << entry.tag_name << " = " << (tag_value.get_length() ? tag_value : "(empty)");
-			log_msg(logmsg); logmsg = "";		
+			log_msg(logmsg); logmsg = "";
 		}	//..log
 		try {
 			auto res = info.meta_set(entry.tag_name, tag_value);
@@ -983,7 +979,7 @@ void TagWriter::write_tag(metadb_handle_ptr item, file_info &info, const tag_map
 	}//..log
 
 	size_t cexist = info.meta_get_count_by_name(entry.tag_name);
-	
+
 	size_t meta = 0;
 	const size_t cvalues = tag_values.get_size();
 

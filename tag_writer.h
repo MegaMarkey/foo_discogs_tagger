@@ -80,8 +80,6 @@ private:
 
 public:
 
-
-
 	tag_results_list_type tag_results;
 	file_info_manager_ptr m_finfo_manager;
 	track_mappings_list_type m_track_mappings;

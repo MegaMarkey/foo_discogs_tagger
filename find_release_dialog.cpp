@@ -1,7 +1,7 @@
 #include "stdafx.h"
-
 #include "configuration_dialog.h"
 #include "tasks.h"
+
 #include "utils.h"
 #include "utils_db.h"
 
@@ -47,7 +47,6 @@ m_va(false), cewb_artist_search(), cewb_release_filter(), cewb_release_url(), m_
 }
 
 CFindReleaseDialog::~CFindReleaseDialog() {
-
 	if (g_discogs) {
 		awt_update_mod_flag(/*fromFlag*/false);
 		if (!g_discogs->tag_mappings_dialog) {
@@ -65,13 +64,13 @@ CFindReleaseDialog::~CFindReleaseDialog() {
 }
 
 void CFindReleaseDialog::show() /*override*/ {
-	
+
 	if (g_discogs->find_release_artist_dialog) {
 		::ShowWindow(g_discogs->find_release_artist_dialog->m_hWnd, SW_SHOW);
 	}
 
 	MyCDialogImpl::show();
-	
+
 }
 
 void CFindReleaseDialog::hide() /*override*/ {
@@ -191,7 +190,6 @@ void CFindReleaseDialog::init_cfged_dialog_controls() {
 		print_root_stats(m_row_stats, false/*save*/);
 	}
 	else {
-		
 		pfc::string8 artist_name = m_alist.Get_Artist() ? m_alist.Get_Artist()->name : "";
 		pfc::string8 artist_id = m_alist.Get_Artist() ? m_alist.Get_Artist()->id : "";
 		rppair row_stats{ std::pair("",""), std::pair(artist_name, artist_id) };
@@ -220,9 +218,8 @@ LRESULT CFindReleaseDialog::OnButtonNext(WORD /*wNotifyCode*/, WORD wID, HWND /*
 
 bool CFindReleaseDialog::ForwardVKReturn()
 {
-
 	HWND hwnd = GetFocus();
-	
+
 	if (hwnd == m_artist_list) {
 
 		m_alist.Default_Action();
@@ -242,9 +239,9 @@ bool CFindReleaseDialog::ForwardVKReturn()
 bool OAuthCheck(const foo_conf& conf) {
 
 	if (!g_discogs->gave_oauth_warning && (!conf.oauth_token.get_length() || !conf.oauth_token_secret.get_length())) {
-		
+
 		g_discogs->gave_oauth_warning = true;
-		
+
 		if (!g_discogs->configuration_dialog) {
 			static_api_ptr_t<ui_control>()->show_preferences(guid_pref_page);
 		}
@@ -252,7 +249,6 @@ bool OAuthCheck(const foo_conf& conf) {
 		if (CConfigurationDialog* dlg = g_discogs->configuration_dialog) {
 			dlg->show_oauth_msg("Please configure OAuth.", true);
 			::SetFocus(dlg->m_hWnd);
-
 		}
 		return false;
 	}
@@ -771,7 +767,6 @@ LRESULT CFindReleaseDialog::OnCheckboxFindReleaseFilterFlags(WORD /*wNotifyCode*
 
 	bool force_refresh, force_rebuild;
 
-	//get dlg filter
 	pfc::string8 strFilter = trim(uGetWindowText(m_edit_filter)); 
 
 	if (wID == IDC_CHK_FIND_RELEASE_FILTER_ROLEMAIN) {
@@ -791,6 +786,7 @@ LRESULT CFindReleaseDialog::OnCheckboxFindReleaseFilterFlags(WORD /*wNotifyCode*
 			conf.find_release_filter_flag &= ~(FilterFlag::Versions);
 
 		force_refresh = true; force_rebuild = false;
+
 		set_role_label(checked);
 
 		//skip if filter is empty
@@ -804,7 +800,7 @@ LRESULT CFindReleaseDialog::OnCheckboxFindReleaseFilterFlags(WORD /*wNotifyCode*
 
 		return FALSE;
 	}
-	
+
 	KillTimer(KTypeFilterTimerID);
 
 	//
@@ -984,7 +980,7 @@ void CFindReleaseDialog::route_artist_search(pfc::string8 artistname, bool dlgbu
 
 	updRelSrc updsrc = updRelSrc::Undef;
 
-	bool by_any =	dlgbutton ||
+	bool by_any = dlgbutton ||
 					conf.enable_autosearch ||
 					(m_tracer.has_artist() && cfg_fast_load_artist_if_idded);
 
@@ -1145,7 +1141,6 @@ void CFindReleaseDialog::print_root_stats(rppair root_stats, bool save) {
 	}
 }
 
-
 void replace_artist_refs(const pfc::string8 & profile, pfc::string8& outprofile, const pfc::array_t<Artist_ptr> artists) {
 
 	outprofile = profile;
@@ -1241,9 +1236,11 @@ bool CFindReleaseDialog::add_history(oplog_type optype, std::string cmd, rppair 
 }
 
 bool CFindReleaseDialog::SetConfigFlag(int ID, int flag, bool flagvalue) {
-	
+
 	FlgMng fv_stats;
+
 	conf.GetFlagVar(ID, fv_stats);
 	fv_stats.SetFlag(flag, flagvalue);
+
 	return true;
 }

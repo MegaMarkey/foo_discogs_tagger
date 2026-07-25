@@ -78,7 +78,6 @@ private:
 #endif
 	}
 
-
 	inline void add_master_release_to_cache(const size_t lkey, MasterRelease_ptr &master) {
 
 		cache_master_releases->put((const size_t)lkey, master);
@@ -87,7 +86,7 @@ private:
 	inline void add_artist_to_cache(Artist_ptr &artist) {
 		cache_artists->put(artist->id, artist);
 	}
-	
+
 	inline void assert_release_id_not_deleted(const pfc::string8 &release_id) {
 		if (cache_deleted_releases->exists(release_id)) {
 			http_404_exception ex;
@@ -108,7 +107,7 @@ public:
 	pfc::array_t<JSONParser_ptr> get_all_pages(pfc::string8 &url, pfc::string8 params, abort_callback &p_abort, const char *msg, threaded_process_status &p_status);
 
 	pfc::array_t<JSONParser_ptr> get_all_pages_offline_cache(ol::GetFrom gpfFrom, pfc::string8 &id, pfc::string8 &secid, pfc::string8 params, abort_callback &p_abort, const char *msg, threaded_process_status &p_status);
-	
+
 	void get_entity_offline_cache(ol::GetFrom getfrom, pfc::string8& artist_id, pfc::string8& release_id, pfc::string8& html, abort_callback& p_abort, const char* msg, threaded_process_status& p_status);
 
 	DiscogsInterface() {

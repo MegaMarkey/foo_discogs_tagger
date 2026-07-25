@@ -8,8 +8,8 @@ int db_fetcher_component::insert_history(sqldb* db, oplog_type optype, std::stri
 	if (!CONF.history_enabled()) return 0;
 
 	pfc::string8 artist_id, artist_name, release_id, release_title, filter;
-	
-	if (optype == oplog_type::artist || optype == oplog_type::release) {
+
+	if (optype == oplog_type::artist || optype == oplog_type::query || optype == oplog_type::release) {
 
 		release_id = out.first.first;
 		release_title = out.first.second;
@@ -164,7 +164,7 @@ bool db_fetcher_component::recharge_history(sqldb* db, std::string delete_cmd, s
 		"SELECT cmd_text, cmd_text, date, cmd_id, cmd_text, artist_id, artist_name "
 		"FROM history_releases WHERE cmd_id = @cmd_id "
 		"GROUP BY cmd_text ORDER BY date DESC LIMIT @param_pop_tops;";
-	
+
 	query_map.emplace(oplog_type::release, query_release);
 	query_map.emplace(oplog_type::artist, query_artist);
 	query_map.emplace(oplog_type::filter, query_filter);
@@ -200,9 +200,9 @@ bool db_fetcher_component::recharge_history(sqldb* db, std::string delete_cmd, s
 
 				param_ndx = sqlite3_bind_parameter_index(stmt_lk, "@param_pop_tops");
 				ret = sqlite3_bind_int(stmt_lk, param_ndx, top_rows);
-				
+
 				cmd_label = task_map.at(thistype);
-				param_ndx = sqlite3_bind_parameter_index(stmt_lk, "@cmd_id");				
+				param_ndx = sqlite3_bind_parameter_index(stmt_lk, "@cmd_id");
 				ret = sqlite3_bind_text(stmt_lk, param_ndx, cmd_label.c_str(), cmd_label.size(), NULL);
 
 				if (thistype == oplog_type::artist) {
@@ -215,7 +215,7 @@ bool db_fetcher_component::recharge_history(sqldb* db, std::string delete_cmd, s
 				ret = sqlite3_step(stmt_lk); //SQLITE_DONE (101)
 
 				sqlite3_reset(stmt_lk);
-				
+
 				if (!db->debug_sql_return(ret, "step delete", "foo_discogger - flush history", "", 0, err_msg)) break;
 
 				//generate history vector
@@ -239,7 +239,7 @@ bool db_fetcher_component::recharge_history(sqldb* db, std::string delete_cmd, s
 
 					cmd_idparam = task_map.at(thistype);
 					if (thistype == oplog_type::artist) {
-						
+
 						param_ndx = sqlite3_bind_parameter_index(stmt_read, "@cmd_id");
 						sqlite3_bind_text(stmt_read, 1, task_map.at(thistype).c_str(), -1, nullptr);
 						sqlite3_bind_text(stmt_read, 2, artist_sec_task.c_str(), -1, nullptr);

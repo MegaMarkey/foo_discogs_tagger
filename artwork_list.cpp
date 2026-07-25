@@ -1,4 +1,4 @@
-﻿#include "stdafx.h"
+#include "stdafx.h"
 
 #include "track_matching_dialog.h"
 #include "artwork_list.h"
@@ -20,7 +20,7 @@ int CArtworkList::GetItemHeight() const {
 	auto uilist = dlg->get_ctx_lvlist(IDC_UI_DC_ARTWORK_LIST);
 
 	if (m_hWnd == uilist && dlg->m_coord.isTile()) {
-		return 150;	
+		return 150;
 	}
 	return 50;
 }
@@ -29,7 +29,7 @@ bool CArtworkList::IsSubItemGrayed(size_t item, size_t subItem) {
 
 	CTrackMatchingDialog* dlg = static_cast<CTrackMatchingDialog*>(m_host);
 	auto uilist = dlg->get_ctx_lvlist(IDC_UI_FILE_ARTWORK_LIST);
-	
+
 	if (m_hWnd == uilist) {
 
 		return !CONF_MULTI_ARTWORK.file_match;
@@ -48,7 +48,7 @@ void CArtworkList::RenderCellImage(size_t item, size_t subItem, CDCHandle dc, co
 
 	bool isTile = dlg->m_coord.isTile();
 	auto ida_list = dlg->get_ctx_lvlist(IDC_UI_DC_ARTWORK_LIST);
-		
+
 	HICON hIcon;
 	CRect rcIcon;
 
@@ -61,7 +61,7 @@ void CArtworkList::RenderCellImage(size_t item, size_t subItem, CDCHandle dc, co
 		imginfo = std::get<2>(*out).second;
 
 		if (ndxpos == pfc_infinite) return;
-		hIcon = dlg->m_coord.GetDiscogsArtVIcons(ndxpos, rcIcon);		
+		hIcon = dlg->m_coord.GetDiscogsArtVIcons(ndxpos, rcIcon);
 	}
 	else {
 

@@ -25,11 +25,11 @@ inline BOOL OpenExportDlg(HWND hWndparent, const TCHAR * filter, std::wstring& o
 		pfc::stringcvt::convert_wide_to_utf8(fullpath, MAX_PATH, wfilename.c_str(), MAX_PATH);
 
 		pfc::string8 filename(pfc::string_filename(fullpath));
-		
+
 		//only extension?
 		filename.truncate(filename.get_length() - pfc::string_extension(fullpath).length() > filename.get_length() ?
 			filename.get_length() - pfc::string_extension(fullpath).length() : filename.get_length());
-		
+
 		if (!pfc::string8(fullpath).length() || !filename.get_length()) {
 
 			return FALSE;
@@ -65,7 +65,7 @@ inline BOOL OpenImportDlg(HWND hWndparent, const TCHAR* title, const TCHAR * fil
 	ofn.Flags = OFN_DONTADDTORECENT | OFN_FILEMUSTEXIST;
 
 	if (GetOpenFileName(&ofn)) {
-		std::wstring wfilename(&lpstrFile[0]);		
+		std::wstring wfilename(&lpstrFile[0]);
 		if (!wfilename.size()) {
 			return FALSE;
 		}

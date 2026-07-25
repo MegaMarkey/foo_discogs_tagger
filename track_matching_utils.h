@@ -96,7 +96,7 @@ const struct uartwork {
 		t_uint32 bitmask = 1 << pos;
 		if (val) key |= bitmask;
 		else key &= ~(bitmask);
-		
+
 		return key;
 	}
 
@@ -169,7 +169,7 @@ const struct uartwork {
 		bool cfg_art_ovr,
 		bool &init
 	) : init(init) {
-		
+
 		ucfg_album_embed = 0;
 		ucfg_album_save_to_dir = 0;
 		ucfg_album_save_all = 0;
@@ -292,7 +292,7 @@ const struct multi_uartwork {
 				vuart.at(i).setbitflag_range(an_af, val, 0, kBlockSize);
 			}
 		}
-		return 0;	
+		return 0;
 	}
 
 	void setflag(af fl, size_t pos, bool val) {
@@ -365,7 +365,7 @@ const struct multi_uartwork {
 		if (!vuart.size()) {
 			return !rhs.vuart.size();
 		}
-		
+
 		for (auto uart = vuart.begin(); uart != vuart.end(); uart++) {
 			size_t ndx = std::distance(vuart.begin(), uart);
 			bool eq = ( * uart == rhs.vuart.at(ndx));

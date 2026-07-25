@@ -45,7 +45,7 @@ struct preview_job {
 };
 
 class CTrackMatchingDialog : public MyCDialogImpl<CTrackMatchingDialog>,
-	public CDialogResize<CTrackMatchingDialog>,	public CMessageFilter,
+	public CDialogResize<CTrackMatchingDialog>, public CMessageFilter,
 	private ILOD_track_matching {
 
 public:

@@ -11,7 +11,6 @@ static cfgDialogPosition cfg_dialog_position_preview_modal_tag_dlg(guid_cfg_dial
 static t_uint32 st_preview_current_tab;
 size_t CPreviewLeadingTagDialog::get_current_tab_index() { return st_preview_current_tab; }
 
-
 LRESULT CPreviewLeadingTagDialog::OnDestroy(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/) {
 	pushcfg();
 	cfg_dialog_position_preview_modal_tag_dlg.RemoveWindow(m_hWnd);
@@ -94,7 +93,7 @@ LRESULT CPreviewLeadingTagDialog::OnInitDialog(UINT /*uMsg*/, WPARAM /*wParam*/,
 
 	// set tag name textbox
 	uSetDlgItemText(m_hWnd, IDC_PREVIEW_LEADING_TAG_NAME, m_ptag_result->tag_entry->tag_name);
-	
+
 	//todo: rev column creation and ILO
 	HWND hWndTabDlgList = GetDlgItem(IDC_LEADING_TAG_LIST);
 	const SIZE DPI = QueryScreenDPIEx();
@@ -125,7 +124,7 @@ LRESULT CPreviewLeadingTagDialog::OnInitDialog(UINT /*uMsg*/, WPARAM /*wParam*/,
 }
 
 void CPreviewLeadingTagDialog::ReloadItem(HWND p_parent, size_t item, PreView parent_preview_mode) {
-	
+
 	m_isel = item;
 
 	if (parent_preview_mode != PreView::Undef) {
@@ -167,7 +166,7 @@ LRESULT CPreviewLeadingTagDialog::OnOK(WORD /*wNotifyCode*/, WORD wID, HWND /*hW
 
 LRESULT CPreviewLeadingTagDialog::OnApply(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/) {
 
-	push_updates();	
+	push_updates();
 	return TRUE;
 }
 

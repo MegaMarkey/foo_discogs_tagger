@@ -25,11 +25,11 @@ bool FlgMng::SetFlag(HWND hWnd, UINT uid, int flg) {
 }
 
 bool FlgMng::SetFlag(int flg, bool flgval) {
-	
+
 	if (int* varval = m_pcfg->id_to_ref_int(m_id)) {
 		std::bitset<8> bs = *varval;
 		bs.set(std::log2(flg), flgval);
-		*varval = bs.to_ulong();	
+		*varval = bs.to_ulong();
 	}
 	return flgval;
 }

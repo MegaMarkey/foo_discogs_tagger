@@ -99,7 +99,6 @@ private:
 	void on_authorize_oauth(HWND wnd);
 	void on_generate_oauth(HWND wnd);
 
-
 	bool HasChanged();
 	void OnChanged();
 	void OnEditChange(UINT, int, CWindow) { OnChanged(); }

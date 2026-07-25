@@ -556,7 +556,7 @@ public:
 
 	bool awt_get_alt_mode();
 	bool awt_set_alt_mode(bool enabled);
-		
+
 	bool replace_ANVs = false;
 	bool move_the_at_beginning = true;
 	bool discard_numeric_suffix = true;
@@ -637,11 +637,11 @@ public:
 
 	pfc::string8 edit_tags_dlg_hl_keyword = "";
 	bool edit_tags_dlg_show_tm_stats = false;
-	
+
 	bool release_enter_key_override = true;
 	int match_tracks_discogs_style = static_cast<int>(LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER | LVS_EX_HEADERDRAGDROP);
 	int match_tracks_files_style   = static_cast<int>(LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER | LVS_EX_HEADERDRAGDROP);
-	
+
 	int preview_tags_dialog_w_width = 40;
 	int preview_tags_dialog_u_width = 40;
 	int preview_tags_dialog_s_width = 40;
@@ -690,7 +690,7 @@ public:
 
 	bool auto_rel_load_on_open = true;
 	bool auto_rel_load_on_select = false;
-	
+
 	bool parse_hidden_merge_titles = true;
 
 	//v208

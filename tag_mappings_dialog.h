@@ -54,14 +54,14 @@ public:
 
 		TParent::RenderItemBackground(p_dc, p_itemRect, item, bkColor);
 		pfc::string8 freeze; GetSubItemText(item, 3, freeze);
-		
+
 		bool bfreeze = freeze.get_length();
 		if (!m_hl_string.get_length() && !bfreeze) return;
 
 		pfc::string8 strItem;
 		bool do_hlight = false;
 
-		if (m_hl_string.get_length()) {			
+		if (m_hl_string.get_length()) {
 			GetSubItemText(item, 0, strItem);
 			do_hlight = pfc::string_find_first(pfc::stringToLower(strItem), m_hl_string, 0) != pfc_infinite;
 		}
@@ -120,7 +120,7 @@ private:
 
 };
 
-class CTagMappingDialog : public MyCDialogImpl<CTagMappingDialog>,	
+class CTagMappingDialog : public MyCDialogImpl<CTagMappingDialog>,
 	public CMessageFilter,	private IListControlOwnerDataSource,
 	public CDialogResize<CTagMappingDialog> {
 
@@ -299,7 +299,7 @@ private:
 	// remove
 
 	bool listRemoveItems(ctx_t ctx, pfc::bit_array const& mask) override {
-		
+
 		//remove not freezed masked
 
 		size_t deleted = 0;
@@ -337,7 +337,7 @@ private:
 
 		tag_mapping_entry& entry = (*m_ptag_map)[item];
 
-		if ((!entry.freeze_tag_name) && (subItem == 0 || subItem == 1)) {	
+		if ((!entry.freeze_tag_name) && (subItem == 0 || subItem == 1)) {
 			m_tag_list.TableEdit_Start(item, subItem);
 		}
 		if (subItem == 2) {

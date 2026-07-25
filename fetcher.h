@@ -96,11 +96,12 @@ public:
 
 		time_t currentTime;
 		struct tm* localTime;
+
 		time(&currentTime);
 		localTime = localtime(&currentTime);
-		
+
 		m_current_minute = localTime->tm_min;
-		
+
 		int n = 0;
 		while (!service_enum_t<http_client>().first(client)) {
 			log_msg("Waiting a little for http_client...");
@@ -112,7 +113,7 @@ public:
 		}
 		log_msg("http_client service ready");
 	}
-	
+
 	~Fetcher() {
 		delete consumer;
 		delete oauth;
@@ -125,7 +126,7 @@ public:
 				pfc::string8 &html,
 				abort_callback &p_abort,
 				bool use_oauth = true);
-	
+
 	void fetch_url(const pfc::string8 &url,
 				const pfc::string8 &params,
 				pfc::array_t<t_uint8> & out,

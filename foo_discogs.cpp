@@ -88,9 +88,6 @@ foo_discogs::foo_discogs() {
 	auto hInst = core_api::get_my_instance();
 	auto dbg_micon = GetSystemMetrics(SM_CXSMICON);
 	icon = (HICON)LoadImage(hInst, MAKEINTRESOURCE(IDI_DC), IMAGE_ICON, GetSystemMetrics( SM_CXSMICON ), GetSystemMetrics( SM_CYSMICON ), 0);
-	//auto dpiX = QueryScreenDPIEx(core_api::get_main_window()).cx;
-	//icon = GdiplusLoadPNGIcon(IDB_PNG_DC_32C, CSize(32, 32));
-
 	discogs_interface->fetcher->set_oauth(CONF.oauth_token, CONF.oauth_token_secret);
 
 	static_api_ptr_t<titleformat_compiler>()->compile_force(release_name_script, "[%album artist%] - [%album%]");
@@ -115,9 +112,10 @@ foo_discogs::~foo_discogs() {
 		find_release_dialog->destroy();
 	}
 
-	if (find_release_artist_dialog)
+	if (find_release_artist_dialog) {
 		find_release_artist_dialog->DestroyWindow();
-	
+	}
+
 	if (preview_modal_tag_dialog) {
 		preview_modal_tag_dialog->destroy();
 	}
@@ -196,7 +194,7 @@ void foo_discogs::item_display_web_page(const metadb_handle_ptr item, discog_web
 			url << url_prefix << tag_value << url_postfix;
 			display_url(url);
 		}
-
+	}
 	catch (foo_discogs_exception &e) {
 		add_error(e);
 		display_errors();
@@ -288,7 +286,7 @@ void foo_discogs::save_album_art(Release_ptr& release, metadb_handle_ptr item,
 			ada.write_it = false;
 		}
 	}
-	
+
 	if (!ada.write_it && !ada.embed_it) {
 		log_msg("missing data... skipping album art writing or embedding");
 		return;
@@ -390,7 +388,7 @@ void foo_discogs::save_album_art(Release_ptr& release, metadb_handle_ptr item,
 				if (ada.to_path_only) ada.vpaths.emplace_back("empty file path... skipping album art writing or embedding");
 				continue;
 			}
-			
+
 			makeFsCompliant(file);
 			path += file;
 			path += ".jpg";
@@ -429,7 +427,7 @@ void foo_discogs::save_album_art(Release_ptr& release, metadb_handle_ptr item,
 					auto& mbmi = done_fetches.emplace(release->images[i]->url, buffer);
 					g_discogs->fetch_image(mbmi.first->second, release->images[i], p_abort);
 					buffer = mbmi.first->second;
-				}			
+				}
 				g_discogs->write_image(buffer, path, p_abort);
 
 				saved_mask.set(i, true);
@@ -444,7 +442,7 @@ void foo_discogs::save_album_art(Release_ptr& release, metadb_handle_ptr item,
 			if (my_album_art_ids.size() > i + offset) {
 
 				GUID this_guid = my_album_art_ids[i + offset];
-				
+
 				this_guid = IsEqualGUID(this_guid, undef_guid) ? album_art_ids::cover_front : this_guid;
 
 				auto guid_it = std::find_if(vembeded_guids.begin(), vembeded_guids.end(), [=](const auto &w) {
@@ -660,7 +658,7 @@ void foo_discogs::save_artist_art(pfc::array_t<Artist_ptr>& artists, Release_ptr
 
 			if (my_album_art_ids.size() > i + offset) {
 				const char* art_id_name = album_art_ids::name_of(my_album_art_ids[i + offset]);
-				
+
 				size_t postfix = 0;
 
 				if (art_id_name == nullptr) {
@@ -763,7 +761,7 @@ void foo_discogs::save_artist_art(pfc::array_t<Artist_ptr>& artists, Release_ptr
 		if (vembed_it[i] && embed_req) {
 
 			if (my_album_art_ids.size() > i + offset) {
-			
+
 				GUID this_guid = my_album_art_ids[i + offset];
 				//default to artist
 				this_guid = IsEqualGUID(this_guid, undef_guid) ? album_art_ids::artist : this_guid;

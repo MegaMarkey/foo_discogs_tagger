@@ -68,7 +68,7 @@ bool CGdiPlusBitmapResource::Load(LPCTSTR pName, LPCTSTR pType, HMODULE hInst)
 	HRSRC hResource = ::FindResource(hInst, pName, pType);
 	if (!hResource)
 		return false;
-	
+
 	DWORD imageSize = ::SizeofResource(hInst, hResource);
 	if (!imageSize)
 		return false;

@@ -15,7 +15,7 @@
 
 using namespace Discogs;
 enum FilterFlag { 
-	
+
 	Versions = 1 << 0,
 	RoleMain = 1 << 4,
 	
@@ -128,7 +128,7 @@ public:
 
 	void expand_releases(const pfc::string8& filter, t_size master_index, t_size master_list_pos);
 	void on_expand_master_release_done(const MasterRelease_ptr& master_release, int list_index, threaded_process_status& p_status, abort_callback& p_abort);
-	
+
 	//artist done, update releases & apply filter
 
 	// -- UPDRELSRC
@@ -136,7 +136,7 @@ public:
 	
 	void on_get_artist_done(cupdRelSrc cupdsrc, Artist_ptr& artist);
 	std::pair<rppair_t, rppair_t> update_releases(const pfc::string8& filter, updRelSrc updsrc, bool init_expand, bool brolemain_filter);
-	
+
 	//
 	// -- end UPDRELSRC
 
@@ -155,7 +155,7 @@ public:
 	//
 
 	void SetHit(int lparam) {
-		
+
 		CTreeViewCtrl tree(m_hwndTreeView);
 		HTREEITEM first = tree.GetRootItem();
 

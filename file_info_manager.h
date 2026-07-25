@@ -59,7 +59,7 @@ public:
 		items.add_item(other.items[index]);
 		info_wrappers.append_single(other.info_wrappers[index]);
 	}
-	
+
 	inline  size_t get_item_count() const {
 		return items.get_count();
 	}

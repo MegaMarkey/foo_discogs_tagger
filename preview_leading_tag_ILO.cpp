@@ -44,11 +44,11 @@ pfc::string8 ILOD_preview_leading::listGetSubItemText(ctx_t ctx, size_t item, si
 	}
 
 	if (subItem == 0) {
-	
+
 		return std::to_string(item + 1).c_str(); //# column
 	}
 	else if (subItem == 1) {
-	
+
 		return ilo_get_vtracks_desc().at(item);
 	}
 	else if (subItem == kDataCol) {
@@ -77,7 +77,7 @@ pfc::string8 ILOD_preview_leading::listGetSubItemText(ctx_t ctx, size_t item, si
 		pfc::string8 cmp_old_buffer;
 
 		buffer = (*arr_sea_val)[moditem].print();
-		
+
 
 		if (get_mode() == PreView::Diff) {
 

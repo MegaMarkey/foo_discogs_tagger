@@ -27,7 +27,7 @@ public:
 	void CopyFromOriginal();
 
 private:
-	
+
 	// local, can diverge from preview dlg mode
 	PreView get_mode();
 

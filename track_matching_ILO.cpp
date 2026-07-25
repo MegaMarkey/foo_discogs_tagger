@@ -23,7 +23,7 @@ size_t ILOD_track_matching::listGetItemCount(ctx_t ctx) {
 	HWND lvlist = get_ctx_lvlist(wnd, ctx->GetDlgCtrlID());
 
 	PFC_ASSERT(get_ctx_lvlist(wnd, ctx->GetDlgCtrlID()) != nullptr);
-	
+
 	coord_presenters* coord = ilo_get_coord();
 	size_t citems = pfc_infinite;
 
@@ -116,7 +116,7 @@ pfc::string8 ILOD_track_matching::listGetSubItemText(ctx_t ctx, size_t item, siz
 				af att = dc_isalbum ? af::alb_sd : af::art_sd;
 				bool bflag = uart.getflag(att, perm_pos);
 				pfc::string8 str(bflag ? /*bTile ? "Write" :*/ "x" : "");
-				buffer = str;			
+				buffer = str;
 				break;
 			}
 			// overwrite
@@ -224,7 +224,7 @@ bool ILOD_track_matching::listRemoveItems(ctx_t ctx, pfc::bit_array const& mask)
 	HWND wnd = ((TParent*)this)->m_hWnd;
 	HWND dbg = ctx->m_hWnd;
 	HWND hlist = uGetDlgItem(wnd, ctx->GetDlgCtrlID());
-	
+
 	coord_presenters* coord = ilo_get_coord();
 	lsmode mode = coord->GetCtrIDMode(ctx->GetDlgCtrlID());
 
@@ -290,7 +290,7 @@ void ILOD_track_matching::listItemAction(ctx_t ctx, size_t item) {
 		//
 		bool battrib = subItem == 3 || subItem == 4 || subItem == 5;
 		af att;
-		bool bval, dc_isalbum = false;		
+		bool bval, dc_isalbum = false;
 		multi_uartwork* multi_uart = nullptr;
 		size_t perm_pos;
 

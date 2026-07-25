@@ -15,7 +15,7 @@ namespace {
 	static const char* const names2[] = {
 		"Inlay Card",
 		"Booklet",
-		"Page Folder",		
+		"Page Folder",
 	};
 }
 

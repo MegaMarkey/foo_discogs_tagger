@@ -477,7 +477,7 @@ namespace Discogs
 		string_encoded_array get_position() const {
 			return position;
 		}
-		string_encoded_array get_title() const {		
+		string_encoded_array get_title() const {
 			return title;
 		}
 		string_encoded_array get_duration() const {
@@ -1160,7 +1160,7 @@ namespace Discogs
 		void load_my_rating(threaded_process_status &p_status, abort_callback &p_abort, bool throw_all = false);
 	};
 
-	
+
 	class Identity
 	{
 	public:
@@ -1193,7 +1193,7 @@ namespace Discogs
 
 	extern ReleaseLabel_ptr parseReleaseLabel(json_t *element);
 	extern void parseReleaseLabels(json_t *element, pfc::array_t<ReleaseLabel_ptr> &release_labels);
-	
+
 	extern ReleaseCompany_ptr parseReleaseCompany(json_t *element);
 	extern void parseReleaseCompanies(json_t *element, pfc::array_t<ReleaseCompany_ptr> &release_companies);
 

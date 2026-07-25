@@ -105,9 +105,9 @@ public:
 	HWND GetListView() { 
 		return uGetDlgItem(mm_hWnd, m_listID);
 	}
-	
+
 	void SetTagWriter(TagWriter_ptr tag_writer) {
-		m_tag_writer = tag_writer;		
+		m_tag_writer = tag_writer;
 		m_release = tag_writer->GetRelease();
 	}
 
@@ -203,7 +203,7 @@ public:
 	virtual size_t GetDataLvSize() = 0;
 
 	size_t DeleteLvRow(size_t position) = 0;
-	
+
 	virtual bool SwapMapItem(size_t key1, size_t key2) = 0;
 	virtual void ReorderMapItem(size_t const* order, size_t count) = 0;
 
@@ -247,7 +247,7 @@ public:
 	}
 
 	discogs_track_libui_presenter() {
-	
+
 		m_vtracks = {};
 		m_lvtracks = {};
 		m_ui_list = NULL;
@@ -287,7 +287,7 @@ public:
 		return bres;
 	}
 
-	void ReorderMapItem(size_t const* order, size_t count) override {	
+	void ReorderMapItem(size_t const* order, size_t count) override {
 		pfc::reorder_t(m_lvtracks, order, count);
 	}
 
@@ -458,11 +458,11 @@ public:
 	void PopulateConfArtWork();
 	void GetAreAlbumMask(bit_array_bittable& mask);
 	bool AddArtwork(size_t img_ndx, art_src art_source, MemoryBlock small_art);
-	
+
 	art_src GetSrcTypeAtPos(size_t list_position) {
 		return get_vimages_src_type_at_pos(list_position);
 	}
-	
+
 	multi_uartwork SetUartwork(multi_uartwork multi_uart) { m_multi_uart = multi_uart; }
 	multi_uartwork* GetUartwork() { return &m_multi_uart; }
 	multi_uartwork SetUartwork_guids(uartwork_guids uart_guids) { m_uart_guids = uart_guids; }
@@ -552,7 +552,7 @@ public:
 		m_lvimage_files.erase(m_lvimage_files.begin() + position);
 		return ndx_deleted;
 	}
-	
+
 	bool SwapMapItem(size_t key1, size_t key2) override {
 		bool bres = key1 < m_lvimage_files.size() && key2 < m_lvimage_files.size();
 		if (bres) std::swap(m_lvimage_files.at(key1), m_lvimage_files.at(key2));
@@ -600,8 +600,8 @@ private:
 class coord_presenters {
 
 public:
-	
-	coord_presenters(HWND hparent, const foo_conf & discogs_conf) :
+
+	coord_presenters(HWND hparent, const foo_conf& discogs_conf) :
 
 		m_hWnd(hparent),
 		m_conf(CConf(discogs_conf)),
@@ -653,7 +653,7 @@ public:
 		return m_discogs_art_presenter.GetUartwork_guids();
 	}
 	size_t Get_V_LvRow(lsmode mode, bool tracks, size_t list_position, var_it_t& out) {
-		
+
 		presenter* pres;
 		if (tracks)
 			pres = &form_mode[mode]->first;
@@ -676,7 +676,7 @@ public:
 
 	size_t GetDiscogsTrackUiAtLvPos(size_t list_position, track_it& out);
 	size_t GetFileTrackUiAtLvPos(size_t list_position, file_it& out);
-	
+
 	size_t GetTrackArtAtLvPos(size_t list_position, getimages_it& out);
 	size_t GetFileArtAtLvPos(size_t list_position, getimages_file_it& out);
 
@@ -710,7 +710,7 @@ public:
 	size_t GetUiColumnFormat(size_t icol, presenter* pres);
 
 	std::vector<pfc::string8> Get_Titles(lsmode mode, bool tracks);
-	
+
 	void Reset(HWND hlist, lsmode mode);
 
 	void InitFormMode(lsmode mode, UINT lvleft, UINT lvright);
@@ -739,7 +739,7 @@ private:
 	typedef std::pair<presenter&, presenter&> binomial_t;
 	typedef std::vector<binomial_t> binomials_t;
 	typedef binomials_t::iterator binomials_it;
-	
+
 	binomials_t binomials;
 	std::map<lsmode, binomials_it> form_mode;
 
@@ -755,6 +755,6 @@ private:
 	playable_location_impl m_location;
 
 	foo_conf m_conf;
-	
+
 	friend class presenter;
 };
