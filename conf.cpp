@@ -149,6 +149,11 @@ bool CConf::load() {
 	vspec v208{ &vec_specs, 27, 50, 16 }; // 1.0.15
 	vspec v209{ &vec_specs, 27, 51, 16 }; // 1.0.16.1
 	vspec v210{ &vec_specs, 27, 52, 16 }; // 1.0.21
+	vspec v211{ &vec_specs, 27, 52, 17 }; // 1.0.22Beta5
+	vspec v212{ &vec_specs, 27, 54, 18 }; // 1.0.22Beta6
+	vspec v213{ &vec_specs, 27, 54, 19 }; // 1.0.22Beta14
+	vspec v214{ &vec_specs, 27, 55, 19 }; // 1.0.22Beta14
+	vspec v215{ &vec_specs, 27, 55, 20 }; // 1.0.22RC3
 
 	vspec* vlast = &vec_specs.at(vec_specs.size() - 1);
 
@@ -258,6 +263,20 @@ bool CConf::load() {
 		);
 	}
 
+	if (vLoad < v212) {
+		cfg_int_entries.add_item(
+			make_conf_entry(CFG_ON_INIT_QUERY_FLAGS, on_init_query_flags)
+		);
+	cfg_int_entries.add_item(
+			make_conf_entry(CFG_ON_INIT_QUERY_DEF, on_init_query_def)
+		);
+	}
+	if (vLoad < v214) {
+		cfg_int_entries.add_item(
+			make_conf_entry(CFG_QUERY_MAX, query_max)
+		);
+	}
+
 	if (vLoad == v204) {
 
 		bres &= prepare_dbf_and_cache(false);
@@ -331,6 +350,19 @@ bool CConf::load() {
 	if (vLoad < v208) {
 		cfg_string_entries.add_item(make_conf_entry(CFG_MULTIVALUE_FIELDS, multivalue_fields));
 	}
+
+	if (vLoad < v211) {
+		cfg_string_entries.add_item(make_conf_entry(CFG_VA_PREFIXES, various_prefixes));
+	}
+	if (vLoad < v212) {
+		cfg_string_entries.add_item(make_conf_entry(CFG_ON_INIT_QUERY_TF, on_init_query_tf));
+	}
+	if (vLoad < v213) {
+		cfg_string_entries.add_item(make_conf_entry(CFG_MA_LINKS, multiple_artists_links));
+	}
+	if (vLoad < v215) {
+		cfg_string_entries.add_item(make_conf_entry(CFG_STATUS_BAR_FORMATTING, release_status_bar_info_format_string));
+	}
 	//..
 
 	return bres;
@@ -387,6 +419,7 @@ bool CConf::bool_load(const conf_bool_entry& item) {
 	case CFG_ENABLE_AUTOSEARCH:
 		enable_autosearch = item.value;
 		break;
+	//todo: depricated
 	case CFG_DISPLAY_ANVS:
 		display_ANVs = item.value;
 		break;
@@ -602,6 +635,17 @@ bool CConf::int_load(const conf_int_entry& item) {
 	case CFG_DISK_CACHE_EXP:
 		disk_cache_exp = item.value;
 		break;
+	//v212 (1.0.22Beta6)
+	case CFG_ON_INIT_QUERY_FLAGS:
+		on_init_query_flags = item.value;
+		break;
+	case CFG_ON_INIT_QUERY_DEF:
+		on_init_query_def = item.value;
+		break;
+	//v214
+	case CFG_QUERY_MAX:
+		query_max = item.value;
+		break;
 	//..
 	default:
 		return false;
@@ -662,6 +706,22 @@ bool CConf::string_load(const conf_string_entry& item) {
 	//v208
 	case CFG_MULTIVALUE_FIELDS:
 		multivalue_fields = item.value;
+		break;
+	//v211
+	case CFG_VA_PREFIXES:
+		various_prefixes = item.value;
+		break;
+	//v212
+	case CFG_ON_INIT_QUERY_TF:
+		on_init_query_tf = item.value;
+		break;
+	//v213
+	case CFG_MA_LINKS:
+		multiple_artists_links = item.value;
+		break;
+	//v215
+	case CFG_STATUS_BAR_FORMATTING:
+		release_status_bar_info_format_string = item.value;
 		break;
 	//..
 
@@ -734,6 +794,7 @@ bool CConf::id_to_val_bool(int id, const CConf& in_conf, bool& out, bool assert)
 	case CFG_ENABLE_AUTOSEARCH:
 		out = in_conf.enable_autosearch;
 		break;
+	//todo: depricated
 	case CFG_DISPLAY_ANVS:
 		out = in_conf.display_ANVs;
 		break;
@@ -795,6 +856,10 @@ int* CConf::id_to_ref_int(int ID, bool assert) {
 	case CFG_CACHE_OFFLINE_CACHE_FLAG:
 
 		return &cache_offline_cache_flag;
+
+	case CFG_ON_INIT_QUERY_FLAGS:
+
+		return &on_init_query_flags;
 
 	default:
 		if (assert) {
@@ -977,6 +1042,17 @@ bool CConf::id_to_val_int(int id, const CConf& in_conf, int& out, bool assert) {
 	case CFG_DISK_CACHE_EXP:
 		out = in_conf.disk_cache_exp;
 		break;
+	//v212 (1.0.22 beta 6)
+	case CFG_ON_INIT_QUERY_FLAGS:
+		out = in_conf.on_init_query_flags;
+		break;
+	case CFG_ON_INIT_QUERY_DEF:
+		out = in_conf.on_init_query_def;
+		break;
+	//v214
+	case CFG_QUERY_MAX:
+		out = in_conf.query_max;
+		break;
 	//..
 	default:
 		if (assert) {
@@ -1085,6 +1161,34 @@ bool CConf::id_to_val_str(int id, const CConf& in_conf, pfc::string8& out, bool 
 	case CFG_MULTIVALUE_FIELDS:
 	{
 		pfc::string8 str(in_conf.multivalue_fields);
+		out.set_string(str, str.get_length());
+		break;
+	}
+	//v211
+	case CFG_VA_PREFIXES:
+	{
+		pfc::string8 str(in_conf.various_prefixes);
+		out.set_string(str, str.get_length());
+		break;
+	}
+	//v212
+	case CFG_ON_INIT_QUERY_TF:
+	{
+		pfc::string8 str(in_conf.on_init_query_tf);
+		out.set_string(str, str.get_length());
+		break;
+	}
+	//v213
+	case CFG_MA_LINKS:
+	{
+		pfc::string8 str(in_conf.multiple_artists_links);
+		out.set_string(str, str.get_length());
+		break;
+	}
+	//v215
+	case CFG_STATUS_BAR_FORMATTING:
+	{
+		pfc::string8 str(in_conf.release_status_bar_info_format_string);
 		out.set_string(str, str.get_length());
 		break;
 	}
@@ -1207,6 +1311,7 @@ void CConf::save() {
 	cfg_bool_entries.add_item(make_conf_entry(CFG_ARTIST_ART_OVERWRITE, artist_art_overwrite));
 	cfg_bool_entries.add_item(make_conf_entry(CFG_DISPLAY_EXACT_MATCHES, display_exact_matches));
 	cfg_bool_entries.add_item(make_conf_entry(CFG_ENABLE_AUTOSEARCH, enable_autosearch));
+	//todo: depricated
 	cfg_bool_entries.add_item(make_conf_entry(CFG_DISPLAY_ANVS, display_ANVs));
 	cfg_bool_entries.add_item(make_conf_entry(CFG_REMOVE_OTHER_TAGS, remove_other_tags));
 	cfg_bool_entries.add_item(make_conf_entry(CFG_MATCH_TRACKS_USING_NUMBER, match_tracks_using_number));
@@ -1286,8 +1391,11 @@ void CConf::save() {
 	cfg_int_entries.add_item(make_conf_entry(CFG_CUSTOM_FONT, custom_font));
 	//v209 (1.0.16.1)
 	cfg_int_entries.add_item(make_conf_entry(CFG_ALT_WRITE_FLAGS, alt_write_flags));
-	//v210 (1.0.21)
-	cfg_int_entries.add_item(make_conf_entry(CFG_DISK_CACHE_EXP, disk_cache_exp));
+	//v212 (1.0.22 beta 6)
+	cfg_int_entries.add_item(make_conf_entry(CFG_ON_INIT_QUERY_FLAGS, on_init_query_flags));
+	cfg_int_entries.add_item(make_conf_entry(CFG_ON_INIT_QUERY_DEF, on_init_query_def));
+	//v214 (1.0.22 beta 15)
+	cfg_int_entries.add_item(make_conf_entry(CFG_QUERY_MAX, query_max));
 	//..
 
 	cfg_string_entries.remove_all();
@@ -1310,6 +1418,16 @@ void CConf::save() {
 	cfg_string_entries.add_item(make_conf_entry(CFG_DC_DB_PATH, pfc::string8((const char*)db_dc_path)));
 	//v208
 	cfg_string_entries.add_item(make_conf_entry(CFG_MULTIVALUE_FIELDS, pfc::string8((const char*)multivalue_fields)));
+	//v211
+	cfg_string_entries.add_item(make_conf_entry(CFG_VA_PREFIXES, pfc::string8((const char*)various_prefixes)));
+	//v212
+	cfg_string_entries.add_item(make_conf_entry(CFG_ON_INIT_QUERY_TF, pfc::string8((const char*)on_init_query_tf)));
+	//v213
+	cfg_string_entries.add_item(make_conf_entry(CFG_MA_LINKS, pfc::string8((const char*)multiple_artists_links)));
+	//v215
+	cfg_string_entries.add_item(make_conf_entry(CFG_STATUS_BAR_FORMATTING, pfc::string8((const char*)release_status_bar_info_format_string)));
+
+
 	//..
 }
 

@@ -18,6 +18,15 @@
 #define SKIP_PREVIEW_DLG                       1 << 2
 #define SKIP_BRAINZ_ID_FETCH                   1 << 5
 
+//CFG_ON_INIT_QUERY_FLAG/on_init_query
+#define ON_INIT_QUERY_FLG_ENABLED              1 << 0
+#define ON_INIT_QUERY_FLG_ART_AS_CRED_IN_VA    1 << 1
+#define ON_INIT_QUERY_FLG_CUST_TF_ENABLED      1 << 2
+#define ON_INIT_QUERY_FLG_PFX_LNK_ENABLED      1 << 3
+#define ON_INIT_QUERY_5                        1 << 4
+#define ON_INIT_QUERY_6                        1 << 5
+#define ON_INIT_QUERY_7                        1 << 6
+
 //CONFIG IDS
 #define CFG_REPLACE_ANVS                            1
 #define CFG_MOVE_THE_AT_BEGINNING                   2
@@ -174,6 +183,11 @@
 #define CFG_ALT_WRITE_FLAGS                         2146
 //v210 (1.0.21)
 #define CFG_DISK_CACHE_EXP                          2147
+//v212 (1.0.22 beta 6)
+#define CFG_ON_INIT_QUERY_FLAGS                     2148
+#define CFG_ON_INIT_QUERY_DEF                       2149
+//v213 (1.0.22 beta 15)
+#define CFG_QUERY_MAX                               2150
 
 // STRINGS -------------------------------------
 
@@ -182,6 +196,14 @@
 #define CFG_DC_DB_PATH                              2202
 //v208 (1.0.15)
 #define CFG_MULTIVALUE_FIELDS                       2203
+//v211 (1.0.22)
+#define CFG_VA_PREFIXES                             2204
+//v212 (1.0.22 beta 6)
+#define CFG_ON_INIT_QUERY_TF                        2205
+//v213 (1.0.22 beta 14)
+#define CFG_MA_LINKS                                2206
+//v215 (1.0.22 RC3
+#define CFG_STATUS_BAR_FORMATTING                   2207
 //..
 
 typedef struct
@@ -333,6 +355,7 @@ public:
 		vflags.emplace_back(CFG_DC_DB_FLAG);
 		vflags.emplace_back(CFG_FIND_RELEASE_FILTER_FLAG);
 		vflags.emplace_back(CFG_FIND_RELEASE_DIALOG_FLAG);
+		vflags.emplace_back(CFG_ON_INIT_QUERY_FLAGS);
 		vflags.emplace_back(CFG_SKIP_MNG_FLAG);
 		//..
 	}
@@ -393,6 +416,7 @@ public:
 		{ asi(cfgFilter::CONF), CFG_MOVE_THE_AT_BEGINNING},
 		{ asi(cfgFilter::CONF), CFG_DISCARD_NUMERIC_SUFFIX},
 		{ asi(cfgFilter::CONF), CFG_ENABLE_AUTOSEARCH},
+		//todo: depricated
 		{ asi(cfgFilter::CONF), CFG_DISPLAY_ANVS},
 		{ asi(cfgFilter::CONF), CFG_SAVE_ALBUM_ART},
 		{ asi(cfgFilter::CONF), CFG_ALBUM_ART_DIRECTORY_STRING},
@@ -448,6 +472,18 @@ public:
 		{ asi(cfgFilter::CONF), CFG_MULTIVALUE_FIELDS},
 		//v210
 		{ asi(cfgFilter::CONF), CFG_DISK_CACHE_EXP},
+		//v211
+		{ asi(cfgFilter::CONF), CFG_VA_PREFIXES},
+		//v212
+		{ asi(cfgFilter::CONF), CFG_ON_INIT_QUERY_FLAGS},
+		{ asi(cfgFilter::CONF), CFG_ON_INIT_QUERY_DEF},
+		{ asi(cfgFilter::CONF), CFG_ON_INIT_QUERY_TF},
+		//v213
+		{ asi(cfgFilter::CONF), CFG_MA_LINKS},
+		//v214
+		{ asi(cfgFilter::CONF), CFG_QUERY_MAX},
+		//v215
+		{ asi(cfgFilter::CONF), CFG_STATUS_BAR_FORMATTING},
 		//..
 
 		// **** FIND (find_release_dialog)
@@ -553,7 +589,6 @@ public:
 	void set_expiration_enabled(bool enabled);
 	void set_expiration_days(int days);
 
-
 	bool awt_get_alt_mode();
 	bool awt_set_alt_mode(bool enabled);
 
@@ -584,6 +619,7 @@ public:
 
 	formatting_script album_art_filename_string   = "cover$ifequal(%IMAGE_NUMBER%,1,,_%IMAGE_NUMBER%)";
 	formatting_script artist_art_filename_string  = "artist%ARTIST_ID%$ifequal(%IMAGE_NUMBER%,1,,_%IMAGE_NUMBER%)";
+	//todo: depri?
 	formatting_script artist_art_id_format_string = "%DISCOGS_ARTIST_ID%";
 
 	bool display_exact_matches = true;
@@ -620,9 +656,9 @@ public:
 		raw_remove_exclude_tags = s;
 	}
 
-	formatting_script search_release_format_string    = "$join($append(%RELEASE_TITLE%,%RELEASE_SEARCH_LABELS%,%RELEASE_SEARCH_MAJOR_FORMATS%,%RELEASE_SEARCH_FORMATS%,%RELEASE_YEAR%,%RELEASE_SEARCH_CATNOS%))";
+	formatting_script search_release_format_string    = "$join($append(%RELEASE_TITLE%,%RELEASE_SEARCH_LABELS%,[%RELEASE_QUERY_MAJOR_FORMATS_QTY%:]%RELEASE_SEARCH_MAJOR_FORMATS%,%RELEASE_SEARCH_FORMATS%,%RELEASE_YEAR%,%RELEASE_SEARCH_CATNOS%[, %RELEASE_COUNTRY%]))";
 	formatting_script search_master_format_string     = "'[master] '$join($append(%MASTER_RELEASE_TITLE%,%MASTER_RELEASE_YEAR%))";
-	formatting_script search_master_sub_format_string = "'  '$ifequal(%RELEASE_ID%,%MASTER_RELEASE_MAIN_RELEASE_ID%,'* ','   ')$join($append(%RELEASE_TITLE%,%RELEASE_SEARCH_LABELS%,%RELEASE_SEARCH_MAJOR_FORMATS%,%RELEASE_SEARCH_FORMATS%,%RELEASE_YEAR%,%RELEASE_SEARCH_CATNOS%,%RELEASE_COUNTRY%))";
+	formatting_script search_master_sub_format_string = "'  '$ifequal(%RELEASE_ID%,%MASTER_RELEASE_MAIN_RELEASE_ID%,'* ','   ')$join($append(%RELEASE_TITLE%,%RELEASE_SEARCH_LABELS%,[%RELEASE_QUERY_MAJOR_FORMATS_QTY%:]%RELEASE_SEARCH_MAJOR_FORMATS%,%RELEASE_SEARCH_FORMATS%,%RELEASE_YEAR%,%RELEASE_SEARCH_CATNOS%,%RELEASE_COUNTRY%))";
 
 	formatting_script release_discogs_format_string   = "$ifgreater(%RELEASE_TOTAL_DISCS%,1,%DISC_NUMBER%-,)$num(%TRACK_DISC_TRACK_NUMBER%,2) - $multi_if($multi_and(%ARTISTS_NAME_VARIATION%,$multi_not(%REPLACE_ANVS%)),%ARTISTS_NAME_VARIATION%$multi_if(%DISPLAY_ANVS%,*,),%ARTISTS_NAME%) - %TRACK_TITLE%$ifequal(%TRACK_TOTAL_HIDDEN_TRACKS%,0,,'   ['%TRACK_TOTAL_HIDDEN_TRACKS%' HIDDEN]')";
 	formatting_script release_file_format_string      = "$if($strcmp($ext(%path%),tags),$info(@),%path%)";
@@ -699,7 +735,31 @@ public:
 	int alt_write_flags = 0;
 	//v210 (1.0.21)
 	int disk_cache_exp = 30; //hi flags, lo days
-	//..
+	//v211
+	pfc::string8 various_prefixes = "Various, VA";
+	//v212
+	pfc::string8 on_init_query_tf =
+		"$puts(pol,$if($isvarious(%album artist%),$if($isvarious(%artist%),true,),))" \
+		"$puts(af,$if2([artist= %album artist%],[artist= %artist%]))" \
+		"$join(" \
+		"$array(" \
+		"$if($get(pol),,$if($isvarious(%album artist%),[credit= %artist%]))," \
+		"[$get(af)]," \
+		"[title= %album%]," \
+		"[track= %title%]" \
+		")" \
+		", & )";
+
+	int on_init_query_flags = ON_INIT_QUERY_FLG_CUST_TF_ENABLED | ON_INIT_QUERY_FLG_ART_AS_CRED_IN_VA | ON_INIT_QUERY_FLG_PFX_LNK_ENABLED;
+	int on_init_query_def = 1;
+
+	//v213
+	pfc::string8 multiple_artists_links = "with, and, feat.";
+
+	//v214
+	//HI is total, 10 for each masters and releases, and max pages (10 x 100) 
+	int query_max = MAKELPARAM(10, 1000);
+
 
 	std::vector<int> vflags;
 
@@ -712,3 +772,33 @@ inline CConf CONF("Global");
 inline std::vector<std::string> g_va_ma_releases;
 extern void g_clear_va_ma_releases();
 #endif
+
+class SkipMng {
+
+public:
+	enum {
+
+		RELEASE_DLG_MATCHED = SKIP_RELEASE_DLG_MATCHED,
+		RELEASE_DLG_IDED = SKIP_RELEASE_DLG_IDED,
+		PREVIEW_DLG = SKIP_PREVIEW_DLG,
+		RELEASE_DLG_VA_AUTO_LOAD = SKIP_RELEASE_DLG_VA_AUTO_LOAD,
+		BRAINZ_ID_FETCH = SKIP_BRAINZ_ID_FETCH,
+	};
+
+};
+
+class InitQueryMng {
+
+public:
+	enum {
+
+		INIT_QUERY_FLAG_ENABLED = ON_INIT_QUERY_FLG_ENABLED,
+		INIT_QUERY_ART_AS_CRED_IN_VA = ON_INIT_QUERY_FLG_ART_AS_CRED_IN_VA,
+		INIT_QUERY_CUST_TF_ENABLED = ON_INIT_QUERY_FLG_CUST_TF_ENABLED,
+		INIT_QUERY_PX_LNK_ENABLED = ON_INIT_QUERY_FLG_PFX_LNK_ENABLED,
+		INIT_QURY_5 = ON_INIT_QUERY_5,
+		INIT_QURY_6 = ON_INIT_QUERY_6,
+		INIT_QUERY_7 = ON_INIT_QUERY_7,
+	};
+
+};
