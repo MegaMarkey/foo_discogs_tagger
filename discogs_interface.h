@@ -34,6 +34,49 @@ private:
 		return cache_master_releases->exists(lkey) ? cache_master_releases->get(lkey) : nullptr;
 	}
 
+	//recycle
+	inline Release_ptr get_release_from_cache_comp(const size_t lkey) {
+
+		size_t out_alter_key = 0;
+		std::pair<int, unsigned long> pdec = decode_mr(lkey);
+
+		if (!pdec.first) {
+			//any will do
+			auto exist_pair = cache_releases->exists_comp(lkey, out_alter_key);
+			if (exist_pair.first) {
+				return cache_releases->get(encode_mr(0, pdec.second));
+			}
+			else if (exist_pair.second) {
+				return cache_releases->get(encode_mr(pdec.first, pdec.second));
+			}
+			else if (out_alter_key) {
+				return cache_releases->get(out_alter_key);
+			}
+		}
+		return cache_releases->exists(lkey) ? cache_releases->get(lkey) : nullptr;
+	}
+
+	//recycle
+	inline MasterRelease_ptr get_master_release_from_cache_comp(const size_t lkey) {
+
+		size_t out_alter_key = 0;
+		std::pair<int, unsigned long> pdec = decode_mr(lkey);
+
+		if (!pdec.first) {
+			auto pres = cache_master_releases->exists_comp(lkey, out_alter_key);
+			if (pres.second) {
+				return cache_master_releases->get(lkey);
+			}
+			else if (pres.first) {
+				return cache_master_releases->get(pdec.second);
+			}
+			else if (out_alter_key) {
+				return cache_master_releases->get(out_alter_key);
+			}
+			return cache_master_releases->exists(lkey) ? cache_master_releases->get(lkey) : nullptr;
+		}
+	}
+
 	inline Artist_ptr get_artist_from_cache(const pfc::string8 &artist_id) {
 		return cache_artists->exists(artist_id) ? cache_artists->get(artist_id) : nullptr;
 	}

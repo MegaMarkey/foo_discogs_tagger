@@ -64,8 +64,39 @@ public:
 
 		std::lock_guard<std::mutex> ul(modify_mutex);
 
-		return _cache_items_map.find(key) != _cache_items_map.end();
+			return _cache_items_map.find(key) != _cache_items_map.end();
+		}
 	}
+
+	std::pair<bool,bool> exists_comp(const key_t& key, key_t &alter_lkey) /*const*/ {
+
+		std::lock_guard<std::mutex> ul(modify_mutex);
+
+		std::pair<int, unsigned long> pdec = decode_mr(key);
+		std::pair<bool, bool> pres(false, false);
+		/*exist_simple*/ pres.first = _cache_items_map.find(pdec.second) != _cache_items_map.end();
+		/*exist_comp*/ pres.second= _cache_items_map.find(key) != _cache_items_map.end();
+		
+		if (!pres.first && !pres.second) {
+
+			size_t myres = 0;
+			auto fi = std::find_if(_cache_items_map.begin(), _cache_items_map.end(), [&myres, &pdec](const auto /*std::pair<size_t, MasterRelease_ptr>*/ /*lru_cache<key_t, value_t>*/& e) {
+				auto b = e;
+				std::pair<size_t, list_iterator_t/> key_value_pair_t = e;
+				auto dec = decode_mr(e.first);
+				if (dec.second == pdec.second) myres = dec.first;
+				return dec.second == pdec.second;
+				});
+
+			if (fi != _cache_items_map.end()) {
+				alter_lkey = myres;
+			}
+		}
+
+		return pres;
+
+	}
+
 
 	size_t size() /*const*/ {
 
