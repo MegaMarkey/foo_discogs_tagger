@@ -462,17 +462,31 @@ void Discogs::parseReleaseCredits(json_t* element, pfc::array_t<ReleaseCredit_pt
 			}
 		}
 		else {
-			if (!artist->raw_roles.get_length() || (credits.get_size() && STR_EQUAL(artist->raw_roles, credits[credits.get_size() - 1]->raw_roles))) {
-				credits[credits.get_size() - 1]->artists.append_single(artist);
-			}
-			else {
+			//1.0.22 beta search crash: artist= Various artists & format = cd
+			if (!artist->roles.get_ptr() && !artist->raw_roles.get_length() && !credits.get_ptr()) {
 
-				ReleaseCredit_ptr credit(new ReleaseCredit());
-				credit->raw_roles = artist->raw_roles;
-				credit->roles = artist->roles;
-				credit->full_roles = artist->full_roles;
-				credit->artists.append_single(artist);
-				credits.append_single(credit);
+				log_msg(PFC_string_formatter() << "Skipping empty/orphan extra artist credit.");
+				continue;
+			}
+
+			try {
+				if (!artist->raw_roles.get_length() || (credits.get_size() && STR_EQUAL(artist->raw_roles, credits[credits.get_size() - 1]->raw_roles))) {
+					credits[credits.get_size() - 1]->artists.append_single(artist);
+				}
+				else {
+
+					ReleaseCredit_ptr credit(new ReleaseCredit());
+					credit->raw_roles = artist->raw_roles;
+					credit->roles = artist->roles;
+					credit->full_roles = artist->full_roles;
+					credit->artists.append_single(artist);
+					credits.append_single(credit);
+				}
+			}
+			catch (parser_exception& e) {
+				pfc::string8 error;
+				error << ("(skipped) ") << e.what() << "\n";
+				popup_message::g_show(error.get_ptr(), "Error(s)", popup_message::icon_error);
 			}
 		}
 	}
@@ -556,16 +570,19 @@ void Discogs::DistReleaseTrackCredits(const pfc::array_t<pfc::string8>& arrTrack
 	size_t cTracks = arrTracks.get_count();
 
 	if (!cTracks) {
-		//nothing to do
+		//break recursion
 		return;
 	}
 
-	auto dc_credit_pos = arrTracks[0];
+
+	pfc::string8 dc_credit_pos = arrTracks[0];
 
 	// check credit movement
 
 	pfc::string8 mov_credit_pos;
-	if (release->indexes.get_count() && dc_credit_pos.get_length() > 2) {
+	pfc::string8 dc_credit_big_pos;
+	get_last_num(dc_credit_pos, 3, 0, dc_credit_big_pos);
+	if (release->indexes.get_count() && dc_credit_big_pos.get_length() > 2) {
 
 		std::vector<pfc::string8> vindex_mov_nums;
 		for each (ReleaseIndexes_ptr var in release->indexes) {
@@ -575,18 +592,18 @@ void Discogs::DistReleaseTrackCredits(const pfc::array_t<pfc::string8>& arrTrack
 			}
 		}
 
-		if (std::find(std::begin(vindex_mov_nums), std::end(vindex_mov_nums), dc_credit_pos.c_str()) != std::end(vindex_mov_nums)) {
+		if (std::find(std::begin(vindex_mov_nums), std::end(vindex_mov_nums), dc_credit_big_pos.c_str()) != std::end(vindex_mov_nums)) {
 
 			std::vector<pfc::string8> vsplit;
 			split(dc_credit_pos, "-", 0, vsplit);
-			for (auto wmovement : vsplit) {
+			for (pfc::string8 wmovement : vsplit) {
 				if (!trim(wmovement).get_length()) {
 					continue;
 				}
 
 				auto relh = release->indexes;
 				for each (ReleaseIndexes_ptr var in relh) {
-					std::vector<std::string> mylist = { "Concerto","Sonata", "Suite" };
+					std::vector<std::string> mylist = { "Concerto", "Sonata", "Suite" };
 					auto found_it = std::find_if(mylist.begin(), mylist.end(), [=](const std::string& w) {
 						return var->title.contains(w.c_str());
 						});
@@ -800,23 +817,6 @@ bool remove_chars(char c) {
 	return !((c >= '0' && c <= '9') || c == '-');
 }
 
-size_t get_last_num(pfc::string8 str, size_t minlength, size_t minpos, pfc::string8& lastnum) {
-
-	if (pfc::string_is_numeric(str)) return ~0;
-
-	if (str.get_length() >= minlength) {
-		std::regex regex_v("[\\d]+");
-		std::string str_reg(str.c_str());
-		std::sregex_iterator begin = std::sregex_iterator(str_reg.begin(), str_reg.end(), regex_v);
-		for (std::sregex_iterator i = begin; i != std::sregex_iterator(); i++) {
-			if (i->position() >= minpos) {
-				lastnum = i->str().c_str();
-				return i->position();
-			}
-		}
-	}
-	return ~0;
-}
 
 struct ptp_nfo {
 
