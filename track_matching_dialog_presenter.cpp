@@ -1,9 +1,11 @@
-#pragma once
+﻿#pragma once
 #include "stdafx.h"
 
 #include <gdiplus.h>
 #include "CGdiPlusBitmap.h"
 
+#include "discogs_interface.h"
+#include "ol_cache.h"
 #include "track_matching_dialog_presenter.h"
 
 using namespace Gdiplus;
@@ -1418,7 +1420,7 @@ void discogs_artwork_presenter::Populate() {
 		if (i == 0) {
 			pfc::string8 fixedprimary = pi->get_type().print().toString();
 			fixPrimary(fixedprimary);
-			imageinfo.emplace_back(fixedprimary);
+			imageinfo.emplace_back(std::move(fixedprimary));
 		}
 		else {
 			imageinfo.emplace_back(pi->get_type().print().toString());
@@ -1751,7 +1753,7 @@ void coord_presenters::populate_track_ui_mode() {
 				bool bdiffid = (local_release_id.get_length() && !(STR_EQUAL(tw_release->id, local_release_id)));
 
 				pfc::string8 compact_release;
-				CONF.search_master_sub_format_string->run_hook(m_location, &m_info, &m_hook, compact_release, nullptr);
+				CONF.release_status_bar_info_format_string->run_hook(m_location, &m_info, &m_hook, compact_release, nullptr);
 
 				pfc::string8 release_desc = bdiffid ? "!! " : "";
 				release_desc << ltrim(compact_release);

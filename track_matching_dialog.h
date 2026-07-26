@@ -56,7 +56,7 @@ public:
 		m_tag_writer(tag_writer),	m_conf(CONF), m_coord(p_parent, CONF),
 		m_idc_list(this), m_ifile_list(this), m_ida_list(this), m_ifa_list(this), m_tristate(this)
 	{
-		m_conf.SetName("TrackMatchingDlg");
+
 		g_discogs->track_matching_dialog = this;
 	}
 
@@ -158,6 +158,7 @@ public:
 
 	const metadb_handle_list get_tag_writer_items() {return m_tag_writer->m_finfo_manager->items; }
 
+	bool is_enabled();
 	void enable(bool v) override;
 	void destroy_all();
 	void go_back();
@@ -168,7 +169,7 @@ public:
 	void show() override;
 	void hide() override;
 
-	size_t get_art_perm_selection(HWND hwndList, bool flagselected, const size_t max_items, pfc::array_t<t_uint8>& outmask, bit_array_bittable& are_albums);	
+	size_t get_art_perm_selection(HWND hwndList, bool flagselected, const size_t max_items, pfc::array_t<t_uint8>& outmask, bit_array_bittable& are_albums);
 	void request_preview(size_t img_ndx, bool artist_art, bool onlycache, bool get_mibs = false);
 	void request_file_preview(size_t img_ndx, bool artist_art);
 
@@ -189,8 +190,11 @@ public:
 protected:
 
 		void LibUIAsTrackList(bool OwnerToLibUi);
-		void GlobalReplace_VA_AS_MULTI_ARTIST(bool state);
-		void enable_VA_AS_MULTI(bool is_enabled);
+
+#ifdef SIM_VA_MA_BETA
+		void GlobalReset_VA_AS_MA();
+		void enable_VA_AS_MA(bool is_enabled);
+#endif
 
 private:
 

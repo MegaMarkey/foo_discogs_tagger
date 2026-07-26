@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "discogs.h"
 #include "conf.h"
 #include "utils.h"
@@ -52,6 +52,7 @@ enum {
 	ID_INVERT_SELECTION,
 	ID_REMOVE,
 	ID_CROP,
+	ID_CLIPBOARD_COPY,
 	ID_SPACE,
 	ID_ROW_NUMBERS,
 	ID_SUBMENU_SELECTOR_ALIGN,
@@ -251,7 +252,7 @@ const struct multi_uartwork {
 	void prep_block(size_t ndx) {
 		if (vuart.size() < ndx + 1) {
 			while (vuart.size() < ndx + 1) {
-				auto uart = vuart.emplace_back(uartwork(init));
+				auto uart = vuart.emplace_back(std::move(uartwork(init)));
 			}
 		}
 	}
@@ -341,14 +342,14 @@ const struct multi_uartwork {
 		bool cfg_art_save_to_dir,
 		bool cfg_art_ovr) {
 
-		auto uart = vuart.emplace_back(uartwork(cfg_album_embed,
+		uartwork uart = vuart.emplace_back(std::move(uartwork(cfg_album_embed,
 			cfg_album_save_to_dir,
 			0,
 			cfg_album_ovr,
 			cfg_art_embed,
 			cfg_art_save_to_dir,
 			0,
-			cfg_art_ovr, init));
+			cfg_art_ovr, init)));
 		init = true;
 	}
 
@@ -388,7 +389,7 @@ const struct multi_uartwork {
 	multi_uartwork(const CConf& conf, Discogs::Release_ptr release);
 
 	bool isEmpty() {
-		for (auto uart : vuart) {
+		for ( uartwork uart : vuart) {
 			if (!(uart == uartwork(init))) return false;
 		}
 		return true;

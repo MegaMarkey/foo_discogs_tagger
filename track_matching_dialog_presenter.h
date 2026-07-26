@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "resource.h"
 
 #include <variant>
@@ -613,7 +613,7 @@ public:
 		m_cImageTileMode(0),
 		m_lsmode(lsmode::default)
 	{
-		m_conf.SetName("coord_pres");
+		//..
 	}
 
 	~coord_presenters() {
