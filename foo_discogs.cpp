@@ -423,7 +423,7 @@ void foo_discogs::save_album_art(Release_ptr& release, metadb_handle_ptr item,
 
 			if (voverwrite_it[i] || !foobar2000_io::filesystem::g_exists(path, p_abort)) {
 				buffer = done_fetches[release->images[i]->url];
-				if (!buffer.get_ptr()) {					
+				if (!buffer.get_ptr()) {
 					auto& mbmi = done_fetches.emplace(release->images[i]->url, buffer);
 					g_discogs->fetch_image(mbmi.first->second, release->images[i], p_abort);
 					buffer = mbmi.first->second;

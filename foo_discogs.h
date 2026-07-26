@@ -3,10 +3,10 @@
 #pragma warning(disable:4996)
 
 #include "version.h"
-#include "discogs_interface.h"
-
+#include "discogs.h"
 #include "tags.h"
 #include "error_manager.h"
+#include "prompt_dialog.h"
 #include "string_encoded_array.h"
 #include "art_download_attribs.h"
 
@@ -86,6 +86,9 @@ public:
 	CTagCreditDialog *tag_credit_dialog = nullptr;
 	CConfigurationDialog *configuration_dialog = nullptr;
 
+	std::mutex locked_tag_generation_rw_mutex;
+	bool locked_tag_generation = false;
+
 	size_t locked_operation = 0;
 	size_t write_tag_locked_operation = 0;
 	std::vector<pfc::string8> vArtistLoadReleasesTasks;
@@ -118,7 +121,9 @@ public:
 };
 
 inline bool g_os_is_wine = false;
+
 inline foo_discogs* g_discogs = nullptr;
+inline CPromptDialog *g_pprompt_dlg = nullptr;
 
 inline HICON g_hIcon_quian;
 inline HBITMAP g_hIcon_rec;

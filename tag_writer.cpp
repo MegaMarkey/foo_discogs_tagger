@@ -1,6 +1,8 @@
 #include "stdafx.h"
+#include "discogs_interface.h"
 #include "foo_discogs.h"
 #include "multiformat.h"
+
 #include "tag_writer.h"
 
 TagWriter::TagWriter(file_info_manager_ptr finfo_manager, Release_ptr release) : m_finfo_manager(finfo_manager), release(release), tag_results_mask_mode(PreView::Undef) {
@@ -463,7 +465,7 @@ void TagWriter::generate_tags(tag_mapping_list_type* alt_mappings, threaded_proc
 				const ReleaseDisc_ptr& disc = release->discs[disc_index];
 				const ReleaseTrack_ptr& track = disc->tracks[trac_index];
 
-				titleformat_hook_impl_multiformat hook(p_status, &master, &release, &disc, &track, &info, &track_stores[wtracks], &prompt_store);
+				titleformat_hook_impl_multiformat hook(p_status, &master, &release, &disc, &track, &info, &track_stores[wtracks], &prompt_store, g_pprompt_dlg);
 				hook.set_files(m_finfo_manager);
 
 				pfc::string8 str;
@@ -673,13 +675,9 @@ void process_result(const metadb_handle_ptr item, file_info* info, size_t ndx_tr
 	}
 	if (approved) {
 		if (result->value.get_count() > ndx_track_mappings) {
-
-
-
 			value = &(result->value[ndx_track_mappings]);
 		}
 		else {
-
 			value = &(result->value[0]);
 		}
 

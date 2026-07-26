@@ -47,18 +47,21 @@ void foo_discogs_threaded_process_callback::on_done(HWND p_wnd, bool p_was_abort
 
 generate_tags_task::generate_tags_task(CPreviewTagsDialog *preview_dialog, TagWriter_ptr tag_writer) :
 		m_tag_writer(tag_writer), m_preview_dialog(preview_dialog), m_show_preview_dialog(false), m_alt_mappings(nullptr) {
-
-	preview_dialog->enable(false, true);
+	//..
 }
 
 generate_tags_task::generate_tags_task(CTrackMatchingDialog *track_matching_dialog, TagWriter_ptr tag_writer, bool show_preview_dialog) :
 		m_tag_writer(tag_writer), m_track_matching_dialog(track_matching_dialog), m_show_preview_dialog(show_preview_dialog), m_alt_mappings(nullptr) {
 
-	track_matching_dialog->enable(false);
+	//..
 }
 generate_tags_task::generate_tags_task(CTagCreditDialog* credits_dialog, TagWriter_ptr tag_writer, tag_mapping_list_type* alt_mappings) :
 		m_tag_writer(tag_writer), m_alt_mappings(alt_mappings), m_credits_dialog(credits_dialog), m_show_preview_dialog(false) {
 
+}
+
+generate_tags_task::~generate_tags_task() {
+	//..
 }
 
 void generate_tags_task::start() {
@@ -73,65 +76,95 @@ void generate_tags_task::start() {
 	);
 }
 
-void generate_tags_task::safe_run(threaded_process_status &p_status, abort_callback &p_abort) {
-	if (m_preview_dialog && IsWindow(m_preview_dialog->m_hWnd)) {
-		m_preview_dialog->Enabled(false);
+void generate_tags_task::safe_run(threaded_process_status& p_status, abort_callback& p_abort) {
+
+	{
+		std::lock_guard<std::mutex> guard(g_discogs->locked_tag_generation_rw_mutex);
+		if (g_discogs->locked_tag_generation) {
+			m_quick_abort = true;
+			log_msg("tag generation is busy, try again later.");
+			return;
+		}
+		else {
+			g_discogs->locked_tag_generation = true;
+		}
 	}
+
+	if (m_track_matching_dialog) {
+		m_track_matching_dialog->enable(false);
+	}
+	else if (m_preview_dialog)  {
+		m_preview_dialog->enable(false, true);
+	}
+
 	m_tag_writer->generate_tags(m_alt_mappings, p_status, p_abort);
 }
 
 void generate_tags_task::on_success(HWND p_wnd) {
-	if (m_preview_dialog) {
+
+	if (m_quick_abort) {
+		return;
+	}
+
+	if (m_preview_dialog && m_preview_dialog->IsWindow()) {
 
 		m_preview_dialog->Enabled(true);
 
+		tag_mapping_list_type* ptags = &TAGS;
+		size_t debug = ptags->get_count();
+		size_t new_res_count = m_tag_writer->tag_results.get_count();
+
+
+		// pass tag writer tag mask -----------------------------------------------------------
+
+		m_preview_dialog->cb_refresh_ui_tag_results(m_tag_writer->tag_results_mask);
+
+		m_tag_writer->ResetMask();
+
 		// preview exist generate list tags
+		CPreviewLeadingTagDialog* preview_modal_tag_dialog = g_discogs->preview_modal_tag_dialog;
+		if (preview_modal_tag_dialog && IsWindow(preview_modal_tag_dialog->m_hWnd)) {
 
-		if (IsWindow(m_preview_dialog->m_hWnd)) {
-			tag_mapping_list_type* ptags = &TAGS;
-			size_t debug = ptags->get_count();
-			size_t new_res_count = m_tag_writer->tag_results.get_count();
+			tag_result_ptr detailed_res;
+			size_t new_sel = 0;
+			size_t curr_sel = preview_modal_tag_dialog->GetResult(detailed_res);
 
-			m_preview_dialog->cb_refresh_ui_tag_results(m_tag_writer->tag_results_mask);
+			bool bmovetoprev = false;
+			if (new_res_count <= curr_sel) {
+				bmovetoprev = true;
+			}
+			else {
 
-			m_tag_writer->ResetMask();
-
-
-			// preview exist generate list tags
-			CPreviewLeadingTagDialog* preview_modal_tag_dialog = g_discogs->preview_modal_tag_dialog;
-			if (preview_modal_tag_dialog && IsWindow(preview_modal_tag_dialog->m_hWnd)) {
-
-				tag_result_ptr detailed_res;
-				size_t new_sel = 0;
-				size_t curr_sel = preview_modal_tag_dialog->GetResult(detailed_res);
-
-				bool brefresh = false; /*bool bmovetolast = false;*/ bool bmovetoprev = false;
-				if (new_res_count <= curr_sel) {
+				bool new_enabled = m_tag_writer->tag_results[curr_sel]->tag_entry->enable_write || m_tag_writer->tag_results[curr_sel]->tag_entry->enable_update;
+				if (!new_enabled) {
 					bmovetoprev = true;
 				}
-				else {
+			}
 
-					bool new_enabled = m_tag_writer->tag_results[curr_sel]->tag_entry->enable_write || m_tag_writer->tag_results[curr_sel]->tag_entry->enable_update;
-					if (!new_enabled) {
-						bmovetoprev = true;
-					}
-				}
+			if (bmovetoprev) {
+				if (curr_sel - 1 < new_res_count)
+					new_sel = curr_sel - 1 < 0 ? 0 : curr_sel - 1;
+				else
+					new_sel = new_res_count - 1;
+			}
+			else {
+				new_sel = curr_sel;
+			}
 
-				if (bmovetoprev) {
-					if (curr_sel - 1 < new_res_count)
-						new_sel = curr_sel - 1 < 0 ? 0 : curr_sel - 1;
-					else
-						new_sel = new_res_count - 1;
-				}
-				else {
-					new_sel = curr_sel;
-				}
+			const auto new_res_tag_entry = m_tag_writer->tag_results[new_sel]->tag_entry;
+			preview_modal_tag_dialog->SetTagWriter(m_tag_writer);
 
-				const auto new_res_tag_entry = m_tag_writer->tag_results[new_sel]->tag_entry;
-				preview_modal_tag_dialog->SetTagWriter(m_tag_writer);
+			preview_modal_tag_dialog->ReloadItem(core_api::get_main_window(), new_sel, /*use current modal preview view mode*/PreView::Undef);
 
-				preview_modal_tag_dialog->ReloadItem(core_api::get_main_window(), new_sel, /*use current modal preview view mode*/PreView::Undef);
+		}
 
+		{
+			std::lock_guard<std::mutex> guard(g_discogs->locked_tag_generation_rw_mutex);
+			if (g_discogs->locked_tag_generation) {
+				g_discogs->locked_tag_generation = false;
+			}
+			else {
+				//.. should not be here
 			}
 		}
 	}
@@ -139,50 +172,90 @@ void generate_tags_task::on_success(HWND p_wnd) {
 	else if (m_show_preview_dialog) {
 
 		// create/show preview and hide track matching dialog
+		if (m_track_matching_dialog && m_track_matching_dialog->IsWindow()) {
+			m_track_matching_dialog->enable(true);
 
-		m_track_matching_dialog->enable(true);
+			fb2k::newDialog <CPreviewTagsDialog>(core_api::get_main_window(), m_tag_writer);
 
-		fb2k::newDialog <CPreviewTagsDialog>(core_api::get_main_window(), m_tag_writer);
-				
-		m_track_matching_dialog->hide();
+			m_track_matching_dialog->hide();
+
+		}
+
+		{
+			std::lock_guard<std::mutex> guard(g_discogs->locked_tag_generation_rw_mutex);
+			if (g_discogs->locked_tag_generation) {
+				g_discogs->locked_tag_generation = false;
+			}
+			else {
+				//.. should not be here
+			}
+		}
+
 	}
 	else {
 
 		//destroy track matching dialog and launch write tags process
 
-		CTrackMatchingDialog* dlg = g_discogs->track_matching_dialog;
-		dlg->destroy_all();
+		if (g_discogs->track_matching_dialog && g_discogs->track_matching_dialog->IsWindow()) {
 
-		try {
-			service_ptr_t<write_tags_task> task = new service_impl_t<write_tags_task>(m_tag_writer);
-			task->start();
+			g_discogs->track_matching_dialog->destroy_all();
+
+			try {
+				service_ptr_t<write_tags_task> task = new service_impl_t<write_tags_task>(m_tag_writer);
+				task->start();
+			}
+			catch (locked_task_exception e)
+			{
+				log_msg(e.what());
+			}
 		}
-		catch (locked_task_exception e)
+
 		{
-			log_msg(e.what());
+			std::lock_guard<std::mutex> guard(g_discogs->locked_tag_generation_rw_mutex);
+			if (g_discogs->locked_tag_generation) {
+				g_discogs->locked_tag_generation = false;
+			}
+			else {
+				//.. should not be here
+			}
 		}
+
 	}
 }
 
 void generate_tags_task::on_abort(HWND p_wnd) {
-	
+
+	if (m_quick_abort) {
+		return;
+	}
+
 	m_tag_writer->ResetMask();
-	
+
 	on_error(p_wnd);
 }
 
 void generate_tags_task::on_error(HWND p_wnd) {
-	
-	m_tag_writer->ResetMask();
 
-	if (m_preview_dialog) {
-		
+	std::lock_guard<std::mutex> guard(g_discogs->locked_tag_generation_rw_mutex);
+	if (g_discogs->locked_tag_generation) {
+		g_discogs->locked_tag_generation = false;
+	}
+	else {
+		//.. should not be here
+	}
+
+	m_tag_writer->ResetMask();
+	//orphan $prompt modal dialog closed?
+	//todo: global mutexes form global dialogs
+	if (m_preview_dialog && m_preview_dialog->IsWindow()) {
+
 		m_preview_dialog->enable(true, true);
 	}
 	else {
-
-		m_track_matching_dialog->enable(true);
-		m_track_matching_dialog->show();
+		if (m_track_matching_dialog && m_track_matching_dialog->IsWindow()) {
+			m_track_matching_dialog->enable(true);
+			m_track_matching_dialog->show();
+		}
 	}
 }
 

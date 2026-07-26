@@ -1,8 +1,8 @@
 #pragma once
-#include <atomic>
 #include "foo_discogs.h"
 #include "file_info_manager.h"
 #include "error_manager.h"
+#include "track_matching_utils.h"
 
 #define MATCH_NA       -1
 #define MATCH_SUCCESS   0

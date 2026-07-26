@@ -3,6 +3,7 @@
 #include "string_encoded_array.h"
 #include "discogs.h"
 #include "exception.h"
+#include "prompt_dialog.h"
 #include "file_info_manager.h"
 #include "sdk_helpers.h"
 
@@ -60,6 +61,7 @@ private:
 	const file_info *finfo = nullptr;
 	persistent_store *store = nullptr;
 	persistent_store *prompt_store = nullptr;
+	CPromptDialog* pprompt_dlg = nullptr;
 	std::map<const char*, string_encoded_array, cmp_str> custom_map;
 
 public:
@@ -69,8 +71,8 @@ public:
 	titleformat_hook_impl_multiformat(threaded_process_status &p_status, const MasterRelease_ptr *master_release, const Release_ptr *release, const Artist_ptr *artist) : artist(artist), master_release(master_release), release(release), p_status(p_status) {}
 	titleformat_hook_impl_multiformat(threaded_process_status &p_status, const MasterRelease_ptr *master_release, const Release_ptr *release = nullptr,
 		const ReleaseDisc_ptr *release_disc = nullptr, const ReleaseTrack_ptr *release_track = nullptr,
-		const file_info *info = nullptr, persistent_store *pstore = nullptr, persistent_store *prompt_store = nullptr) :
-		p_status(p_status), release(release), release_disc(release_disc), release_track(release_track), master_release(master_release), artist(artist), finfo(info), store(pstore), prompt_store(prompt_store) {};
+		const file_info *info = nullptr, persistent_store *pstore = nullptr, persistent_store *prompt_store = nullptr, CPromptDialog *pprompt_dlg = nullptr) :
+		p_status(p_status), release(release), release_disc(release_disc), release_track(release_track), master_release(master_release), artist(artist), finfo(info), store(pstore), prompt_store(prompt_store), pprompt_dlg(pprompt_dlg) {};
 	titleformat_hook_impl_multiformat(const Release_ptr *release = nullptr, const ReleaseDisc_ptr *disc = nullptr, const ReleaseTrack_ptr *track = nullptr) :
 		release(release), release_disc(disc), release_track(track), p_status(f_status) {};
 

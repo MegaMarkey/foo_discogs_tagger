@@ -61,29 +61,14 @@ public:
 	}
 };
 
-class foo_discogs_write_tag_locked_threaded_process_callback : public foo_discogs_threaded_process_callback
-{
-public:
-	foo_discogs_write_tag_locked_threaded_process_callback() {
-		if (g_discogs->write_tag_locked_operation) {
-			locked_task_exception e("Write tag peration locked");
-			throw e;
-		}
-		g_discogs->write_tag_locked_operation++;
-	}
-
-	~foo_discogs_write_tag_locked_threaded_process_callback() {
-		g_discogs->write_tag_locked_operation--;
-	}
-};
-
-class generate_tags_task : public foo_discogs_locked_threaded_process_callback
+class generate_tags_task : public foo_discogs_threaded_process_callback
 {
 public:
 
 	generate_tags_task(CPreviewTagsDialog *preview_dialog, TagWriter_ptr tag_writer);
 	generate_tags_task(CTrackMatchingDialog *release_dialog, TagWriter_ptr tag_writer, bool show_preview_dialog);
 	generate_tags_task(CTagCreditDialog* credits_dialog, TagWriter_ptr tag_writer, tag_mapping_list_type* alt_mappings);
+	~generate_tags_task();
 	void start();
 
 private:
@@ -93,7 +78,8 @@ private:
 	CTagCreditDialog *m_credits_dialog = nullptr;
 
 	bool m_show_preview_dialog;
-	
+	bool m_quick_abort = false;
+
 	TagWriter_ptr m_tag_writer;
 	tag_mapping_list_type* m_alt_mappings;
 

@@ -2,7 +2,7 @@
 
 #include "multiformat.h"
 #include "string_encoded_array.h"
-#include "prompt_dialog.h"
+
 bool titleformat_hook_impl_multiformat::process_field(titleformat_text_out * p_out, const char * p_name, size_t p_name_length, bool & p_found_flag) {
 	size_t multi_depth = 0;
 	while (p_name[0] == '<' && p_name[p_name_length - 1] == '>') {
@@ -683,8 +683,10 @@ bool titleformat_hook_impl_multiformat::process_function(titleformat_text_out * 
 				}
 				catch (foo_discogs_exception) {
 					pfc::string8 answer;
-					CPromptDialog dlg(params[0].get_cvalue(), &answer);
-					dlg.DoModal();
+					if (pprompt_dlg) {
+						pprompt_dlg->SetAskResult(params[0].get_cvalue(), &answer);
+						pprompt_dlg->DoModal(core_api::get_main_window());
+					}
 					prompt_store->put(params[0].get_cvalue(), answer);
 					params[0].set_value(answer);
 				}
