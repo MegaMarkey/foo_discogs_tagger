@@ -449,7 +449,7 @@ int tokenize_non_bracketed(const pfc::string8& src, const pfc::string8& delim, p
 
 	pfc::string8 tmp_src(src);
 
-	if (size_t open_bracket_pos = tmp_src.find_first('[') != pfc_infinite) {
+	if (tmp_src.find_first('[') != pfc_infinite) {
 		replace_bracketed_commas(tmp_src, ",", "%");
 	}
 
@@ -896,6 +896,50 @@ LONG GetStringRegKey(HKEY hKey, const std::wstring& strValueName, std::wstring& 
 #ifndef W2U
 #define W2U(Text) pfc::stringcvt::string_utf8_from_wide(Text).get_ptr()
 #endif
+
+bool CheckDarkLuminance()
+{
+	bool check_dark = false;
+
+	HKEY openKey = HKEY_CURRENT_USER;
+	const char* regkey = "Control Panel\\Colors";
+
+	HKEY hKey = 0;
+	TCHAR wregkey[MAX_PATH] = { 0 };
+	/*auto wlen = */pfc::stringcvt::convert_utf8_to_wide(wregkey, MAX_PATH, regkey, strlen(regkey));
+	//CSTR lpSubKey
+	LONG retValue = RegOpenKeyEx(openKey, wregkey, 0, KEY_READ/*KEY_WOW64_32KEY*/, &hKey);
+	//#endif
+
+	std::wstring strValueOfButtonFace;
+	std::wstring strValueOfButtonText;
+
+	bool done = GetStringRegKey(hKey, L"ButtonFace", strValueOfButtonFace, L"") == ERROR_SUCCESS;
+	done &= GetStringRegKey(hKey, L"ButtonText", strValueOfButtonText, L"") == ERROR_SUCCESS;
+
+	if (done) {
+
+		pfc::string8 buf = W2U(strValueOfButtonFace.c_str()/*, strValueOfButtonFace.length()*/);
+		auto tokens = StringSplit(buf.c_str(), ' ');
+
+		COLORREF back = RGB(atoi(tokens[0].c_str()), atoi(tokens[1].c_str()), atoi(tokens[2].c_str()));
+
+		buf = W2U(strValueOfButtonText.c_str()/*, strValueOfButtonText.length()*/);
+		tokens = StringSplit(buf.c_str(), ' ');
+
+		COLORREF fore = RGB(atoi(tokens[0].c_str()), atoi(tokens[1].c_str()), atoi(tokens[2].c_str()));
+
+		check_dark = is_dark_luminance(fore, back);
+	}
+
+	RegCloseKey(hKey);
+	return check_dark;
+}
+
+pfc::string8 check_os_wine() {
+
+	pfc::string8 wine_ver = "";
+
 	HMODULE hntdll = GetModuleHandle(L"ntdll.dll");
 	if (!hntdll)
 	{
@@ -1077,14 +1121,39 @@ bool sortByVal(const std::pair<int, int>& a, const std::pair<int, int>& b)
 	return a.second < b.second;
 }
 
-extern bool is_multivalue_meta(const pfc::string& field) {
-	std::vector<pfc::string8> vmultis;
-	split(CONF.multivalue_fields, ";", 0, vmultis);
+int duration_in_seconds(pfc::string8 duration) {
+	int duration_seconds;
+	size_t pos = min(duration.find_first(':'), duration.find_first('.'));
+	size_t pos2 = min(duration.find_first(':', pos + 1), duration.find_first('.', pos + 1));
+	if (pos2 != pfc::infinite_size) {
+		pfc::string8 hour = substr(duration, 0, pos);
+		pfc::string8 min = substr(duration, pos + 1, pos2);
+		pfc::string8 sec = substr(duration, pos2 + 1);
+		duration_seconds = (3600 * atoi(hour.get_ptr()) + 60 * atoi(min.get_ptr()) + atoi(sec.get_ptr()));
+	}
+	else if (pos != pfc::infinite_size) {
+		pfc::string8 min = substr(duration, 0, pos);
+		pfc::string8 sec = substr(duration, pos + 1);
+		duration_seconds = (60 * atoi(min.get_ptr()) + atoi(sec.get_ptr()));
+	}
+	else {
+		duration_seconds = 0;
+	}
+	return duration_seconds;
+}
 
-	auto found_it =
-		std::find_if(vmultis.begin(), vmultis.end(), [&](const pfc::string8 & e) {
-		return pfc::stringLite::g_equalsCaseInsensitive(e, field);
-			});
+extern bool sanitaze_track_title(pfc::string8& out) {
+	auto ext = filesystem::g_get_extension(out);
+	if (ext.get_length()) {
+		out = out.subString(0, out.get_length() - ext.get_length() - 1 /*dot*/);
+	}
 
-	return found_it != std::end(vmultis);
+	size_t cp = 0;
+	while (pfc::char_is_numeric(out[cp]) || out[cp] == '.'
+		|| out[cp] == '-' || out[cp] == ' ') {
+		++cp;
+	}
+	out = out.subString(cp == out.get_length() ? 0 : cp);
+
+	return true;
 }

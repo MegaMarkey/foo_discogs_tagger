@@ -528,6 +528,25 @@ bool track_in_range(const pfc::string8 &pos, const pfc::string8 &start, const pf
 	return dpos >= dstart && dpos <= dend;
 }
 
+
+size_t get_last_num(pfc::string8 str, size_t minlength, size_t minpos, pfc::string8& lastnum) {
+
+	if (pfc::string_is_numeric(str)) return ~0;
+
+	if (str.get_length() >= minlength) {
+		std::regex regex_v("[\\d]+");
+		std::string str_reg(str.c_str());
+		std::sregex_iterator begin = std::sregex_iterator(str_reg.begin(), str_reg.end(), regex_v);
+		for (std::sregex_iterator i = begin; i != std::sregex_iterator(); i++) {
+			if (i->position() >= minpos) {
+				lastnum = i->str().c_str();
+				return i->position();
+			}
+		}
+	}
+	return ~0;
+}
+
 void Discogs::DistReleaseTrackCredits(const pfc::array_t<pfc::string8>& arrTracks, ReleaseCredit_ptr& credit, Release* release) {
 
 	pfc::string8 alltracks_csv;

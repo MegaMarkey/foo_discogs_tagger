@@ -19,7 +19,6 @@ namespace Discogs
 	extern pfc::string8 move_the_to_start(const pfc::string8 &src);
 	extern pfc::string8 move_the_to_end(const pfc::string8 &src);
 	extern pfc::string8 strip_artist_name(const pfc::string8 str);
-	extern pfc::string8 format_track_number(int tracknumber);
 
 	class ExpTagsImage : public ExposedTags<ExpTagsImage>
 	{
@@ -66,7 +65,7 @@ namespace Discogs
 
 		~HasImages() {
 
-			for (auto i : images) {
+			for (Image_ptr i : images) {
 
 				i.reset();
 
@@ -513,7 +512,6 @@ namespace Discogs
 
 		pfc::string8 dc_track_first;
 		pfc::string8 dc_track_last;
-		bool dc_track_closed = false;
 
 		string_encoded_array get_position() const {
 			return position;

@@ -127,6 +127,8 @@ extern bool replace_last_alpha_by_dot(std::string& s);
 
 extern size_t split(pfc::string8 str, pfc::string8 token, size_t index, std::vector<pfc::string8>& out);
 
+extern bool sanitaze_track_title(pfc::string8& out);
+
 size_t encode_mr(const int a, const unsigned long b);
 size_t encode_mr(const int a, pfc::string8& sb);
 std::pair<int, unsigned long> decode_mr(const size_t coded);
@@ -146,6 +148,7 @@ extern int tokenize_multi(const pfc::string8 &src, const pfc::array_t<pfc::strin
 
 extern void makeFsCompliant(pfc::string8 &str);
 extern pfc::string8 urlEscape(const pfc::string8 &src);
+extern void urldecode2(char* dst, const char* src);
 extern inline pfc::string8 substr(const pfc::string8 &s, size_t start, size_t count = pfc::infinite_size);
 
 // Open URL in default browser
@@ -179,7 +182,7 @@ extern void CustomFont(HWND hwndParent, size_t flag, bool check_font = true, boo
 
 extern bool sortByVal(const std::pair<int, int>& a, const std::pair<int, int>& b);
 
-extern bool is_multivalue_meta(const pfc::string& field);
+extern int duration_in_seconds(pfc::string8 duration);
 
 extern const int IMAGELIST_OFFLINE_CACHE_NDX;
 extern const int IMAGELIST_OFFLINE_DB_NDX;

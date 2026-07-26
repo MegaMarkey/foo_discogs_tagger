@@ -582,6 +582,8 @@ public:
 	void save(cfgFilter cfgfilter, const CConf & in_conf);
 	void save(cfgFilter cfgfilter, const CConf & in_conf, int id);
 
+	bool auto_load_releases_on_select_ready() const;
+
 	bool history_enabled();
 
 	bool expiration_enabled();

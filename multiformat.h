@@ -55,6 +55,8 @@ private:
 	const Image_ptr *image = nullptr;
 	file_info_manager_ptr files = nullptr;
 
+	pfc::string8 va_csv;
+
 	fake_threaded_process_status f_status;
 	threaded_process_status &p_status;
 
@@ -75,6 +77,10 @@ public:
 		p_status(p_status), release(release), release_disc(release_disc), release_track(release_track), master_release(master_release), artist(artist), finfo(info), store(pstore), prompt_store(prompt_store), pprompt_dlg(pprompt_dlg) {};
 	titleformat_hook_impl_multiformat(const Release_ptr *release = nullptr, const ReleaseDisc_ptr *disc = nullptr, const ReleaseTrack_ptr *track = nullptr) :
 		release(release), release_disc(disc), release_track(track), p_status(f_status) {};
+
+	void set_va_csv(const char* s) {
+		va_csv = s;
+	}
 
 	void set_custom(const char *s, string_encoded_array v) {
 		custom_map[s] = v;

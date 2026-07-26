@@ -2,6 +2,8 @@
 
 #include <filesystem>
 
+#include "discogs_interface.h"
+
 #include "conf.h"
 #include "utils.h"
 #include "utils_path.h"

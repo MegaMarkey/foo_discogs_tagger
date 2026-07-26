@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "pfc/pfc.h"
 #include <CommCtrl.h>
 
@@ -107,6 +107,13 @@ public:
 
 	size_t id_tracer::get_artist_id() const {
 		return artist_id;
+	}
+
+	bool id_tracer::get_artist_id_is_vun() const {
+		bool is_various = artist_id == 194; //various
+		is_various |= artist_id == 355;     //unknown
+		is_various |= artist_id == 118760;  //no artist
+		return is_various;
 	}
 
 	size_t id_tracer::get_artist_ovr_id() const {
