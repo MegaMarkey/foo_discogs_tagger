@@ -482,7 +482,9 @@ void foo_discogs::save_album_art(Release_ptr& release, metadb_handle_ptr item,
 				if (this_guid == album_art_ids::icon) {
 
 					MemoryBlock iconbuffer = MemoryBlockToPngIcon(buffer);
-					g_discogs->embed_image(iconbuffer, item, this_guid, p_abort);
+					if (iconbuffer.size()) {
+						g_discogs->embed_image(iconbuffer, item, this_guid, p_abort);
+					}
 				}
 				else {
 					if (buffer.get_ptr()) {

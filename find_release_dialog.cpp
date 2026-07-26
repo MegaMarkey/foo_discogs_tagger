@@ -1820,7 +1820,7 @@ void replace_artist_refs(const pfc::string8 & profile, pfc::string8& outprofile,
 	}
 	//use ref names
 	if (vfound.size()) {
-		for (auto walk : vfound) {
+		for (FieldValPair walk : vfound) {
 			if (walk.second.size()) {
 				pfc::string8 replace = PFC_string_formatter() << "[a" << walk.first.c_str() << "]";
 				outprofile = outprofile.replace(replace, walk.second.c_str());

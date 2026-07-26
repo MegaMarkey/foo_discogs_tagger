@@ -48,6 +48,14 @@ void CArtistList::on_get_artist_done(cupdRelSrc updsrc, const Artist_ptr artist)
 		}
 
 		set_artists(true, false, artist, m_artist_exact_matches, m_artist_other_matches);
+
+		fb2k::inMainThread([this] {
+			try {
+				::InvalidateRect(m_hWnd, NULL, TRUE);
+			}
+			catch(...) {}
+			});
+
 		return;
 	}
 	else if (updsrc == updRelSrc::ArtistProfile) {
@@ -87,6 +95,14 @@ void CArtistList::on_get_artist_done(cupdRelSrc updsrc, const Artist_ptr artist)
 					dlg->m_loading_selection_id = pfc_infinite;
 				}
 			}
+
+			fb2k::inMainThread([this] {
+				try {
+				::InvalidateRect(m_hWnd, NULL, TRUE);
+				}
+				catch(...) {}
+				});
+
 		}
 	}
 }
@@ -244,7 +260,12 @@ void CArtistList::switch_find_releases(size_t op, bool append) {
 		m_find_release_artists[i]->search_role_list_pos = get_next_role_pos();
 	}
 
-	Invalidate();
+	fb2k::inMainThread([this] {
+    				try {
+    				::InvalidateRect(m_hWnd, NULL, TRUE);
+    				}
+    				catch(...) {}
+    				});
 
 	auto citems = get_size();
 	bool bskip_idded_release_dlg = CONF.skip_mng_flag & SkipMng::RELEASE_DLG_IDED;
@@ -254,7 +275,13 @@ void CArtistList::switch_find_releases(size_t op, bool append) {
 		|| (CONF.auto_rel_load_on_open && op == 3)
 		|| (op == 0 && citems == 1 && append == false)))
 	{
-		SetSelectionAt(0, true);
+		fb2k::inMainThread([this] {
+			try {
+			::InvalidateRect(m_hWnd, NULL, TRUE);
+			}
+			catch(...) {}
+			});
+
 	}
 }
 

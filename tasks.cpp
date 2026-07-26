@@ -371,28 +371,43 @@ void download_art_task::start() {
 	);
 }
 
-void download_art_task::safe_run(threaded_process_status &p_status, abort_callback &p_abort) {
+void download_art_task::safe_run(threaded_process_status& p_status, abort_callback& p_abort) {
 
 	size_t lkey = encode_mr(0, release_id);
 	Release_ptr release = discogs_interface->get_release(lkey, p_status, p_abort);
 
 	bool bfile_match = CONF_MULTI_ARTWORK.file_match;
 	multi_uartwork multi_uartconf = multi_uartwork(CONF, release);
+
 	bool bconf_album_save_or_embed = CONF.save_album_art || CONF.embed_album_art;
 	bool bconf_artist_save_or_embed = CONF.save_artist_art || CONF.embed_artist_art;
 
 	att_vcmp cust_cmp(af::alb_sd);
-	bool bcust_album_save = bfile_match || !std::equal(CONF_MULTI_ARTWORK.vuart.begin(), CONF_MULTI_ARTWORK.vuart.end(), multi_uartconf.vuart.begin(), cust_cmp.comp_uart_att);
-	cust_cmp.set(af::alb_emb);
-	bool bcust_album_embed = !std::equal(CONF_MULTI_ARTWORK.vuart.begin(), CONF_MULTI_ARTWORK.vuart.end(), multi_uartconf.vuart.begin(), cust_cmp.comp_uart_att);
+	bool bcust_album_save;
+	bool bcust_album_embed;
+	bool bcust_artist_save;
+	bool bcust_artist_embed;
 
+	if (CONF_MULTI_ARTWORK.vuart.size() != multi_uartconf.vuart.size()) {
+		bcust_album_save = bcust_album_embed = true;
+		bcust_artist_save = bcust_artist_embed = true;
+	}
+	else {
+			bcust_album_save = bfile_match || !std::equal(CONF_MULTI_ARTWORK.vuart.begin(), CONF_MULTI_ARTWORK.vuart.end(), multi_uartconf.vuart.begin(), cust_cmp.comp_uart_att);
+			cust_cmp.set(af::alb_ovr);
+			bcust_album_save |= !std::equal(CONF_MULTI_ARTWORK.vuart.begin(), CONF_MULTI_ARTWORK.vuart.end(), multi_uartconf.vuart.begin(), cust_cmp.comp_uart_att);
+			cust_cmp.set(af::alb_emb);
+			bcust_album_embed = !std::equal(CONF_MULTI_ARTWORK.vuart.begin(), CONF_MULTI_ARTWORK.vuart.end(), multi_uartconf.vuart.begin(), cust_cmp.comp_uart_att);
+
+
+			cust_cmp.set(af::art_sd);
+			bcust_artist_save = bfile_match || !std::equal(CONF_MULTI_ARTWORK.vuart.begin(), CONF_MULTI_ARTWORK.vuart.end(), multi_uartconf.vuart.begin(), cust_cmp.comp_uart_att);
+			cust_cmp.set(af::art_ovr);
+			bcust_artist_save |= !std::equal(CONF_MULTI_ARTWORK.vuart.begin(), CONF_MULTI_ARTWORK.vuart.end(), multi_uartconf.vuart.begin(), cust_cmp.comp_uart_att);
+			cust_cmp.set(af::art_emb);
+			bcust_artist_embed = !std::equal(CONF_MULTI_ARTWORK.vuart.begin(), CONF_MULTI_ARTWORK.vuart.end(), multi_uartconf.vuart.begin(), cust_cmp.comp_uart_att);
+	}
 	bool bcust_album_save_or_embed = bcust_album_save || bcust_album_embed;
-
-	cust_cmp.set(af::art_sd);
-	bool bcust_artist_save = bfile_match || !std::equal(CONF_MULTI_ARTWORK.vuart.begin(), CONF_MULTI_ARTWORK.vuart.end(), multi_uartconf.vuart.begin(), cust_cmp.comp_uart_att);
-	cust_cmp.set(af::art_emb);
-	bool bcust_artist_embed = !std::equal(CONF_MULTI_ARTWORK.vuart.begin(), CONF_MULTI_ARTWORK.vuart.end(), multi_uartconf.vuart.begin(), cust_cmp.comp_uart_att);
-
 	bool bcust_artist_save_or_embed = bcust_artist_save || bcust_artist_embed;
 
 	if (bconf_album_save_or_embed || bcust_album_save_or_embed) {
@@ -403,7 +418,7 @@ void download_art_task::safe_run(threaded_process_status &p_status, abort_callba
 
 		size_t cartist_art = 0;
 
-		for (auto wra : release->artists) {
+		for (ReleaseArtist_ptr wra : release->artists) {
 			cartist_art += wra->full_artist->images.get_count();
 		}
 
@@ -446,7 +461,7 @@ void download_art_task::safe_run(threaded_process_status &p_status, abort_callba
 
 		size_t cartist_art = 0;
 
-		for (auto wra : release->artists) {
+		for (ReleaseArtist_ptr wra : release->artists) {
 			cartist_art += wra->full_artist->images.get_count();
 		}
 
@@ -520,21 +535,31 @@ void download_art_paths_task::safe_run(threaded_process_status& p_status, abort_
 	bool bconf_artist_save_or_embed = CONF.save_artist_art || CONF.embed_artist_art;
 
 	att_vcmp cust_cmp(af::alb_sd);
-	bool bcust_album_save = bfile_match || !std::equal(CONF_MULTI_ARTWORK.vuart.begin(), CONF_MULTI_ARTWORK.vuart.end(), multi_uartconf.vuart.begin(), cust_cmp.comp_uart_att);	
-	cust_cmp.set(af::alb_ovr);
-	bcust_album_save |= !std::equal(CONF_MULTI_ARTWORK.vuart.begin(), CONF_MULTI_ARTWORK.vuart.end(), multi_uartconf.vuart.begin(), cust_cmp.comp_uart_att);
-	cust_cmp.set(af::alb_emb);
-	bool bcust_album_embed = !std::equal(CONF_MULTI_ARTWORK.vuart.begin(), CONF_MULTI_ARTWORK.vuart.end(), multi_uartconf.vuart.begin(), cust_cmp.comp_uart_att);
+	bool bcust_album_save;
+	bool bcust_album_embed;
+	bool bcust_artist_save;
+	bool bcust_artist_embed;
 
+	if (CONF_MULTI_ARTWORK.vuart.size() != multi_uartconf.vuart.size()) {
+		bcust_album_save = bcust_album_embed = true;
+		bcust_artist_save = bcust_artist_embed = true;
+	}
+	else {
+		bcust_album_save = bfile_match || !std::equal(CONF_MULTI_ARTWORK.vuart.begin(), CONF_MULTI_ARTWORK.vuart.end(), multi_uartconf.vuart.begin(), cust_cmp.comp_uart_att);
+		cust_cmp.set(af::alb_ovr);
+		bcust_album_save |= !std::equal(CONF_MULTI_ARTWORK.vuart.begin(), CONF_MULTI_ARTWORK.vuart.end(), multi_uartconf.vuart.begin(), cust_cmp.comp_uart_att);
+		cust_cmp.set(af::alb_emb);
+		bcust_album_embed = !std::equal(CONF_MULTI_ARTWORK.vuart.begin(), CONF_MULTI_ARTWORK.vuart.end(), multi_uartconf.vuart.begin(), cust_cmp.comp_uart_att);
+
+
+		cust_cmp.set(af::art_sd);
+		bcust_artist_save = bfile_match || !std::equal(CONF_MULTI_ARTWORK.vuart.begin(), CONF_MULTI_ARTWORK.vuart.end(), multi_uartconf.vuart.begin(), cust_cmp.comp_uart_att);
+		cust_cmp.set(af::art_ovr);
+		bcust_artist_save |= !std::equal(CONF_MULTI_ARTWORK.vuart.begin(), CONF_MULTI_ARTWORK.vuart.end(), multi_uartconf.vuart.begin(), cust_cmp.comp_uart_att);
+		cust_cmp.set(af::art_emb);
+		bcust_artist_embed = !std::equal(CONF_MULTI_ARTWORK.vuart.begin(), CONF_MULTI_ARTWORK.vuart.end(), multi_uartconf.vuart.begin(), cust_cmp.comp_uart_att);
+	}
 	bool bcust_album_save_or_embed = bcust_album_save || bcust_album_embed;
-
-	cust_cmp.set(af::art_sd);
-	bool bcust_artist_save = bfile_match || !std::equal(CONF_MULTI_ARTWORK.vuart.begin(), CONF_MULTI_ARTWORK.vuart.end(), multi_uartconf.vuart.begin(), cust_cmp.comp_uart_att);
-	cust_cmp.set(af::art_ovr);
-	bcust_artist_save |= !std::equal(CONF_MULTI_ARTWORK.vuart.begin(), CONF_MULTI_ARTWORK.vuart.end(), multi_uartconf.vuart.begin(), cust_cmp.comp_uart_att);
-	cust_cmp.set(af::art_emb);
-	bool bcust_artist_embed = !std::equal(CONF_MULTI_ARTWORK.vuart.begin(), CONF_MULTI_ARTWORK.vuart.end(), multi_uartconf.vuart.begin(), cust_cmp.comp_uart_att);
-
 	bool bcust_artist_save_or_embed = bcust_artist_save || bcust_artist_embed;
 
 	if (bconf_album_save_or_embed || bcust_album_save_or_embed) {
@@ -622,18 +647,20 @@ void download_art_paths_task::safe_run(threaded_process_status& p_status, abort_
 void download_art_paths_task::on_success(HWND p_wnd) {
 
 	std::shared_ptr<std::vector<std::pair<pfc::string8, bit_array_bittable>>> vpaths = std::make_shared<std::vector<std::pair<pfc::string8, bit_array_bittable>>>(m_vres);
-
-	CONF.find_release_dlg_flags &= ~CFindReleaseDialog::FLG_VARIOUS_AS_MULTI_ARTIST;
+#ifdef SIM_VA_MA_BETA
+	CONF.find_release_dlg_flags &= ~CFindReleaseDialog::FLG_VA_AS_MA;
 	CONF.save(CConf::cfgFilter::CONF, CONF, CFG_FIND_RELEASE_DIALOG_FLAG);
 
 	if (g_discogs->configuration_dialog && IsWindow(g_discogs->configuration_dialog->m_hWnd)) {
 		CConfigurationDialog* cfgdlg = static_cast<CConfigurationDialog*>(g_discogs->configuration_dialog);
 		BOOL bdummy = 0;
-		cfgdlg->OnCustomVAMulti_Changed(0, 0, 0, bdummy);
+		cfgdlg->OnCustomMsg_VA_as_MA_Reset(0, 0, 0, bdummy);
 	}
+#endif
 
-	if (IsWindow(m_dialog->m_hWnd))
+	if (IsWindow(m_dialog->m_hWnd)) {
 		m_dialog->process_download_art_paths_done(m_release_id, vpaths, m_album_art_ids);
+	}
 }
 
 

@@ -748,7 +748,15 @@ void Discogs::parseImages(json_t *array, pfc::array_t<Image_ptr> &images) {
 			}
 		}
 	}
-	images.append(temp);
+
+	images.append(sec_images);
+
+	if (images.size() - param_image_count != json_array_size(array)) {
+        pfc::string8 msg("Error parsing ");
+        msg << PFC_string_formatter() << (json_array_size(array) - sec_images.size());
+        msg << PFC_string_formatter() << " out of " << json_array_size(array) << " images";
+        log_msg(msg);
+    }
 }
 
 ReleaseFormat_ptr Discogs::parseReleaseFormat(json_t *element) {
