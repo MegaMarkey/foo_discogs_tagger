@@ -22,7 +22,6 @@ public:
 	CPreviewTagsDialog(HWND p_parent, TagWriter_ptr tag_writer)
 		: m_tag_writer(tag_writer), m_results_list(NULL), m_uilist(this), m_tristate(this), conf(CONF), m_preview_bitmap(NULL) {
 
-		conf.SetName("PreviewDlg");
 		g_discogs->preview_tags_dialog = this;
 	}
 
@@ -147,6 +146,7 @@ public:
 	void spawn_generate_tag_mappings();
 	void cb_refresh_ui_tag_results(pfc::bit_array_bittable tag_mask);
 	void enable(bool v) override { enable(v, true); };
+	bool is_enabled();
 	void enable(bool v, bool change_focus);
 	bool check_write_tags_status();
 	void destroy_all();
@@ -163,8 +163,6 @@ private:
 	void reset_stats() {
 		m_vstats.clear();
 	}
-
-	void reset_tag_result_stats();
 
 	void set_preview_mode(PreView mode);
 	PreView get_preview_mode();

@@ -24,8 +24,12 @@ public:
 		//..
 	}
 
+	~ILOD_preview() {
+		//..
+	}
+
 	void Enabled(bool enable);
-	void SetResults(TagWriter_ptr tag_writer, PreView preview_mode, std::vector<preview_stats> m_vstats);
+	void SetResults(const std::weak_ptr<void>& tag_writer, PreView preview_mode, std::vector<preview_stats> m_vstats);
 	pfc::string8 GetListRow(size_t row, PreView mode);
 	bool is_result_editable(size_t item);
 

@@ -22,13 +22,13 @@ void ILOD_preview_leading::CopyFromOriginal() {
 		valarray = valarray;
 
 	}
-	ilo_get_ui_list()->UpdateItemsAll();
+	ilo_get_uilist()->UpdateItemsAll();
 }
 
 void ILOD_preview_leading::TriggerAction() {
 
-	if (ilo_get_ui_list()->GetSelectedCount()) {
-		listItemAction((CListControlOwnerData*)this, ilo_get_ui_list()->GetFirstSelected());
+	if (ilo_get_uilist()->GetSelectedCount()) {
+		listItemAction((CListControlOwnerData*)this, ilo_get_uilist()->GetFirstSelected());
 	}
 }
 
@@ -115,7 +115,7 @@ void ILOD_preview_leading::listSubItemClicked(ctx_t ctx, size_t item, size_t sub
 		if (!m_ptag_result->tag_entry->freeze_tag_name) {
 
 			//edit
-			ilo_get_ui_list()->TableEdit_Start(item, kDataCol);
+			ilo_get_uilist()->TableEdit_Start(item, kDataCol);
 		}
 	}
 }
@@ -168,7 +168,7 @@ void ILOD_preview_leading::listSetEditField(ctx_t ctx, size_t item, size_t subIt
 
 			//build per track values
 
-			size_t newcount = ilo_get_ui_list()->GetItemCount();
+			size_t newcount = ilo_get_uilist()->GetItemCount();
 
 			string_encoded_array previtem = m_ptag_result->value[0];
 

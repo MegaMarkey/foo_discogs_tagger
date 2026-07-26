@@ -3,6 +3,9 @@
 #include <GdiPlus.h>
 #pragma comment(lib, "gdiplus.lib")
 
+#include "libPPUI\clipboard.h"
+
+#include "discogs_interface.h"
 #include "utils_menu.h"
 #include "string_encoded_array.h"
 #include "tasks.h"
@@ -253,7 +256,6 @@ LRESULT CPreviewTagsDialog::OnInitDialog(UINT /*uMsg*/, WPARAM /*wParam*/, LPARA
 	SetIcon(g_discogs->icon);
 
 	conf = CConf(CONF);
-	conf.SetName("PreviewDlg");
 
 	cfg_listview.init();
 
@@ -353,7 +355,7 @@ LRESULT CPreviewTagsDialog::OnInitDialog(UINT /*uMsg*/, WPARAM /*wParam*/, LPARA
 	}
 
 	bool buser_skip_artwork = (HIWORD(conf.album_art_skip_default_cust) & ARTSAVE_SKIP_USER_FLAG) != 0;
-	bool save_artwork = conf.save_album_art || conf.save_album_art || conf.embed_album_art || conf.embed_artist_art;
+	bool save_artwork = conf.save_album_art || conf.save_artist_art || conf.embed_album_art || conf.embed_artist_art;
 
 	if (!save_artwork) {
 		m_tristate.Init(buser_skip_artwork ? BST_CHECKED : BST_UNCHECKED, FALSE);
@@ -458,15 +460,15 @@ bool CPreviewTagsDialog::context_menu_show(HWND wnd, size_t isel, LPARAM lParamP
 		bool b_result_list = wnd == uGetDlgItem(IDC_PREVIEW_LIST);
 		// add menu options
 
-		uAppendMenu(menu, MF_STRING, ID_PREVIEW_CMD_BACK, "&Back");
+		uAppendMenu(menu, MF_STRING | (!is_enabled() ? MF_DISABLED | MF_GRAYED : 0), ID_PREVIEW_CMD_BACK, "&Back");
 		uAppendMenu(menu, MF_SEPARATOR, 0, 0);
 
 		if (b_result_list) {
 			if (bsingle_selection) {
 
 				bool binplace = is_result_editable(isel);
-				uAppendMenu(menu, MF_STRING, ID_PREVIEW_CMD_EDIT_RESULT_TAG, "&Edit");
-				uAppendMenu(menu, MF_STRING | (binplace ? 0 : MF_DISABLED | MF_GRAYED), ID_PREVIEW_CMD_EDIT_RESULT_TAGINP, "E&dit (in-place)");
+				uAppendMenu(menu, MF_STRING | (!is_enabled() ? MF_DISABLED | MF_GRAYED : 0), ID_PREVIEW_CMD_EDIT_RESULT_TAG, "&Edit");
+				uAppendMenu(menu, MF_STRING | (binplace && is_enabled() ? 0 : MF_DISABLED | MF_GRAYED), ID_PREVIEW_CMD_EDIT_RESULT_TAGINP, "E&dit (in-place)");
 				uAppendMenu(menu, MF_STRING, ID_PREVIEW_CMD_COPY, "&Copy");
 
 				uAppendMenu(menu, MF_SEPARATOR, 0, 0);
@@ -520,11 +522,11 @@ bool CPreviewTagsDialog::context_menu_show(HWND wnd, size_t isel, LPARAM lParamP
 			str_force_wu << "&Force Write && Update selected tag" << (csel > 1 ? "s" : "");
 
 			uAppendMenu(menu, MF_SEPARATOR, 0, 0);
-			uAppendMenu(menu, MF_STRING | (csel ? 0 : MF_DISABLED | MF_GRAYED), ID_PREVIEW_CMD_WRITE_TAGS_MASK, str);
-			uAppendMenu(menu, MF_STRING | (csel ? 0 : MF_DISABLED | MF_GRAYED), ID_PREVIEW_CMD_WRITE_TAGS_MASK_FORCE_WU, str_force_wu);
+			uAppendMenu(menu, MF_STRING | (csel && is_enabled() ? 0 : MF_DISABLED | MF_GRAYED), ID_PREVIEW_CMD_WRITE_TAGS_MASK, str);
+			uAppendMenu(menu, MF_STRING | (csel && is_enabled() ? 0 : MF_DISABLED | MF_GRAYED), ID_PREVIEW_CMD_WRITE_TAGS_MASK_FORCE_WU, str_force_wu);
 		}
 		uAppendMenu(menu, MF_SEPARATOR, 0, 0);
-		uAppendMenu(menu, MF_STRING, ID_PREVIEW_CMD_WRITE_TAGS, "&Write all tags");
+		uAppendMenu(menu, MF_STRING | (!is_enabled() ? MF_DISABLED | MF_GRAYED : 0), ID_PREVIEW_CMD_WRITE_TAGS, "&Write all tags");
 
 		int cmd = TrackPopupMenu(menu, TPM_RIGHTBUTTON | TPM_NONOTIFY | TPM_RETURNCMD, point.x, point.y, 0, wnd, 0);
 		DestroyMenu(menu);
@@ -763,6 +765,10 @@ void CPreviewTagsDialog::refresh_ui_tag_results(bool computestat, pfc::bit_array
 }
 
 void CPreviewTagsDialog::spawn_generate_tag_mappings() {
+	//todo
+	if (!is_enabled()) {
+		return;
+	}
 
 	try {
 		service_ptr_t<generate_tags_task> task = new service_impl_t<generate_tags_task>(this, m_tag_writer);
@@ -782,11 +788,12 @@ void CPreviewTagsDialog::GlobalReplace_ANV(bool state) {
 }
 
 LRESULT CPreviewTagsDialog::OnCheckReplaceANVs(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/) {
-	
-	bool local_replace_ANV = IsDlgButtonChecked(IDC_CHK_REPLACE_ANV);
-	if (CONF.replace_ANVs != local_replace_ANV) {
-		conf.replace_ANVs = local_replace_ANV;
-		GlobalReplace_ANV(local_replace_ANV);
+
+	bool enabled = IsDlgButtonChecked(IDC_CHK_REPLACE_ANV);
+
+	if (CONF.replace_ANVs != enabled) {
+		conf.replace_ANVs = enabled;
+		GlobalReplace_ANV(enabled);
 
 		spawn_generate_tag_mappings();
 	} 
@@ -892,6 +899,7 @@ LRESULT CPreviewTagsDialog::OnButtonBack(WORD /*wNotifyCode*/, WORD wID, HWND /*
 void CPreviewTagsDialog::pushcfg() {
 	if (build_current_cfg()) {
 		CONF.save(CConf::cfgFilter::PREVIEW, conf);
+		CONF.save(CConf::cfgFilter::CONF, conf, CFG_REPLACE_ANVS);
 		CONF.save(CConf::cfgFilter::TRACK, conf, CFG_ALBUM_ART_SKIP_DEFAULT_CUST);
 		CONF.load();
 	}
@@ -976,7 +984,6 @@ LRESULT CPreviewTagsDialog::OnListKeyDown(LPNMHDR lParam) {
 }
 
 void CPreviewTagsDialog::compute_stats(pfc::bit_array_bittable list_mask) {
-	reset_tag_result_stats();
 	compute_stats_track_map(list_mask);
 }
 
@@ -1135,7 +1142,7 @@ LRESULT CPreviewTagsDialog::OnCustomDraw(int idCtrl, LPNMHDR lParam, BOOL& bHand
 	LPNMLVCUSTOMDRAW lplvcd = (LPNMLVCUSTOMDRAW)lParam;
 	int pos = (int)lplvcd->nmcd.dwItemSpec;
 	int sub_item;
-	bool bresults = m_tag_writer->tag_results.size() > 0;
+	bool bresults = m_tag_writer->tag_results.size();
 	const tag_mapping_entry* entry = bresults ?
 		m_tag_writer->tag_results[pos]->tag_entry: nullptr;
 
@@ -1209,23 +1216,25 @@ LRESULT CPreviewTagsDialog::OnCustomDraw(int idCtrl, LPNMHDR lParam, BOOL& bHand
 void CPreviewTagsDialog::enable(bool is_enabled, bool change_focus) {
 
 	HWND hwndWriteTags = GetDlgItem(IDC_BTN_WRITE_TAGS);
-	::uEnableWindow(hwndWriteTags, !is_enabled ? FALSE : m_tag_writer->Staging_Results()/*->will_modify/*is_enabled*/);
+	::uEnableWindow(hwndWriteTags, is_enabled && check_write_tags_status());
+	HWND hwndANV = GetDlgItem(IDC_CHK_REPLACE_ANV);
+	::uEnableWindow(hwndANV, is_enabled && m_tag_writer && m_tag_writer->tag_results.size() && m_tag_writer->GetRelease()->has_anv());
 
 	for (HWND walk = ::GetWindow(m_hWnd, GW_CHILD); walk != NULL; ) {
 		HWND next = ::GetWindow(walk, GW_HWNDNEXT);
-		if (next != hwndWriteTags)
+		if (next != hwndWriteTags && next != hwndANV)
 			::uEnableWindow(next, is_enabled);
 		walk = next;
 	}
 
 	if (g_discogs->preview_modal_tag_dialog) {
 		CPreviewLeadingTagDialog* dlg = g_discogs->preview_modal_tag_dialog;
-		for (HWND walk = ::GetWindow(dlg->m_hWnd, GW_CHILD); walk != NULL; ) {
-			HWND next = ::GetWindow(walk, GW_HWNDNEXT);
-			::uEnableWindow(next, is_enabled);
-			walk = next;
-		}
+		dlg->enable(is_enabled);
 	}
+}
+
+bool CPreviewTagsDialog::is_enabled() {
+	return ::IsWindowEnabled(GetDlgItem(IDC_BTN_WRITE_TAGS));
 }
 
 void CPreviewTagsDialog::destroy_all() {

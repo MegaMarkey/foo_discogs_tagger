@@ -34,7 +34,7 @@ private:
 	// pure virtual
 	virtual PreView ilo_get_view_mode() = 0;
 	virtual tag_result_ptr ilo_get_item_result() = 0;
-	virtual CListControlOwnerData* ilo_get_ui_list() = 0;
+	virtual CListControlOwnerData* ilo_get_uilist() = 0;
 	virtual const std::vector<pfc::string8>& ilo_get_vtracks_desc() = 0;
 	virtual const size_t ilo_get_finfo_count() = 0;
 

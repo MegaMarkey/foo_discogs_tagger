@@ -10,9 +10,9 @@ void ILOD_preview::Enabled(bool enable) {
 	uilist->EnableWindow(enable);
 }
 
-void ILOD_preview::SetResults(const std::weak_ptr<void>& ptag_wwriter, PreView preview_mode, std::vector<preview_stats> m_vstats) {
+void ILOD_preview::SetResults(const std::weak_ptr<void>& ptag_writer, PreView preview_mode, std::vector<preview_stats> m_vstats) {
 
-	m_tag_writer = ptag_writer;
+	m_tag_writer = std::static_pointer_cast<TagWriter>(ptag_writer.lock());
 	m_preview_mode = preview_mode;
 	m_v_stats = m_vstats;
 
@@ -39,7 +39,7 @@ size_t ILOD_preview::listGetItemCount(ctx_t ctx) {
 
 // print debug
 
-pfc::string8 print_stenar(const pfc::array_t<string_encoded_array>& input) {
+pfc::string8 print_stenar(const pfc::array_t<string_encoded_array>&input) {
 	pfc::string8 result = "";
 	if (input.get_size() == 1) {
 		result = input[0].print_raw();
@@ -67,7 +67,7 @@ pfc::string8 print_stenar(const pfc::array_t<string_encoded_array>& input) {
 
 // print normal (original: input oldvalue, results: input value)
 
-pfc::string8 print_normal(const pfc::array_t<string_encoded_array>& input) {
+pfc::string8 print_normal(const pfc::array_t<string_encoded_array>&input) {
 	pfc::string8 result = "";
 	if (!input.size()) {
 		//todo: identify crash scenario for null result
@@ -116,7 +116,7 @@ pfc::string8 print_normal(const pfc::array_t<string_encoded_array>& input) {
 
 // print difference
 
-pfc::string8 print_difference(const pfc::array_t<string_encoded_array>& input, const pfc::array_t<string_encoded_array>& old_input) {
+pfc::string8 print_difference(const pfc::array_t<string_encoded_array>&input, const pfc::array_t<string_encoded_array>&old_input) {
 	const size_t count = input.get_count();
 	const size_t old_count = old_input.get_count();
 	const size_t max_count = max(count, old_count);
@@ -168,7 +168,7 @@ pfc::string8 print_difference(const pfc::array_t<string_encoded_array>& input, c
 }
 
 
-static pfc::array_t<string_encoded_array>GetPreviewValue(const tag_result_ptr& result) {
+static pfc::array_t<string_encoded_array>GetPreviewValue(const tag_result_ptr & result) {
 	pfc::array_t<string_encoded_array> value;
 	if (!result->result_approved && result->changed)
 		return result->old_value;
@@ -178,7 +178,7 @@ static pfc::array_t<string_encoded_array>GetPreviewValue(const tag_result_ptr& r
 
 // print result with mode param
 
-pfc::string8 print_result_in_mode(const tag_result_ptr& result, PreView preview_mode) {
+pfc::string8 print_result_in_mode(const tag_result_ptr & result, PreView preview_mode) {
 
 	pfc::string8 mode_result;
 
@@ -255,14 +255,13 @@ bool ILOD_preview::listEditCanAdvanceHere(ctx_t, size_t item, size_t subItem, ui
 
 	return subItem == 1 && is_result_editable(item);
 
-	(void)item; (void)subItem, (void)whatHappened; return true;
 }
 
 uint32_t ILOD_preview::listGetEditFlags(ctx_t ctx, size_t item, size_t subItem) {
 	return is_result_editable(item) ? 0 : InPlaceEdit::KFlagReadOnly;
 }
 
-pfc::string8 ILOD_preview::listGetEditField(ctx_t ctx, size_t item, size_t subItem, size_t& lineCount) {
+pfc::string8 ILOD_preview::listGetEditField(ctx_t ctx, size_t item, size_t subItem, size_t & lineCount) {
 
 	pfc::array_t<string_encoded_array> value = GetPreviewValue(m_tag_writer->tag_results[item]);
 
@@ -289,7 +288,9 @@ pfc::string8 ILOD_preview::listGetEditField(ctx_t ctx, size_t item, size_t subIt
 void ILOD_preview::listSetEditField(ctx_t ctx, size_t item, size_t subItem, const char* val) {
 	CPreviewList* uilist = (CPreviewList*)ilo_get_uilist();
 	if (!is_result_editable(item)) {
-		uilist->TableEdit_Abort(false);
+		if (uilist->TableEdit_IsActive()) {
+			uilist->TableEdit_Abort(false);
+		}
 		return;
 	}
 	auto c = m_tag_writer->tag_results[item]->value.get_count();
@@ -325,7 +326,7 @@ void ILOD_preview::listSetEditField(ctx_t ctx, size_t item, size_t subItem, cons
 
 bool ILOD_preview::listIsColumnEditable(ctx_t, size_t subItem) {
 	CPreviewList* uilist = (CPreviewList*)ilo_get_uilist();
-	size_t item = uilist->GetSingleSel();
+	size_t item = uilist->GetFocusItem();
 	return subItem == 1 && is_result_editable(item);
 }
 
@@ -343,8 +344,10 @@ void ILOD_preview::listSubItemClicked(ctx_t ctx, size_t item, size_t subItem) {
 	}
 }
 bool ILOD_preview::is_result_editable(size_t item) {
-
-	bool bres = item != ~0 && item < m_tag_writer->tag_results.get_count();
+	if (item == ~0) {
+		return false;
+	}
+	bool bres = item < m_tag_writer->tag_results.get_count();
 	bres &= m_preview_mode == PreView::Normal;
 	bres &= !g_discogs->preview_modal_tag_dialog;
 	bres &= !m_tag_writer->tag_results[item]->tag_entry->freeze_tag_name;

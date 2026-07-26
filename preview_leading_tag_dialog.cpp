@@ -52,9 +52,16 @@ void CPreviewLeadingTagDialog::init_tabs_defs() {
 }
 
 void CPreviewLeadingTagDialog::enable(bool is_enabled, bool change_focus) {
-	//..
+	for (HWND walk = ::GetWindow(m_hWnd, GW_CHILD); walk != NULL; ) {
+		HWND next = ::GetWindow(walk, GW_HWNDNEXT);
+		::uEnableWindow(next, is_enabled);
+		walk = next;
+	}
 }
 
+bool CPreviewLeadingTagDialog::is_enabled() {
+	return ::IsWindowEnabled(GetDlgItem(IDC_APPLY));
+}
 //from libPPUI\CDialogResizeHelper.cpp
 static BOOL GetChildWindowRect(HWND wnd, UINT id, RECT* child)
 {
@@ -231,11 +238,11 @@ bool CPreviewLeadingTagDialog::context_menu_show(HWND wnd, size_t isel, LPARAM l
 
 		bool is_results = wnd == m_ui_list.m_hWnd;
 
-		uAppendMenu(menu, MF_STRING	| (bselected ? 0 : MF_DISABLED | MF_GRAYED), ID_CMD_COPY, "Copy\tCtrl+C");
+		uAppendMenu(menu, MF_STRING | (bselected ? 0 : MF_DISABLED | MF_GRAYED), ID_CMD_COPY, "Copy\tCtrl+C");
 		uAppendMenu(menu, MF_STRING | (b_original ? 0 : MF_DISABLED | MF_GRAYED), ID_CMP_COPY_ORI, "Copy all to lead-in");
 		uAppendMenu(menu, MF_STRING | (bselected && b_leadin ? 0 : MF_DISABLED | MF_GRAYED), ID_CMD_EDIT, "&Edit");
 		uAppendMenu(menu, MF_SEPARATOR, 0, 0);
-		uAppendMenu(menu, MF_STRING, ID_CMD_APPLY, "&Apply");
+		uAppendMenu(menu, MF_STRING | (is_enabled() ? 0 : MF_DISABLED | MF_GRAYED), ID_CMD_APPLY, "&Apply");
 		int cmd = TrackPopupMenu(menu, TPM_RIGHTBUTTON | TPM_NONOTIFY | TPM_RETURNCMD, point.x, point.y, 0, wnd, 0);
 		DestroyMenu(menu);
 

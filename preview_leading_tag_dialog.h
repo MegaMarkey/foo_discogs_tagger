@@ -89,6 +89,7 @@ public:
 
 	void enable(bool v) override { enable(v, true); };
 	void enable(bool v, bool change_focus);
+	bool is_enabled();
 
 private:
 
@@ -102,7 +103,7 @@ private:
 	bool context_menu_switch(HWND wnd, POINT point, bool is_files, int cmd, bit_array_bittable selmask /*, pfc::array_t<t_size> order, CListControlOwnerData* ilist*/);
 
 	//uilist ILO
-	virtual CListControlOwnerData* ilo_get_ui_list() override { return &m_ui_list; }
+	virtual CListControlOwnerData* ilo_get_uilist() override { return &m_ui_list; }
 	virtual PreView ilo_get_view_mode() override { return m_parent_preview_mode; }
 	virtual tag_result_ptr ilo_get_item_result() override { return m_ptag_result; }
 	virtual const std::vector<pfc::string8>& ilo_get_vtracks_desc() override { return m_vtracks_desc; }
