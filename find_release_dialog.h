@@ -1,6 +1,7 @@
 #pragma once
 
-#include "atlwin.h"
+#include "libPPUI\HyperLinkCtrl.h"
+#include "helpers\DarkMode.h"
 
 #include "my_editwithbuttons.h"
 
@@ -102,6 +103,7 @@ public:
 	END_DLGRESIZE_MAP()
 
 	LRESULT OnCancel(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/) {
+		m_dctree.EnableDispInfo(false);
 		destroy();
 		return TRUE;
 	}
@@ -181,7 +183,7 @@ public:
 		FLG_SHOW_RELEASE_TREE_STATS = 1 << 2,
 		FLG_RESERVED                = 1 << 3,
 		FLG_RESERVED2               = 1 << 4,
-		FLG_VARIOUS_AS_MULTI_ARTIST = 1 << 5
+		FLG_VA_AS_MA                = 1 << 5
 	};
 
 	history_oplog* get_oplogger() { return &m_oplogger; }

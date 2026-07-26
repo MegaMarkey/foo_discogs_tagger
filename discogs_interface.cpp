@@ -637,26 +637,103 @@ rppair_t DiscogsInterface::search_amt_artist(const pfc::string8& query, const Qu
 	exact_matches.force_reset();
 	other_matches.force_reset();
 
-	pfc::string8 params = PFC_string_formatter()  << "type=all&q=" << urlEscape(query) << "&per_page=100";
+	pfc::string8 params;
 
-	fetcher->fetch_html("https://api.discogs.com/database/search", params, json, p_abort);
+	params = PFC_string_formatter() << query;
 
-	JSONParser jp(json);
+	size_t max_to_abort;
+	size_t out_max_to_abort;
+	max_to_abort = out_max_to_abort = HIWORD(CONF.query_max);
 
-	Artist_ptr tmpArtist;
-	tmpArtist = std::make_shared<Artist>("194"); //Various Artists
-	tmpArtist->name = "VA Search";
-	tmpArtist->loaded = true;
-	tmpArtist->loaded_preview = true;
-	tmpArtist->loaded_releases = true;
-	
-	parseArtistReleases(jp.root, tmpArtist.get(), true /*is va*/);
+	pfc::string8 url;
+	pfc::array_t<JSONParser_ptr> pages;
+	url << "https://api.discogs.com/database/search";
+	try {
 
-	//missing main release ids
-	for (auto mr : tmpArtist->master_releases) {
-		mr->load_preview(p_status, p_abort, false);
+		pages = discogs_interface->get_all_pages(url, params, out_max_to_abort, p_abort, "Fetching query results...", p_status);
+		if (out_max_to_abort > max_to_abort) {
+			return rppair_t({ out_max_to_abort,out_max_to_abort }, { 0,0 });
+		}
+
 	}
-	exact_matches.add_item(tmpArtist);
+	catch (foo_discogs_exception& e) {
+
+		pfc::string8 error("Error loading search releases. ");
+		error << e.what();
+		throw foo_discogs_exception(error);
+	}
+	catch (...) {
+		foo_discogs_exception ex;
+		ex << "Unknown error loading releases.";
+		throw ex;
+	}
+
+	const size_t cpages = pages.get_count();
+
+	bool bCacheSaved = true;
+	bool bmark_pending = false;
+
+	Artist_ptr fake_artist;
+	fake_artist = std::make_shared<Artist>("0"); //VA
+	fake_artist->name = "Search MT";
+	fake_artist->loaded = true;
+	fake_artist->loaded_preview = true;
+	fake_artist->loaded_releases = true;
+
+	std::pair<size_t, size_t> qry_m_r_found = { 0,0 };
+
+	std::map<std::string, Artist_ptr> map_found_artists;
+	std::set<std::string> set_bad_artists;
+	std::map<std::string, MasterRelease_ptr> mva_masters;
+
+	parse_amt_info pai = {
+		qdm_search_query,
+		map_found_artists,
+		set_bad_artists,
+		mva_masters,
+		exact_matches,
+		other_matches,
+		qry_m_r_found
+	};
+
+	for (size_t i = 0; i < cpages; i++) {
+		//need preview working to avoid unloaded duplicated masters erasing valid data 
+		parse_amt_page(fake_artist, pages[i], pai, p_status, p_abort);
+	}
+
+	va_res_cap.first = fake_artist->master_releases.get_count();
+	va_res_cap.second = fake_artist->releases.get_count();
+
+	//to load while parsing
+	for (auto mr : pai.mva_masters) {
+		mr.second->loaded_preview = false;
+	}
+
+	process_amt_parsed_fake_artist(fake_artist, pai, true, true, va_res_cap, va_done_cap, p_status, p_abort);
+
+	size_t cmatches = pai.other_matches.get_count();
+
+	pfc::array_t<t_size> order; order.set_size(cmatches);
+	for (size_t i = 0; i < cmatches; i++) { order[i] = i; }
+	pfc::bit_array_bittable select; select.resize(cmatches);
+
+	auto& om = pai.other_matches;
+	pfc::string8 undef_pref = search_query::k_ukm_artist_name.subString(0, search_query::k_ukm_artist_name.find_first(' ')+1);
+	for (size_t i = 0; i < cmatches; i++) {
+		if (om[i]->name.has_prefix(undef_pref)) {
+			select.set(i, true);
+		}
+	}
+	pfc::create_drop_permutation(order.get_ptr(), cmatches, select, cmatches);
+
+	pfc::list_t<Artist_ptr> lp;
+	lp.add_items_fromptr(om.get_ptr(), cmatches);
+	lp.reorder(order.get_ptr());
+
+	pfc::list_to_array(om, lp);
+
+	return rppair_t({ va_res_cap }, { va_done_cap });
+
 }
 
 pfc::array_t<JSONParser_ptr> DiscogsInterface::get_all_pages(pfc::string8 &url, pfc::string8 params, abort_callback &p_abort) {
@@ -722,6 +799,12 @@ pfc::array_t<JSONParser_ptr> DiscogsInterface::get_all_pages(pfc::string8 &url, 
 		results.append_single(std::move(jp));
 
 		if (page == 1) {
+			size_t items = jp->get_object_int("pagination", "items");
+			if (items > max_to_abort) {
+				results.force_reset();
+				max_to_abort = items;
+				return results;
+			}
 			last = jp->get_object_int("pagination", "pages");
 		}
 		page++;
@@ -749,7 +832,7 @@ pfc::array_t<JSONParser_ptr> DiscogsInterface::get_all_pages_offline_cache(ol::G
 			//alt search recursive and detect root.json files
 			std::filesystem::directory_iterator dirpos{ os_path_container };
 			size_t msg_pos = 0;
-			for (auto walk_dir : dirpos) {
+			for (std::filesystem::directory_entry walk_dir : dirpos) {
 				if (walk_dir.is_directory()) {
 
 					if (p_abort.is_aborting()) break;

@@ -282,7 +282,7 @@ void write_tags_task::on_success(HWND p_wnd) {
 	m_tag_writer->m_finfo_manager->write_infos();
 
 	if (!m_tag_writer->tag_results_mask.size()) {
-	
+
 		int lpskip = CONF.album_art_skip_default_cust;
 		bool lo_skip_global_defs = (LOWORD(lpskip)) & ARTSAVE_SKIP_USER_FLAG;
 		bool user_wants_skip_write_artwork = (HIWORD(lpskip)) & ARTSAVE_SKIP_USER_FLAG;
@@ -900,6 +900,13 @@ void get_artist_process_callback::on_success(HWND p_wnd) {
 	}
 }
 
+void get_artist_process_callback::on_abort(HWND p_wnd) {
+
+	if (m_bload_releases) {
+		check_out();
+	}
+}
+
 void get_artist_process_callback::on_error(HWND p_wnd) {
 
 	on_abort(p_wnd);
@@ -1032,9 +1039,7 @@ search_artist_process_callback::search_artist_process_callback(const char* searc
 	//..
 }
 
-
-search_artist_process_callback::search_artist_process_callback(const char* search, const bool va, const int db_dc_flags)
-	: m_search(search), m_va(va), m_db_dc_flags(db_dc_flags) {
+search_artist_process_callback::~search_artist_process_callback() {
 	//..
 }
 
@@ -1261,7 +1266,12 @@ void on_search_artist_done_process_callback::safe_run(threaded_process_status& p
 	p_status.set_item(PFC_string_formatter() << m_p_artist_exact_matches.get_count() << " exact, " << m_p_artist_other_matches.get_count() << "other matches");
 
 	CFindReleaseDialog* find_dlg = g_discogs->find_release_dialog;
-	find_dlg->on_expand_master_release_complete();
+	try {
+		find_dlg->on_search_artist_done(m_p_artist_exact_matches, m_p_artist_other_matches, m_append, m_out_va_cap);
+	}
+	catch (foo_discogs_exception e) {
+		//..
+	}
 }
 
 void on_search_artist_done_process_callback::on_success(HWND p_wnd) {
@@ -1295,9 +1305,25 @@ void on_get_artist_done_process_callback::safe_run(threaded_process_status& p_st
 	p_status.set_item(m_artist.get() ? m_artist->name : "");
 
 	CFindReleaseDialog* find_dlg = g_discogs->find_release_dialog;
-	find_dlg->on_expand_master_release_complete();
+	try {
+		find_dlg->on_get_artist_done(m_updsrc, m_artist);
+	}
+	catch (foo_discogs_exception e) {
+		//..
+	}
 }
 
+void on_get_artist_done_process_callback::on_success(HWND p_wnd) {
+	//..
+}
+
+void on_get_artist_done_process_callback::on_abort(HWND p_wnd) {
+	//..
+}
+
+void on_get_artist_done_process_callback::on_error(HWND p_wnd) {
+	//..
+}
 
 process_release_callback::process_release_callback(CFindReleaseDialog *dialog, const pfc::string8 &release_id,
 	const pfc::string8& offline_artist_id, pfc::string8 inno, const metadb_handle_list &items) :

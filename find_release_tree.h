@@ -55,7 +55,7 @@ private:
 
 	//update releases
 
-	rppair_t init_filter(const Artist_ptr artist, pfc::string8 filter, bool expanded, bool fast, bool no_alloc, id_tracer* tracer_p);
+	rppair_t init_filter(const Artist_ptr artist, pfc::string8 filter, bool brolemaini, bool expanded, bool fast, bool no_alloc, id_tracer* tracer_p);
 	void expand_releases(const pfc::string8& filter, t_size master_index, t_size master_list_pos, id_tracer* tracer_p);
 
 	std::pair<rppair_t, rppair_t> update_releases(const pfc::string8 & filter, updRelSrc updsrc,
@@ -68,8 +68,8 @@ private:
 	std::shared_ptr<vec_t>& get_vec_ref() { return m_vec_ptr; }
 	const std::vector<std::pair<size_t, size_t>> get_filter_vec() { return m_vec_filter; }
 	bool get_cached_find_release_node(int lparam, pfc::string8& item, row_col_data& rowdata);
-	t_size get_level_one_vec_track_count(LPARAM lparam);
-	t_size get_level_two_cache_track_count(LPARAM lparam); //for master releases
+	std::pair<t_size,t_size> get_level_one_vec_track_count(LPARAM lparam);
+	std::pair<t_size, t_size> get_level_two_cache_track_count(LPARAM lparam); //for master releases
 	//..
 
 	//bulk cache
@@ -139,7 +139,7 @@ public:
 	//
 	// -- end UPDRELSRC
 
-	LRESULT apply_filter(pfc::string8 strFilter, bool force_redraw, bool force_rebuild);
+	LRESULT apply_filter(pfc::string8 strFilter, bool brolemain, bool force_redraw, bool force_rebuild, threaded_process_status& p_status, abort_callback& p_abort);
 
 	titleformat_hook_impl_multiformat_ptr get_hook() { return m_hook; }
 

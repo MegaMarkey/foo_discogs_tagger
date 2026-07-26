@@ -52,10 +52,21 @@ pfc::string8 CFindReleaseTree::run_hook_columns(row_col_data& row_data, int item
 }
 
 void CFindReleaseTree::rebuild_treeview() {
+	//todo: rev setredraw
+	//fix crash - dbl click artists (1)
+	bool bak_disp_info = m_dispinfo_enabled;
+	if (!m_dlg->config().auto_load_releases_on_select_ready()) {
+		m_dispinfo_enabled = false;
+	}
 
+	SendMessage(m_hwndTreeView, WM_SETREDRAW, 0, 0);
 	TreeView_DeleteAllItems(m_hwndTreeView);
+	SendMessage(m_hwndTreeView, WM_SETREDRAW, 1, 0);
 
 	std::shared_ptr<vec_t>& priv_vec = m_rt_cache.get_vec_ref();
+
+	SendMessage(m_hwndTreeView, WM_SETREDRAW, 0, 0);
+
 	for (auto& walk : *priv_vec)
 	{
 		TVINSERTSTRUCT tvis = { 0 };
@@ -89,6 +100,12 @@ void CFindReleaseTree::rebuild_treeview() {
 
 		HTREEITEM newnode = TreeView_InsertItem(m_hwndTreeView, &tvis);
 		walk.second = newnode;
+	}
+
+	SendMessage(m_hwndTreeView, WM_SETREDRAW, 1, 0);
+	//fix crash - dbl click artists (2)
+	if (!m_dlg->config().auto_load_releases_on_select_ready()) {
+		m_dispinfo_enabled = bak_disp_info;
 	}
 }
 
@@ -571,6 +588,9 @@ void CFindReleaseTree::init_tracker_i(Artist_ptr artist, pfc::string8 filter_mas
 	bool matches_release = true;
 	m_idtracer_p->master_i = pfc_infinite;
 	m_idtracer_p->release_i = pfc_infinite;
+	if (!artist) {
+		return;
+	}
 	int pos = -1;
 	if (m_idtracer_p->has_amr() || m_idtracer_p->release_tag) {
 		int master_ndx = 0; int release_ndx = 0; bool master_done = false; bool release_done = false;
@@ -638,16 +658,37 @@ void CFindReleaseTree::init_tracker_i(Artist_ptr artist, pfc::string8 filter_mas
 
 void CFindReleaseTree::init_titles(Artist_ptr artist, pfc::string8 & filter_hint) {
 
+	if (!artist) {
+		init_tracker_i(artist, "", "", false, true);
+		m_init_master_title = "";
+		m_init_release_title = "";
+		return;
+	}
+
 	m_hook = std::make_shared<titleformat_hook_impl_multiformat>(&artist);
 
 	pfc::string8 frm_album;
+	pfc::string8 frm_artist_from_album;
+	pfc::string8 frm_title_from_album;
+
 	service_ptr_t<titleformat_object> m_album_name_script;
 	static_api_ptr_t<titleformat_compiler>()->compile_force(m_album_name_script, "[%album%]");
 	metadb_handle_ptr item = m_items[0];
 	item->format_title(nullptr, frm_album, m_album_name_script, nullptr);	//ALBUM
 
-	pfc::string8 filter(frm_album.get_length() ? frm_album : "");
-	if (m_idtracer_p->has_amr() && artist->loaded_releases) {
+	pfc::string8 filter;
+	bool bart_title = false;
+	std::pair < pfc::string8, pfc::string8> at_pair;
+	if (bart_title = title_seams_artist_title(artist->name, frm_album, at_pair)) {
+		frm_artist_from_album = at_pair.first;
+		frm_title_from_album = at_pair.second;
+		filter = frm_title_from_album;
+	}
+	else {
+		filter = frm_album;
+	}
+
+	if (m_idtracer_p->has_amr() && find_release_artist_releases_available()) {
 
 		init_tracker_i(artist, "", "", false, true);
 		//m_inits empty on first call
@@ -685,10 +726,8 @@ void CFindReleaseTree::init_titles(Artist_ptr artist, pfc::string8 & filter_hint
 					filter.set_string(mtitle);
 				}
 				else {
-					if (!mtitle.has_prefix(buffer))
-					{
+						log_msg("Title mismatch... tree filter is now DISABLED.");
 						filter = "";
-					}
 				}
 			}
 		}
@@ -1226,6 +1265,8 @@ void CFindReleaseTree::Inititalize(HWND treeview, HWND filter_edit, HWND url_edi
 	m_results_filter.set_string(filter_hint);
 
 	set_image_list();
+
+	CWindow(m_hwndTreeView).ModifyStyle(0, TVS_INFOTIP, TVS_INFOTIP);
 }
 
 int CFindReleaseTree::get_param_id_master(mounted_param myparam) {
@@ -1255,11 +1296,11 @@ void CFindReleaseTree::on_release_selected(int src_lparam) {
 
 	if (myparam.is_master()) {
 
-		pfc::string8 release_url;
+		pfc::string8 input_edit_release;
 		if (m_idtracer_p->has_amr() && (get_param_id_master(myparam) == m_idtracer_p->master_id))
-			release_url.set_string(std::to_string(m_idtracer_p->release_id).c_str());
+			input_edit_release << m_idtracer_p->release_id;
 		else
-			release_url.set_string(get_param_id(myparam));
+			input_edit_release << get_param_id(myparam);
 
 		if (m_rt_cache.get_bulk()->GetCacheFlag(src_lparam, NodeFlag::expanded)) {
 
@@ -1288,7 +1329,7 @@ void CFindReleaseTree::on_release_selected(int src_lparam) {
 		else
 		{
 			//closing master branch
-			uSetWindowText(m_edit_release, release_url);
+			uSetWindowText(m_edit_release, input_edit_release);
 		}
 	}
 	else {
@@ -1296,236 +1337,260 @@ void CFindReleaseTree::on_release_selected(int src_lparam) {
 	}
 }
 
-LRESULT CFindReleaseTree::apply_filter(pfc::string8 filter, bool force_redraw, bool force_rebuild) {
+LRESULT CFindReleaseTree::apply_filter(pfc::string8 filter, bool brolemain, bool force_redraw, bool force_rebuild, threaded_process_status& p_status, abort_callback& p_abort) {
 
-	std::pair<rppair_t, rppair_t> resource_stat;
-
-	size_t cc_filtered_root = 0;
-	size_t cc_filtered_expanded = 0;
-	size_t cc_non_master = 0;
-	size_t cc_filtered_masters = 0;
-
-	filter = trim(filter);
-
-	//pre-condition: artist and filter changed
-
-	bool bfilter_changed = stricmp_utf8(m_results_filter, filter);
+	try {
 
 
-	if (!m_find_release_artist || !m_find_release_artist->loaded_releases || (!bfilter_changed && !force_redraw)) {
+		std::pair<rppair_t, rppair_t> resource_stat;
 
-		m_results_filter.set_string(filter);
+		size_t cc_filtered_root = 0;
+		size_t cc_filtered_expanded = 0;
+		size_t cc_non_master = 0;
+		size_t cc_filtered_masters = 0;
 
-		//nothing more to do
+		filter = trim(filter);
 
-		return FALSE;
-	}
+		//pre-condition: artist and filter changed
 
-	// VER ++
+		bool bfilter_changed = stricmp_utf8(m_results_filter, filter);
+		bool has_ra = m_find_release_artist.get();
+		bool has_rar_av = find_release_artist_releases_available();
+		if (!m_find_release_artist.get() || !find_release_artist_releases_available()/*b_artist_master_or_releases*//*m_find_release_artist->loaded_releases*/ || (!bfilter_changed && !force_redraw)) {
 
-	m_rt_cache.get_bulk()->_ver++;
+			m_results_filter.set_string(filter);
 
-	if (!force_rebuild && filter.get_length() == 0) {
+			//nothing more to do
 
-		m_rt_cache.vec_Clear();
+			return FALSE;
+		}
 
-		m_idtracer_p->release_reset();
+		// VER ++
 
-		bool brolemain_filter = m_dlg->config().find_release_filter_flag & FilterFlag::RoleMain;
+		m_rt_cache.get_bulk()->_ver++;
 
-		// * UPDATE RELELASES *
+		if (!force_rebuild && filter.get_length() == 0) {
 
-		resource_stat = update_releases(filter, updRelSrc::Filter, true, brolemain_filter);
+			m_rt_cache.vec_Clear();
 
-		cc_filtered_root = resource_stat.first.first.first;
-		cc_filtered_expanded = resource_stat.first.first.second;
-	}
-	else {
+			m_idtracer_p->release_reset();
 
-		// * FILTER RELEASES *
+			// * UPDATE RELELASES *
 
-		//delete cache references, delete tree, increase _ver
-		EnableDispInfo(false);
-		
-		m_rt_cache.vec_Clear();
-		TreeView_DeleteAllItems(m_hwndTreeView);
-		m_rt_cache.new_Version();
+			resource_stat = update_releases(filter, updRelSrc::Filter, true, brolemain);
 
-		EnableDispInfo(true);
+			cc_filtered_root = resource_stat.first.first.first;
+			cc_filtered_expanded = resource_stat.first.first.second;
+		}
+		else {
 
-		//reset tracer
-		m_idtracer_p->release_reset();
+			// * FILTER RELEASES *
 
-		// INIT VFILTER
-		rppair_t res = m_rt_cache.init_filter(m_find_release_artist, filter, true, false, false, m_idtracer_p);
 
-		//reset release position (keep ids)
-		m_idtracer_p->release_reset();
+			SendMessage(m_hwndTreeView, WM_SETREDRAW, 0, 0);
 
-		pfc::array_t<pfc::string> lcf_words;
-		bool filtered = tokenize_filter(filter, lcf_words);
+			TreeView_DeleteAllItems(m_hwndTreeView);
 
-		std::vector<std::pair<size_t, size_t>>::iterator it;
+			SendMessage(m_hwndTreeView, WM_SETREDRAW, 1, 0);
 
-		// APPLY VFILTER 
-		
-		const std::shared_ptr<vec_t> vec_items = m_rt_cache.get_vec();
-		std::vector<std::pair<size_t, size_t>> vec_filter = m_rt_cache.get_filter_vec();
+			m_rt_cache.vec_Clear();
 
-		for (it = vec_filter.begin(); it != vec_filter.end(); it++) {
+			m_rt_cache.new_Version();
 
-			t_size master_ndx = it->first;
-			t_size release_ndx = it->second;
 
-			const mounted_param myparam = { master_ndx, release_ndx, master_ndx != -1, release_ndx != -1 };
+			//reset tracer
+			m_idtracer_p->release_reset();
 
-			pfc::string8 item;
-			row_col_data row_data;
+			//init vfilter
+			rppair_t res = m_rt_cache.init_filter(m_find_release_artist, filter, brolemain, false, false, false, m_idtracer_p);
 
-			if (myparam.is_master()) {
-				//..
-			}
-			else {
-				cache_iterator_t parent_it;
-				if (myparam.is_release()) {
-					std::vector<std::pair<int, int>>::iterator it_parent;
-					int master_id = atoi(m_find_release_artist->master_releases[myparam.master_ndx]->id);
-					mounted_param parent_mp(myparam.master_ndx, ~0, true, false);
-					int parent_lparam = parent_mp.lparam();
+			//reset release position (keep ids)
+			m_idtracer_p->release_reset();
 
-					vec_iterator_t parent;
-					find_vec_by_lparam(*vec_items, parent_lparam, parent);
-					if (parent != vec_items->end()) {
+			pfc::array_t<pfc::string> lcf_words;
+			bool filtered = tokenize_filter(filter, lcf_words);
 
-						parent_it = parent->first;
+			std::vector<std::pair<size_t, size_t>>::iterator it;
 
-						//PARENT FOUND
+			// APPLY VFILTER 
 
-						bool bexp;
-						bool bthisver = m_rt_cache.get_bulk()->GetCacheFlag(parent->first, NodeFlag::expanded, &bexp);
-						int ival = bexp ? 1 : 0;
-						m_rt_cache.get_bulk()->SetCacheFlag(parent->first, NodeFlag::expanded, &ival);
+			const std::shared_ptr<vec_t> vec_items = m_rt_cache.get_vec();
+			std::vector<std::pair<size_t, size_t>> vec_filter = m_rt_cache.get_filter_vec();
 
-					}
-					else {
-						//INSERT NOT-MATCHING PARENT							
-						mounted_param mp_master(master_ndx, ~0, true, false);
+			for (it = vec_filter.begin(); it != vec_filter.end(); it++) {
 
-						bool bversions_filter = m_dlg->config().find_release_filter_flag & FilterFlag::Versions;
-						bool brolemain_filter = m_dlg->config().find_release_filter_flag & FilterFlag::RoleMain;
-						if (!bversions_filter) {
-							MasterRelease_ptr mr_p = m_find_release_artist->master_releases[master_ndx];
-							if (filtered) {
-								std::string str_role = std::string(mr_p->search_role);
-								bool matches_master = (!brolemain_filter || (str_role.find("Main") != str_role.npos)) && check_match(mr_p->title, filter, lcf_words);
-								if (!matches_master) {
-									int ival = 0;
-									m_rt_cache.get_bulk()->SetCacheFlag(it->first, NodeFlag::filterok, &ival);
-									continue;
+				if (p_abort.is_aborting()) {
+					return FALSE;
+				}
+
+				t_size master_ndx = it->first;
+				t_size release_ndx = it->second;
+
+				const mounted_param myparam = { master_ndx, release_ndx, master_ndx != -1, release_ndx != -1 };
+
+				pfc::string8 item;
+				row_col_data row_data;
+
+				if (myparam.is_master()) {
+					//..
+				}
+				else {
+					cache_iterator_t parent_it;
+					if (myparam.is_release()) {
+						std::vector<std::pair<int, int>>::iterator it_parent;
+						int master_id = atoi(m_find_release_artist->master_releases[myparam.master_ndx]->id);
+						mounted_param parent_mp(myparam.master_ndx, ~0, true, false);
+						int parent_lparam = parent_mp.lparam();
+
+						vec_iterator_t parent;
+						find_vec_by_lparam(*vec_items, parent_lparam, parent);
+						if (parent != vec_items->end()) {
+
+							parent_it = parent->first;
+
+							//PARENT FOUND
+
+							bool bexp = false;
+							bool bthisver = m_rt_cache.get_bulk()->GetCacheFlag(parent->first, NodeFlag::expanded, &bexp);
+							int ival = bexp ? 1 : 0;
+							m_rt_cache.get_bulk()->SetCacheFlag(parent->first, NodeFlag::expanded, &ival);
+
+						}
+						else {
+							//INSERT NOT-MATCHING PARENT
+							mounted_param mp_master(master_ndx, ~0, true, false);
+
+							bool bversions_filter = m_dlg->config().find_release_filter_flag & FilterFlag::Versions;
+							if (!bversions_filter) {
+								MasterRelease_ptr mr_p = m_find_release_artist->master_releases[master_ndx];
+								if (filtered) {
+									std::string str_role = std::string(mr_p->search_role);
+									bool matches_master = (!brolemain || (str_role.find("Main") != str_role.npos)) && check_match(mr_p->title, filter, lcf_words);
+									if (!matches_master) {
+										int ival = 0;
+										m_rt_cache.get_bulk()->SetCacheFlag(it->first, NodeFlag::filterok, &ival);
+										continue;
+									}
 								}
 							}
+
+							m_rt_cache.get_cached_find_release_node(mp_master.lparam(), item, row_data);
+							parent_it = m_rt_cache.get_bulk()->cache.find(mp_master.lparam());
+
+							bool bexp = false;
+							bool bthisver = m_rt_cache.get_bulk()->GetCacheFlag(parent_it, NodeFlag::expanded, &bexp);
+							int ival = bexp ? 1 : 0;
+							m_rt_cache.get_bulk()->SetCacheFlag(parent_it, NodeFlag::expanded, &ival);
+
+							ival = 1;
+							m_rt_cache.get_bulk()->SetCacheFlag(parent_it, NodeFlag::added, &ival);
+							//in filter
+							m_rt_cache.get_bulk()->SetCacheFlag(parent_it, NodeFlag::filterok, &ival);
+
+							flagreg& insfr = parent_it->second.second;
+
+							// ** VEC PUSH **
+
+							m_rt_cache.vec_PushBack(std::pair<cache_iterator_t, HTREEITEM>(parent_it, nullptr));
+							vec_iterator_t  master_row;
+							find_vec_by_id(*vec_items, master_id, master_row);
 						}
-
-						m_rt_cache.get_cached_find_release_node(mp_master.lparam(), item, row_data);
-						parent_it = m_rt_cache.get_bulk()->cache.find(mp_master.lparam());
-
-						bool bexp;
-						bool bthisver = m_rt_cache.get_bulk()->GetCacheFlag(parent_it, NodeFlag::expanded, &bexp);
-						int ival = bexp ? 1 : 0;
-						m_rt_cache.get_bulk()->SetCacheFlag(parent_it, NodeFlag::expanded, &ival);
-
-						ival = 1;
-						m_rt_cache.get_bulk()->SetCacheFlag(parent_it, NodeFlag::added, &ival);
-						//in filter
-						m_rt_cache.get_bulk()->SetCacheFlag(parent_it, NodeFlag::filterok, &ival);
-
-						flagreg& insfr = parent_it->second.second;
-
-						// ** VEC PUSH **
-
-						m_rt_cache.vec_PushBack(std::pair<cache_iterator_t, HTREEITEM>(parent_it, nullptr));
-						vec_iterator_t  master_row;
-						find_vec_by_id(*vec_items, master_id, master_row);
 					}
 				}
+				if (m_rt_cache.get_cached_find_release_node(myparam.lparam(), item, row_data) != true) {
+					return FALSE;
+				}
+
+				//
+
+				cache_iterator_t filtered_it = m_rt_cache.get_bulk()->cache.find(myparam.lparam());
+				int ival = 1;
+				m_rt_cache.get_bulk()->SetCacheFlag(filtered_it, NodeFlag::filterok, &ival);
+
+				// ** VEC_PUSH **
+				m_rt_cache.vec_PushBack(std::pair<cache_iterator_t, HTREEITEM>(filtered_it, nullptr));
+
+				cc_filtered_masters = m_rt_cache.vec_Size();
+				cc_non_master = m_rt_cache.bulk_Size() - cc_filtered_masters;
 			}
-			if (m_rt_cache.get_cached_find_release_node(myparam.lparam(), item, row_data) != true) {
-				return FALSE;
-			}
-			
+
+			// BUILD TREE ITEMS
+
+			int counter = 0;
+
+			std::vector<HTREEITEM> v_hItem_expanded_masters;
+			std::shared_ptr<vec_t>& nu_vec_items = m_rt_cache.get_vec_ref();
+
 			//
 
-			cache_iterator_t filtered_it = m_rt_cache.get_bulk()->cache.find(myparam.lparam());
-			int ival = 1;
-			m_rt_cache.get_bulk()->SetCacheFlag(filtered_it, NodeFlag::filterok, &ival);
+			SendMessage(m_hwndTreeView, WM_SETREDRAW, 0, 0);
 
-			// ** VEC_PUSH **
-			m_rt_cache.vec_PushBack(std::pair<cache_iterator_t, HTREEITEM>(filtered_it, nullptr));
+			//
 
-			cc_filtered_masters = m_rt_cache.vec_Size();
-			cc_non_master = m_rt_cache.bulk_Size() - cc_filtered_masters;
+
+			for (auto& walk : *nu_vec_items)
+			{
+				mounted_param wmyparam(walk.first->first);
+				if (!wmyparam.is_master() &&
+					!wmyparam.is_nmrelease()) {
+					continue;
+				}
+
+				TVINSERTSTRUCT tvis = { 0 };
+				tvis.item.pszText = LPSTR_TEXTCALLBACK;
+				tvis.item.iSelectedImage = I_IMAGECALLBACK;
+				tvis.item.cChildren = I_CHILDRENCALLBACK;
+				tvis.item.lParam = walk.first->first;
+
+				tvis.hParent = TVI_ROOT;
+				tvis.hInsertAfter = TVI_LAST;
+
+				bool bbold = wmyparam.is_master() && (walk.first->second.first.id == m_idtracer_p->master_id);
+				bbold |= wmyparam.is_nmrelease() && (walk.first->second.first.id == m_idtracer_p->release_id);
+
+				if (bbold) {
+					tvis.item.mask = TVIF_TEXT | TVIF_IMAGE | TVIF_SELECTEDIMAGE | TVIF_CHILDREN | TVIF_PARAM | TVIF_STATE;
+					int img_ndx;
+					on_tree_display_cell_image(wmyparam.master_ndx, wmyparam.release_ndx, walk.first->second.first.id, walk.first, img_ndx);
+
+					tvis.item.iImage = TRACER_IMG_NDX/*img_ndx*/;
+					tvis.item.iSelectedImage = TRACER_IMG_NDX/*img_ndx*/;
+					tvis.item.state = TVIS_BOLD;
+					tvis.item.stateMask = TVIS_BOLD;
+				}
+				else {
+					tvis.item.mask = TVIF_TEXT | TVIF_IMAGE | TVIF_SELECTEDIMAGE | TVIF_CHILDREN | TVIF_PARAM | TVIF_STATE;
+					tvis.item.iImage = -1;
+					tvis.item.iSelectedImage = -1;
+				}
+
+				HTREEITEM newnode = TreeView_InsertItem(m_hwndTreeView, &tvis);
+				walk.second = newnode;
+				int ival = 0;
+				std::shared_ptr<filter_cache>& cache_ptr = m_rt_cache.get_bulk();
+				cache_ptr->SetCacheFlag(walk.first, NodeFlag::tree_created, &ival);
+				bool val = false;
+				if (cache_ptr->GetCacheFlag(walk.first, NodeFlag::expanded, &val)) {
+					v_hItem_expanded_masters.emplace_back(newnode);
+				}
+			}
+
+			for (auto hnode : v_hItem_expanded_masters) {
+				TreeView_Expand(m_hwndTreeView, hnode, TVM_EXPAND);
+			}
+
+			//
+
+			SendMessage(m_hwndTreeView, WM_SETREDRAW, 1, 0);
+
+			//
 		}
 
-		// BUILD TREE ITEMS
-
-		int counter = 0;
-
-		std::vector<HTREEITEM> v_hItem_expanded_masters;
-		std::shared_ptr<vec_t>& nu_vec_items = m_rt_cache.get_vec_ref();
-
-		for (auto& walk : *nu_vec_items)
-		{
-			mounted_param wmyparam(walk.first->first);
-			if (!wmyparam.is_master() &&
-				!wmyparam.is_nmrelease()) {
-				continue;
-			}
-
-			TVINSERTSTRUCT tvis = { 0 };
-			tvis.item.pszText = LPSTR_TEXTCALLBACK;
-			tvis.item.iSelectedImage = I_IMAGECALLBACK;
-			tvis.item.cChildren = I_CHILDRENCALLBACK;
-			tvis.item.lParam = walk.first->first;
-
-			tvis.hParent = TVI_ROOT;
-			tvis.hInsertAfter = TVI_LAST;
-
-			bool bbold = wmyparam.is_master() && (walk.first->second.first.id == m_idtracer_p->master_id);
-			bbold |= wmyparam.is_nmrelease() && (walk.first->second.first.id == m_idtracer_p->release_id);
-
-			if (bbold) {
-				tvis.item.mask = TVIF_TEXT | TVIF_IMAGE | TVIF_SELECTEDIMAGE | TVIF_CHILDREN | TVIF_PARAM | TVIF_STATE;
-				int img_ndx;
-				on_tree_display_cell_image(wmyparam.master_ndx, wmyparam.release_ndx, walk.first->second.first.id, walk.first, img_ndx);
-
-				tvis.item.iImage = TRACER_IMG_NDX/*img_ndx*/;
-				tvis.item.iSelectedImage = TRACER_IMG_NDX/*img_ndx*/;
-				tvis.item.state = TVIS_BOLD;
-				tvis.item.stateMask = TVIS_BOLD;
-			}
-			else {
-				tvis.item.mask = TVIF_TEXT | TVIF_IMAGE | TVIF_SELECTEDIMAGE | TVIF_CHILDREN | TVIF_PARAM | TVIF_STATE;
-				tvis.item.iImage = -1;
-				tvis.item.iSelectedImage = -1;
-			}
-
-			HTREEITEM newnode = TreeView_InsertItem(m_hwndTreeView, &tvis);
-			walk.second = newnode;
-			int ival = 0;
-			std::shared_ptr<filter_cache>& cache_ptr = m_rt_cache.get_bulk();
-			cache_ptr->SetCacheFlag(walk.first, NodeFlag::tree_created, &ival);
-			bool val;
-			if (cache_ptr->GetCacheFlag(walk.first, NodeFlag::expanded, &val)) {
-				v_hItem_expanded_masters.emplace_back(newnode);
-			}
-		}
-
-		for (auto hnode : v_hItem_expanded_masters) {
-			TreeView_Expand(m_hwndTreeView, hnode, TVM_EXPAND);
-		}
+		m_results_filter.set_string(filter);
 	}
-
-	m_results_filter.set_string(filter);
+	catch (foo_discogs_exception e) {
+		//..
+	}
 
 	return FALSE;
 }
@@ -1827,7 +1892,7 @@ LRESULT CFindReleaseTree::OnReleaseTreeExpanding(int, LPNMHDR hdr, BOOL&) {
 				else {
 
 					// END EXPANDING NON MASTER
-					size_t ctracks = m_rt_cache.get_level_one_vec_track_count(pItemExpanding->lParam);
+					size_t ctracks = m_rt_cache.get_level_one_vec_track_count(pItemExpanding->lParam).second;
 
 					//todo: complete level 2 with release tracks
 					pItemExpanding->cChildren = ctracks; // ? ctracks /*I_CHILDRENCALLBACK*/ : 0;
@@ -1842,7 +1907,7 @@ LRESULT CFindReleaseTree::OnReleaseTreeExpanding(int, LPNMHDR hdr, BOOL&) {
 				cache_ptr->SetCacheFlag(cache_parent, NodeFlag::expanded, &ival);
 
 				if (myparam.is_nmrelease()) {
-					size_t ctracks = m_rt_cache.get_level_one_vec_track_count(pItemExpanding->lParam);
+					size_t ctracks = m_rt_cache.get_level_one_vec_track_count(pItemExpanding->lParam).second;
 					pItemExpanding->cChildren = ctracks;
 				}
 
@@ -1894,6 +1959,9 @@ LRESULT CFindReleaseTree::OnReleaseTreeGetInfo(WORD /*wNotifyCode*/, LPNMHDR hdr
 	if (!m_rt_cache.vec_Size() || !m_dispinfo_enabled) {
 		return FALSE;
 	}
+
+	std::lock_guard<std::mutex> guard(g_discogs->tree_locked_mutex);
+
 	std::shared_ptr<filter_cache>& cache_ptr = m_rt_cache.get_bulk();
 
 	NMTVDISPINFO* pDispInfo = reinterpret_cast<NMTVDISPINFO*>(hdr);
@@ -1903,12 +1971,15 @@ LRESULT CFindReleaseTree::OnReleaseTreeGetInfo(WORD /*wNotifyCode*/, LPNMHDR hdr
 	int lparam = pItem->lParam;
 	mounted_param myparam(lparam);
 
+	std::pair<size_t, size_t>pdiscs_tracks;
 	size_t ctracks = 0;
 	if (myparam.is_nmrelease()) {
-		ctracks = m_rt_cache.get_level_one_vec_track_count(lparam);
+		pdiscs_tracks = m_rt_cache.get_level_one_vec_track_count(lparam);
+		ctracks = pdiscs_tracks.second;
 	}
 	else if (myparam.is_release()) {
-		ctracks = m_rt_cache.get_level_two_cache_track_count(lparam);
+		pdiscs_tracks = m_rt_cache.get_level_two_cache_track_count(lparam);
+		ctracks = pdiscs_tracks.second;
 	}
 
 	// asking for virtual children ?
@@ -1972,7 +2043,15 @@ LRESULT CFindReleaseTree::OnReleaseTreeGetInfo(WORD /*wNotifyCode*/, LPNMHDR hdr
     pfc::string8 nodetext(row_data->second);
 
 		//total tracks...
-    if (ctracks) nodetext << " [" << std::to_string(ctracks).c_str()  << "]";
+		if (ctracks) {
+			if (pdiscs_tracks.first > 1) {
+				nodetext << " [x" << std::to_string(pdiscs_tracks.first).c_str() << ":";
+				nodetext << std::to_string(ctracks).c_str() << "]";
+			}
+			else {
+				nodetext << " [" << std::to_string(ctracks).c_str() << "]";
+			}
+		}
 
 		//to wide and transfer
     pfc::stringcvt::convert_utf8_to_wide(outBuffer, MAX_PATH,
@@ -2003,12 +2082,8 @@ LRESULT CFindReleaseTree::OnReleaseTreeGetInfo(WORD /*wNotifyCode*/, LPNMHDR hdr
 
 // ..
 
-// ..
-
-// ..
-
-t_size release_tree_cache::get_level_one_vec_track_count(LPARAM lParam) {
-	
+std::pair<t_size, t_size> release_tree_cache::get_level_one_vec_track_count(LPARAM lParam) {
+	std::pair<t_size, t_size> pres(0,0);
 	pfc::string8 release_id;
 	size_t ctracks = 0;
 
@@ -2030,11 +2105,13 @@ t_size release_tree_cache::get_level_one_vec_track_count(LPARAM lParam) {
 		for (size_t walk = 0; walk < cdiscs; walk++) {
 			ctracks += release->discs[walk]->tracks.size();
 		}
+		pres = { cdiscs, ctracks };
 	}
-	return ctracks;
+	return pres;
 }
 
-t_size release_tree_cache::get_level_two_cache_track_count(LPARAM lparam) {
+std::pair<t_size, t_size> release_tree_cache::get_level_two_cache_track_count(LPARAM lparam) {
+	std::pair<t_size, t_size> pres(0, 0);
 	pfc::string8 release_id;
 	size_t ctracks = 0;
 
@@ -2055,8 +2132,9 @@ t_size release_tree_cache::get_level_two_cache_track_count(LPARAM lparam) {
 		for (size_t walk = 0; walk < cdiscs; walk++) {
 			ctracks += release->discs[walk]->tracks.size();
 		}
+		pres = { cdiscs, ctracks };
 	}
-	return ctracks;
+	return pres;
 }
 
 // release tree selection changed

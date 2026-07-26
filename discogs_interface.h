@@ -149,7 +149,7 @@ public:
 		Artist_ptr this_artist;
 		size_t accimg = 0;
 
-		for (auto wra : p_release->artists) {
+		for (ReleaseArtist_ptr wra : p_release->artists) {
 			this_artist = wra->full_artist;
 			if (accimg + this_artist->images.get_count() > img_ndx) break;
 			accimg += this_artist->images.get_count();
@@ -162,7 +162,7 @@ public:
 
 	bool artists_vid(Release_ptr p_release, std::vector<std::pair<std::string, std::string>> &out) {
 		if (p_release->artists.get_count() < 2) return false;
-		for (auto w : p_release->artists) {
+		for (ReleaseArtist_ptr w : p_release->artists) {
 			out.emplace_back(std::pair(w->full_artist->id, w->full_artist->name));
 		}
 		return true;

@@ -579,4 +579,26 @@ struct filter_cache {
 	}
 };
 
+inline bool title_seams_artist_title(const pfc::string8 artist, const pfc::string8 album, std::pair < pfc::string8, pfc::string8>& at_pair) {
+
+	bool bres = false;
+
+	std::vector<pfc::string8> vsplit_title;
+	split(album, "-", 0, vsplit_title);
+	if (vsplit_title.size() == 2) {
+		bool artist_match = artist.equals(trim(vsplit_title[0]));
+		if (artist_match) {
+			//artist from title
+			at_pair.first = artist;
+			//album title from title
+			at_pair.second = trim(vsplit_title[1]);
+			bres = true;
+		}
+	}
+	else {
+		bres = false;
+	}
+	return bres;
+}
+
 #endif

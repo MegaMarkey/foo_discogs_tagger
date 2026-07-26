@@ -370,8 +370,28 @@ pfc::string8 CFindReleaseDialog::GetSearchModeMsg() {
 				msg << ", try searching for 'artist=various && title= the title'";
 			}
 		}
-		if (!ileft) {
-			break;
+	}
+
+	return msg;
+}
+
+bool CFindReleaseDialog::GetCustomQueryTF(pfc::string8& frm_custom_tf) {
+
+	pfc::string8 custom_tf;
+	if (conf.on_init_query_tf.get_length()) {
+
+		//script formatter
+
+		file_info_impl info;
+		m_items[0]->get_info(info);
+		fake_threaded_process_status fake_status;
+		titleformat_hook_impl_multiformat hook(fake_status, nullptr, nullptr, nullptr, nullptr);
+		hook.set_va_csv(conf.various_prefixes);
+
+		//
+
+		try {
+			m_query_custom_fs->run_hook(m_items[0]->get_location(), &info, &hook, custom_tf, nullptr);
 		}
 		catch (...) {
 			pfc::string8 msg("Error running custom search query title-format: ");
@@ -517,11 +537,7 @@ LRESULT CFindReleaseDialog::OnInitDialog(UINT /*uMsg*/, WPARAM /*wParam*/, LPARA
 	m_artist_link.m_clrLink = link_color;
 	m_artist_link.m_clrVisited = link_color;
 
-	pfc::string8 frm_album;
-	pfc::string8 frm_artist;
-	pfc::string8 frm_album_artist;
-	
-	// album name, artist name, album artist
+	// init tracer
 
 	metadb_handle_ptr item = m_items[0];
 	m_tracer.init_tracker_tags(m_items);
@@ -1073,6 +1089,7 @@ void CFindReleaseDialog::on_get_artist_done(cupdRelSrc updsrc, Artist_ptr& artis
 
 		if (conf.auto_rel_load_on_open || cupdsrc.extended) {
 			if ((cupdsrc == updRelSrc::ArtistList || updsrc == updRelSrc::UndefFast) && m_dctree.Get_Size() && m_tracer.has_master()) {
+				//..
 				m_dctree.OnInitExpand(mounted_param(m_tracer.master_i, ~0, true, false).lparam());
 				//..
 			}
@@ -1481,7 +1498,7 @@ void CFindReleaseDialog::convey_artist_list_selection(cupdRelSrc cupdsrc) {
 
 	need_data |= need_releases;
 
-	if (ol::full_cache() && cupdsrc == updRelSrc::ArtistProfile && conf.auto_rel_load_on_select) {
+	if (cupdsrc == updRelSrc::ArtistProfile && conf.auto_load_releases_on_select_ready()) {
 		need_data = true;
 	}
 
@@ -1665,7 +1682,7 @@ bool CFindReleaseDialog::id_from_url(HWND hwndCtrl, pfc::string8& out) {
 		if (buffer.has_prefix("[a=")) {
 
 			out = out.subString(3, buffer.get_length() - 4);
-			return false;
+			return is_number(out.get_ptr());
 		}
 
 		prefix = "[a";
@@ -1684,7 +1701,15 @@ bool CFindReleaseDialog::id_from_url(HWND hwndCtrl, pfc::string8& out) {
 	}
 
 	if (mode_param != 'w' && is_dc_url) {
-		//url not parsed, ej. with local codes (https://www.discogs.com/fr/release/34425)
+		if (mode_param == 'a' && !buffer.startsWith("artist")) {
+			out = "";
+			return false;
+		}
+		else if (mode_param == 'r' && !buffer.startsWith("release")) {
+			out = "";
+			return false;
+		}
+
 		if ((buffer = extract_max_number(buffer, 'w', true)).get_length()) {
 
 			out = buffer.c_str();
@@ -1706,30 +1731,47 @@ bool CFindReleaseDialog::id_from_url(HWND hwndCtrl, pfc::string8& out) {
 }
 //..
 
-void CFindReleaseDialog::print_root_stats(rppair root_stats, bool save) {
+void CFindReleaseDialog::print_root_stats(rppair root_stats, bool save, bool isartist, bool onlylink) {
 
 	pfc::string8 stat_msg;
 
 	if (conf.find_release_dlg_flags & flg_fr::FLG_SHOW_RELEASE_TREE_STATS) {
-		//in-dlg
-		int tot = atoi(root_stats.first.first) + atoi(root_stats.first.second);
-		stat_msg << "Found: " << + tot;
-		stat_msg << " - Masters: " << root_stats.first.first;
+		if (!onlylink) {
+			int tot = atoi(root_stats.first.first) + atoi(root_stats.first.second);
+			stat_msg << "Total: " << + tot;
+			stat_msg << " - Masters: " << root_stats.first.first;
+		}
 	}
 
 	if (root_stats.second.first.get_length()) {
-
-		pfc::string8 url("https://www.discogs.com/artist/");
+		pfc::string8 url;
+		if (root_stats.second.second.find_first("www") == SIZE_MAX) {
+			url = "https://www.discogs.com/";
+			if (isartist) {
+				url << "artist";
+			}
+			else {
+				url << "release";
+			}
+			url << "/";
+		}
 		url << root_stats.second.second;
 		pfc::stringcvt::string_wide_from_utf8 wtext(url.get_ptr());
+
 		m_artist_link.SetHyperLink((LPCTSTR)const_cast<wchar_t*>(wtext.get_ptr()));
-		wtext.convert(root_stats.second.first);
+		pfc::string8 spa(" ");
+		spa << EscapeWin(root_stats.second.first) << " ";
+		wtext.convert(spa);
 		m_artist_link.SetLabel(wtext.get_ptr());
 		CRect rc; ::GetWindowRect(m_artist_link, &rc);
 		m_artist_link.RedrawWindow(0, 0, RDW_INVALIDATE);
 	}
 	else {
 		stat_msg = "";
+		m_artist_link.SetHyperLink(L"");
+		m_artist_link.SetLabel(L"");
+		CRect rc; ::GetWindowRect(m_artist_link, &rc);
+		m_artist_link.RedrawWindow(0, 0, RDW_INVALIDATE);
 	}
 
 	uSetDlgItemText(m_hWnd, IDC_STATIC_FIND_REL_STATS_EXT, stat_msg);
@@ -1783,8 +1825,8 @@ void replace_artist_refs(const pfc::string8 & profile, pfc::string8& outprofile,
 				pfc::string8 replace = PFC_string_formatter() << "[a" << walk.first.c_str() << "]";
 				outprofile = outprofile.replace(replace, walk.second.c_str());
 			}
-		}	
-	}	
+		}
+	}
 }
 
 void CFindReleaseDialog::UpdateArtistProfile(Artist_ptr artist) {
@@ -1793,8 +1835,14 @@ void CFindReleaseDialog::UpdateArtistProfile(Artist_ptr artist) {
 
 	if (g_discogs->find_release_artist_dialog) {
 		pfc::string8 modprofile;
-		replace_artist_refs(artist->profile, modprofile, exactlist);
+		if (artist) {
+			replace_artist_refs(artist->profile, modprofile, exactlist);
+		}
 		g_discogs->find_release_artist_dialog->UpdateProfile(artist, modprofile);
+		HWND hwndProfile = g_discogs->find_release_artist_dialog->m_hWnd;
+		fb2k::inMainThread([hwndProfile] {
+			::InvalidateRect(hwndProfile, NULL, TRUE);
+			});
 	}
 }
 
