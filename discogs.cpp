@@ -2499,8 +2499,9 @@ void Discogs::Artist::load(threaded_process_status &p_status, abort_callback &p_
 	bool offline_can_write = ol::can_write();
 	bool offline_can_overwrite = ol::can_ovr();
 
+	bool expired = false;
 	pfc::string8 n8_rel_path;
-	bool offline_avail_data = ol::is_data_avail(id, "", ol::GetFrom::Artist, n8_rel_path, true);
+	bool offline_avail_data = ol::is_data_avail(id, "", ol::GetFrom::Artist, n8_rel_path, true, expired);
 	bool btransient = !(offline_can_read && offline_avail_data) || offline_can_overwrite;
 
 	btransient &= !db_isready;
@@ -2715,8 +2716,11 @@ void Discogs::Release::load(threaded_process_status &p_status, abort_callback &p
 	bool offline_can_write = ol::can_write();
 	bool offline_can_ovr = ol::can_ovr();
 
+	if (p_abort.is_aborting()) return;
+
+	bool expired;
 	pfc::string8 n8_rel_path;
-	bool offline_avail_data = ol::is_data_avail(artist_id, release_id, ol::GetFrom::Release, n8_rel_path, true);
+	bool offline_avail_data = ol::is_data_avail(artist_id, release_id, ol::GetFrom::Release, n8_rel_path, true, expired);
 
 	bool btransient = !(offline_can_read && offline_avail_data) || offline_can_ovr;
 	bool db_isready = false;
@@ -2762,6 +2766,15 @@ void Discogs::Release::load(threaded_process_status &p_status, abort_callback &p
 				if (atoi(offlineArtistId) == pfc_infinite || !offlineArtistId.get_length()) {
 
 					offlineArtistId = artists[0]->id;
+					//we could recheck now that we have artist id...
+					pfc::string8 tmp_n8_rel_path;
+					bool tmp_avail_data = ol::is_data_avail(offlineArtistId, release_id, ol::GetFrom::Release, tmp_n8_rel_path, true, expired);
+					bool btmp_transient = !(offline_can_read && tmp_avail_data) || offline_can_ovr;
+					btmp_transient &= db_skip;
+					if (!btmp_transient) {
+						return;
+					}
+					//end recheck
 				}
 				pfc::string8 target_artist_id = offlineArtistId;
 				n8_rel_path = ol::get_offline_path(offlineArtistId, ol::GetFrom::Release, id, true);
@@ -2868,9 +2881,9 @@ void Discogs::Artist::load_releases(threaded_process_status &p_status, abort_cal
 	bool offline_can_read = ol::can_read();
 	bool offline_can_write = ol::can_write();
 	bool offline_can_overwrite = ol::can_ovr();
-	
+	bool expired;
 	pfc::string8 n8_rel_path;
-	bool offline_avail_data = ol::is_data_avail(id, "", ol::GetFrom::ArtistReleases, n8_rel_path, true);
+	bool offline_avail_data = ol::is_data_avail(id, "", ol::GetFrom::ArtistReleases, n8_rel_path, true, expired);
 
 	bool btransient = !(offline_can_read && offline_avail_data) || offline_can_overwrite;
 	bool db_ready = false;
@@ -2995,8 +3008,13 @@ void Discogs::MasterRelease::load_releases(threaded_process_status &p_status, ab
 
 
 	ol::GetFrom gfVersions = ol::GetFrom::Versions;
+	bool expired = false;
 	pfc::string8 n8_rel_path;
-	bool offline_avail_data = ol::is_data_avail(artist_id, master_id, gfVersions, n8_rel_path, true);
+	bool offline_avail_data = ol::is_data_avail(artist_id, master_id, gfVersions, n8_rel_path, true, expired);
+
+	pfc::string8 msg(PFC_string_formatter() << (offline_can_read && expired ? "(expired) " : "") << "loading MasterRelease ");
+	msg << id << "...";
+	p_status.set_item(msg);
 
 	bool btransient = !(offline_can_read && offline_avail_data) || offline_can_overwrite;
 	bool db_isready = false;
