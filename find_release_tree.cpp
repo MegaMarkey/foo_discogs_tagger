@@ -1738,6 +1738,12 @@ void CFindReleaseTree::on_expand_master_release_done(const MasterRelease_ptr& ma
 
 		int ival = 1; // * NODE EXPANDED
 		cache_ptr->SetCacheFlag(lparam, NodeFlag::expanded, ival);
+
+		//todo: fix patch empty/duplicated entries
+		if (g_os_is_wine) {
+			::InvalidateRect(m_hwndTreeView, {0}, true);
+		}
+
 	}
 
 	const std::shared_ptr<vec_t> vec_items = m_rt_cache.get_vec();
