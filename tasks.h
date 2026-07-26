@@ -200,14 +200,19 @@ class get_artist_process_callback : public foo_discogs_threaded_process_callback
 
 {
 public:
-	get_artist_process_callback(cupdRelSrc cupdsrc, const char *artist_id)
-		: m_cupdsrc(cupdsrc), m_artist_id(artist_id) {}
+	get_artist_process_callback(cupdRelSrc cupdsrc, const char *artist_id, const char* artist_name)
+			: m_cupdsrc(cupdsrc), m_artist_id(artist_id), m_artist_name(artist_name) {
+		m_bload_releases = m_cupdsrc != updRelSrc::ArtistProfile && m_cupdsrc != updRelSrc::UndefFast;
+        		bload_releases |= m_cupdsrc.extended;
+	}
 	void start(HWND parent);
 
 private:
 	pfc::string8 m_artist_id;
+	const char* m_artist_name;
 	Artist_ptr m_artist;
 	cupdRelSrc m_cupdsrc;
+	bool m_bload_releases = false;
 
 	bool check_in();
 	void check_out();
@@ -223,38 +228,54 @@ class get_multi_artists_process_callback : public foo_discogs_threaded_process_c
 
 {
 public:
-	get_multi_artists_process_callback(cupdRelSrc cupdsrc, const std::vector<size_t> & artist_ids)
-		: m_cupdsrc(cupdsrc), m_artist_ids(artist_ids) {}
+	get_multi_artists_process_callback(cupdRelSrc cupdsrc, const int va, const std::vector<size_t> & artist_ids)
+		: m_cupdsrc(cupdsrc), m_va(va), m_artist_ids(artist_ids) {
+		
+		m_bload_releases = m_cupdsrc != updRelSrc::ArtistProfile && m_cupdsrc != updRelSrc::UndefFast;
+		m_bload_releases |= m_cupdsrc.extended;	
+	}
 	void start(HWND parent);
 
 private:
 	const std::vector<size_t> & m_artist_ids;
+	std::vector<pfc::string8> m_checked_in_artist_ids;
 	pfc::array_t<Artist_ptr> m_artists;
 	Release_ptr m_release;
 	cupdRelSrc m_cupdsrc;
+	bool m_bload_releases = false;
+	const int m_va;
+
+	bool check_in();
+	void check_out();
 
 	void safe_run(threaded_process_status& p_status, abort_callback& p_abort) override;
 	void on_success(HWND p_wnd) override;
 	void on_error(HWND p_wnd) override;
+	void on_abort(HWND p_wnd);
 };
 
 
-class search_artist_process_callback : public foo_discogs_locked_threaded_process_callback
+class search_artist_process_callback : public foo_discogs_threaded_locked_process_callback
 {
 public:
-	search_artist_process_callback(const char* search, const bool va, const int db_dc_flags);
+	search_artist_process_callback(const char* search, bool dlgbutton, const int va, const QueryDefMap qdm_search_query, const int db_dc_flags);
 	~search_artist_process_callback();
 	void start(HWND parent);
 
 private:
 	pfc::string8 m_search;
+	bool m_dlgbutton = false;
+	const int m_va;
+	QueryDefMap m_qdm_search_query = {};
 	int m_db_dc_flags;
-	bool m_va = false;
+
+	rppair_t m_res_searchquery = {};
 
 	pfc::array_t<Artist_ptr> m_artist_exact_matches;
 	pfc::array_t<Artist_ptr> m_artist_other_matches;
 
 	void safe_run(threaded_process_status &p_status, abort_callback &p_abort) override;
+
 	void on_success(HWND p_wnd) override;
 	void on_abort(HWND p_wnd) override;
 	void on_error(HWND p_wnd) override;
@@ -265,13 +286,85 @@ private:
 class expand_master_release_process_callback : public foo_discogs_threaded_process_callback
 {
 public:
-	expand_master_release_process_callback(const MasterRelease_ptr& master_release, const int pos, pfc::string8 offlineArtistId) : m_master_release(master_release), m_pos(pos), m_offlineArtist_id(offlineArtistId) {}
+	expand_master_release_process_callback(const MasterRelease_ptr& master_release, const int pos, pfc::string8 offlineArtistId, int va_artists) :
+			m_master_release(master_release), m_pos(pos), m_offlineArtist_id(offlineArtistId), m_query_mode(va_artists) {}
 	void start(HWND parent);
 
 private:
 	MasterRelease_ptr m_master_release;
 	int m_pos;
 	pfc::string8 m_offlineArtist_id;
+	int m_query_mode;
+
+	void safe_run(threaded_process_status& p_status, abort_callback& p_abort) override;
+	void on_success(HWND p_wnd) override;
+	void on_abort(HWND p_wnd) override;
+	void on_error(HWND p_wnd) override;
+};
+
+
+class tree_apply_filter_process_callback : public foo_discogs_threaded_locked_process_callback /*foo_discogs_threaded_process_callback*/
+{
+public:
+	tree_apply_filter_process_callback(const MasterRelease_ptr& master_release, const int pos, pfc::string8 offlineArtistId, int va_artists,
+		pfc::string8 filter, bool force_redraw, bool force_rebuild) :
+		m_master_release(master_release), m_pos(pos), m_offlineArtist_id(offlineArtistId), m_query_mode(va_artists),
+		m_strFilter(filter), m_force_redraw(force_redraw), m_force_rebuild(force_rebuild) {}
+
+	void start(HWND parent);
+
+private:
+	MasterRelease_ptr m_master_release;
+	int m_pos;
+	pfc::string8 m_offlineArtist_id;
+	int m_query_mode;
+	pfc::string8 m_strFilter;
+	bool m_force_redraw;
+	bool m_force_rebuild;
+
+	void safe_run(threaded_process_status& p_status, abort_callback& p_abort) override;
+	void on_success(HWND p_wnd) override;
+	void on_abort(HWND p_wnd) override;
+	void on_error(HWND p_wnd) override;
+};
+
+
+class on_search_artist_done_process_callback : public foo_discogs_threaded_locked_process_callback {
+
+public:
+	on_search_artist_done_process_callback(const pfc::array_t<Artist_ptr> p_artist_exact_matches,
+		const pfc::array_t<Artist_ptr> p_artist_other_matches,
+		bool append, std::pair<size_t, size_t>& out_va_cap) :
+		m_p_artist_exact_matches(p_artist_exact_matches), m_p_artist_other_matches(p_artist_other_matches), m_append(append), m_out_va_cap(out_va_cap) {};
+
+	void start(HWND parent);
+
+private:
+
+	const pfc::array_t<Artist_ptr> m_p_artist_exact_matches;
+	const pfc::array_t<Artist_ptr> m_p_artist_other_matches;
+	bool m_append;
+	std::pair<size_t, size_t> m_out_va_cap;
+
+
+	void safe_run(threaded_process_status& p_status, abort_callback& p_abort) override;
+	void on_success(HWND p_wnd) override;
+	void on_abort(HWND p_wnd) override;
+	void on_error(HWND p_wnd) override;
+};
+
+class on_get_artist_done_process_callback : public foo_discogs_threaded_locked_process_callback {
+
+public:
+	on_get_artist_done_process_callback(const Artist_ptr artist, cupdRelSrc updsrc) :
+		 m_artist(artist), m_updsrc(updsrc) {};
+
+	void start(HWND parent);
+
+private:
+
+	cupdRelSrc m_updsrc;
+	Artist_ptr m_artist;
 
 	void safe_run(threaded_process_status& p_status, abort_callback& p_abort) override;
 	void on_success(HWND p_wnd) override;

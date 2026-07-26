@@ -1,12 +1,12 @@
 #include "stdafx.h"
+#include <unordered_set>
+#include "discogs_interface.h"
 
-#include "foo_discogs.h"
 #include "tags.h"
 #include "art_download_attribs.h"
 #include "ol_cache.h"
-#include "utils_db.h"
-#include "db_fetcher.h"
 #include "configuration_dialog.h"
+#include "crc.h"
 #include "tasks.h"
 
 void foo_discogs_threaded_process_callback::run(threaded_process_status &p_status, abort_callback &p_abort) {
@@ -733,8 +733,7 @@ void find_releases_not_in_collection_task::finish() {
 
 void get_artist_process_callback::start(HWND parent) {
 	pfc::string8 msg;
-	msg << "Loading artist id " << m_artist_id;
-	msg << " online releases...";
+	msg << "Loading artist id " << m_artist_id << ": " << m_artist_name;
 
 	threaded_process::g_run_modeless(this,
 		threaded_process::flag_show_item |
@@ -746,6 +745,7 @@ void get_artist_process_callback::start(HWND parent) {
 }
 
 bool get_artist_process_callback::check_in() {
+	std::lock_guard lg(g_discogs->mx_vArtistLoadReleasesTasks);
 	auto found_it =
 		std::find_if(g_discogs->vArtistLoadReleasesTasks.begin(), g_discogs->vArtistLoadReleasesTasks.end(), [&](const pfc::string8& e) {
 		return e.equals(m_artist_id); });
@@ -761,6 +761,7 @@ bool get_artist_process_callback::check_in() {
 }
 
 void get_artist_process_callback::check_out() {
+	std::lock_guard lg(g_discogs->mx_vArtistLoadReleasesTasks);
 	auto found_it =
 		std::find_if(g_discogs->vArtistLoadReleasesTasks.begin(), g_discogs->vArtistLoadReleasesTasks.end(), [&](const pfc::string8& e) {
 		return e.equals(m_artist_id); });
@@ -772,27 +773,27 @@ void get_artist_process_callback::check_out() {
 
 void get_artist_process_callback::safe_run(threaded_process_status &p_status, abort_callback &p_abort) {
 
-	bool bload_releases = m_cupdsrc != updRelSrc::ArtistProfile && m_cupdsrc != updRelSrc::UndefFast;
-	bload_releases |= m_cupdsrc.extended;
-
-	if (bload_releases) {
+	if (m_bload_releases) {
 		if (!check_in()) {
 			return;
 		}
 	}
 
+	bool bsimple_list_sel = (m_cupdsrc == updRelSrc::ArtistProfile) && !bload_releases && !m_cupdsrc.oninit;
+
 	m_artist = discogs_interface->get_artist(m_artist_id, bload_releases, p_status, p_abort,
-		false, false, m_cupdsrc != updRelSrc::ArtistProfile);
+		false, false, m_cupdsrc != updRelSrc::ArtistProfile, bsimple_list_sel);
+
 
 	pfc::string8 status_msg;
 	if (!(m_artist->loaded_preview || m_artist->loaded)) {
-		status_msg = "Artist details are not available.";
+		status_msg = "artist details are not available.";
 	}
 	else if (m_artist->loaded_releases) {
-		status_msg = "Formatting artist releases...";
+		status_msg = "formatting artist releases...";
 	}
 	else {
-		status_msg = "Formatting artist preview...";
+		status_msg = "formatting artist preview...";
 	}
 
 	p_status.set_item(status_msg);
@@ -802,43 +803,35 @@ void get_artist_process_callback::on_success(HWND p_wnd) {
 
 	if (m_artist) {
 
-		bool bload_releases = m_cupdsrc != updRelSrc::ArtistProfile && m_cupdsrc != updRelSrc::UndefFast;
-		bload_releases |= m_cupdsrc.extended;
-
-		if (bload_releases) {
+		if (m_bload_releases) {
 			check_out();
 		}
 
 		//artist history
+		//todo: only using search button
 		if (m_cupdsrc != updRelSrc::ArtistProfile) {
 			g_discogs->find_release_dialog->add_history(oplog_type::artist, kHistoryGetArtist, "", "", m_artist->id, m_artist->name);
 		}
 
-		g_discogs->find_release_dialog->on_get_artist_done(m_cupdsrc, m_artist);
+		try {
+
+			service_ptr_t<on_get_artist_done_process_callback> task =
+				new service_impl_t<on_get_artist_done_process_callback>(m_artist, m_cupdsrc);
+
+			task->start(g_discogs->find_release_dialog->m_hWnd);
+		}
+		catch (locked_task_exception e)
+		{
+			log_msg(e.what());
+		}
 	}
 }
 
 void get_artist_process_callback::on_error(HWND p_wnd) {
 
-	bool bload_releases = m_cupdsrc != updRelSrc::ArtistProfile && m_cupdsrc != updRelSrc::UndefFast;
-	bload_releases |= m_cupdsrc.extended;
-
-	if (bload_releases) {
-		check_out();
-	}
-
-	//..
+	on_abort(p_wnd);
 }
 
-void get_artist_process_callback::on_abort(HWND p_wnd) {
-
-	bool bload_releases = m_cupdsrc != updRelSrc::ArtistProfile && m_cupdsrc != updRelSrc::UndefFast;
-	bload_releases |= m_cupdsrc.extended;
-
-	if (bload_releases) {
-		check_out();
-	}
-}
 
 void get_multi_artists_process_callback::start(HWND parent) {
 
@@ -857,9 +850,51 @@ void get_multi_artists_process_callback::start(HWND parent) {
 	);
 }
 
+bool get_multi_artists_process_callback::check_in() {
+	std::lock_guard lg(g_discogs->mx_vArtistLoadReleasesTasks);
+	for (size_t artist_id : m_artist_ids) {
+		pfc::string8 walk_str_id; walk_str_id << artist_id;
+		auto found_it =
+			std::find_if(g_discogs->vArtistLoadReleasesTasks.begin(), g_discogs->vArtistLoadReleasesTasks.end(), [&](const pfc::string8& e) {
+			return e.equals(walk_str_id); });
+		bool found = found_it != std::end(g_discogs->vArtistLoadReleasesTasks);
+
+		if (found) {
+			continue;
+		}
+		else {
+			pfc::string8 walk_str_id; walk_str_id << artist_id;
+			m_checked_in_artist_ids.emplace_back(walk_str_id);
+			g_discogs->vArtistLoadReleasesTasks.emplace_back(std::move(walk_str_id));
+		}
+	}
+	return true;
+}
+
+void get_multi_artists_process_callback::check_out() {
+	std::lock_guard lg(g_discogs->mx_vArtistLoadReleasesTasks);
+	for (auto artist_id : m_artist_ids) {
+
+		pfc::string8 walk_str_id; walk_str_id << artist_id;
+		auto found_it = std::find_if(g_discogs->vArtistLoadReleasesTasks.begin(), g_discogs->vArtistLoadReleasesTasks.end(), [&](const pfc::string8& e) {
+				return e.equals(walk_str_id); });
+		auto found_local_it = std::find_if(m_checked_in_artist_ids.begin(), m_checked_in_artist_ids.end(), [&](const pfc::string8& e) {
+                return e.equals(walk_str_id/*str_artist_id*/); });
+		bool found = found_it != std::end(g_discogs->vArtistLoadReleasesTasks);
+		found &= found_local_it != std::end(m_checked_in_artist_ids);
+		if (found) {
+			g_discogs->vArtistLoadReleasesTasks.erase(found_it);
+		}
+	}
+}
+
 void get_multi_artists_process_callback::safe_run(threaded_process_status& p_status, abort_callback& p_abort) {
 
-	bool bload_releases = m_cupdsrc != updRelSrc::ArtistProfile && m_cupdsrc != updRelSrc::UndefFast;
+	if (m_bload_releases) {
+		if (!check_in()) {
+			return;
+		}
+	}
 
 	size_t count = 0;
 	for (auto artist_id : m_artist_ids) {
@@ -868,16 +903,20 @@ void get_multi_artists_process_callback::safe_run(threaded_process_status& p_sta
 		status_title << (PFC_string_formatter() << count + 1 << " of " << m_artist_ids.size()).c_str();
 		p_status.set_title(status_title);
 		//load releases on first artist
-		Artist_ptr artist = discogs_interface->get_artist(std::to_string(artist_id).c_str(), !count++ ? m_cupdsrc.extended : bload_releases, p_status, p_abort,
-			false, false, m_cupdsrc != updRelSrc::ArtistProfile && bload_releases);
+		Artist_ptr artist = discogs_interface->get_artist(std::to_string(artist_id).c_str(), !count++ ? m_cupdsrc.extended : m_bload_releases, p_status, p_abort,
+			false, false, m_cupdsrc != updRelSrc::ArtistProfile && m_bload_releases);
 
 		m_artists.add_item(std::move(artist));
 	}
 
-	p_status.set_item("Formatting artists preview...");
+	p_status.set_item("formatting artists preview...");
 }
 
 void get_multi_artists_process_callback::on_success(HWND p_wnd) {
+
+	if (m_bload_releases) {
+		check_out();
+	}
 
 	if (m_artists.get_count()) {
 		m_cupdsrc.oninit = true;
@@ -895,6 +934,28 @@ void get_multi_artists_process_callback::on_success(HWND p_wnd) {
 }
 
 void get_multi_artists_process_callback::on_error(HWND p_wnd) {
+
+	if (m_bload_releases) {
+		check_out();
+	}
+
+	pfc::array_t<Artist_ptr>tail;
+
+	m_artists.force_reset();
+	g_discogs->find_release_dialog->on_search_artist_done(pfc::array_t<Artist_ptr>(), pfc::array_t<Artist_ptr>(), true);
+
+}
+
+void get_multi_artists_process_callback::on_abort(HWND p_wnd) {
+
+	if (m_bload_releases) {
+		check_out();
+	}
+}
+
+
+search_artist_process_callback::search_artist_process_callback(const char* search, bool dlgbutton, const int searchmode, const QueryDefMap qdm_search_query, const int db_dc_flags)
+	: m_search(search), m_dlgbutton(dlgbutton), m_va(searchmode), m_qdm_search_query(qdm_search_query), m_db_dc_flags(db_dc_flags) {
 	//..
 }
 
@@ -905,42 +966,122 @@ search_artist_process_callback::search_artist_process_callback(const char* searc
 }
 
 void search_artist_process_callback::start(HWND parent) {
+
+	pfc::string8 pop_title;
+	if (m_va) {
+		FieldValPair exp_pair;
+		search_query::MapToText(m_qdm_search_query, exp_pair);
+		pop_title << "Advanced search... " << exp_pair.first.c_str();
+	}
+	else {
+		pop_title << "Searching artist...  " << m_search;
+	}
+
 	threaded_process::g_run_modeless(this,
 		threaded_process::flag_show_item |
 		threaded_process::flag_show_abort,
 		parent,
-		"Searching artist..."
+		PFC_string_formatter() << pop_title
 	);
 }
 
 void search_artist_process_callback::safe_run(threaded_process_status &p_status, abort_callback &p_abort) {
-	
+
 	pfc::string8 msg;
 
-	msg << "Fetching online artist list...";
+	msg << "fetching online artist list...";
 
-	//TODO: va cfg, disable and string pattern
-	bool todo_cfg = true;
- 	if (todo_cfg && m_va) {
-		discogs_interface->search_va_artist(m_search, m_artist_exact_matches, m_artist_other_matches, p_status, p_abort);
+ 	if (m_va & SearchMode::AT) {
+
+		m_res_searchquery = 
+				discogs_interface->search_amt_artist(m_search, m_qdm_search_query, m_artist_exact_matches, m_artist_other_matches, p_status, p_abort);
 	}
 	else {
-		discogs_interface->search_artist(m_search, m_artist_exact_matches, m_artist_other_matches, p_status, p_abort);
+
+		if (m_va & SearchMode::VA) {
+			// todo
+			return;
+		}
+		else {
+			discogs_interface->search_artist(m_search, m_artist_exact_matches, m_artist_other_matches, p_status, p_abort);
+		}
+
 	}
 
-	p_status.set_item(msg);	
+	p_status.set_item(msg);
 }
 
 void search_artist_process_callback::on_success(HWND p_wnd) {
 
 	CFindReleaseDialog* find_dlg = g_discogs->find_release_dialog;
-	if (m_artist_exact_matches.size()) {
-		//artist history
-		find_dlg->add_history(oplog_type::artist, kHistorySearchArtist, "", "",
-			m_artist_exact_matches[0]->id, m_artist_exact_matches[0]->name);
-	}
 
-	find_dlg->on_search_artist_done(m_artist_exact_matches, m_artist_other_matches, false);
+	try {
+
+		std::pair<size_t, size_t> res_cap;
+
+		if (m_va & SearchMode::AT) {
+
+			// AT
+
+			res_cap = m_res_searchquery.first;
+
+			FieldValPair exp_pair;
+			search_query::MapToText(m_qdm_search_query, exp_pair, false);
+
+			find_dlg->UpdateSearchQueryHasRun(exp_pair.first.c_str());
+			find_dlg->UpdateSearchArtistHasRun("");
+
+			if (m_dlgbutton) {
+
+				// save query to search history
+
+				std::string const  s = exp_pair.first;
+				pfc::string8 scrc;
+				std::ostringstream os;
+				os << std::hex << std::setw(8) << std::setfill('0') << crc(s.begin(), s.end());
+				scrc = os.str().c_str();
+
+				find_dlg->add_history(oplog_type::query, kHistorySearchQuery, "", "",
+					scrc, exp_pair.first.c_str());
+			}
+
+		}
+		else {
+
+			// DEFAULT
+
+			g_discogs->find_release_dialog->m_query_mode = 0;
+
+			// set result stat
+			res_cap = m_res_searchquery.second;
+
+			find_dlg->UpdateSearchQueryHasRun("");
+			find_dlg->UpdateSearchArtistHasRun(m_search);
+
+			if (m_dlgbutton) {
+
+				find_dlg->UpdateSearchModeDisplayMode(nullptr);
+
+				// save artist to search history
+
+				if (m_artist_exact_matches.size()) {
+					//artist history
+					find_dlg->add_history(oplog_type::artist, kHistorySearchArtist, "", "",
+						m_artist_exact_matches[0]->id, m_artist_exact_matches[0]->name);
+				}
+			}
+		}
+
+		service_ptr_t<on_search_artist_done_process_callback> task =
+			new service_impl_t<on_search_artist_done_process_callback>(m_artist_exact_matches, m_artist_other_matches, false,
+				res_cap);
+
+		task->start(find_dlg->m_hWnd);
+	}
+	catch (locked_task_exception e)
+	{
+		log_msg(e.what());
+	}
 
 }
 
@@ -956,7 +1097,7 @@ void expand_master_release_process_callback::start(HWND parent) {
 	threaded_process::g_run_modeless(
 		this,
 		threaded_process::flag_show_item |
-		threaded_process::flag_show_abort |
+		//threaded_process::flag_show_abort |
 		threaded_process::flag_show_delayed,
 		parent,
 		"Expanding master release..."
@@ -964,28 +1105,122 @@ void expand_master_release_process_callback::start(HWND parent) {
 }
 
 void expand_master_release_process_callback::safe_run(threaded_process_status &p_status, abort_callback &p_abort) {
-	p_status.set_item("Expanding master release...");
+	p_status.set_item("expanding master release...");
 
-	m_master_release->load_releases(p_status, p_abort, false, m_offlineArtist_id, get_dbfetcher());
-
+	if (!m_master_release->loaded_releases && !m_master_release->sub_releases.get_count()) {
+		m_master_release->load_releases(p_status, p_abort, false, m_offlineArtist_id, get_dbfetcher(), m_query_mode);
+	}
 
 	CFindReleaseDialog* find_dlg = g_discogs->find_release_dialog;
+
 	find_dlg->on_expand_master_release_done(m_master_release, m_pos, p_status, p_abort);
 }
 
 void expand_master_release_process_callback::on_success(HWND p_wnd) {
-
-
-	CFindReleaseDialog* find_dlg = g_discogs->find_release_dialog;
-	find_dlg->on_expand_master_release_complete();
+	//todo: re-enable tree resfresh?
 }
 
 void expand_master_release_process_callback::on_abort(HWND p_wnd) {
+	//..
+}
+
+void expand_master_release_process_callback::on_error(HWND p_wnd) {
+	//..
+}
+
+
+void tree_apply_filter_process_callback::start(HWND parent) {
+	threaded_process::g_run_modeless(
+		this,
+		threaded_process::flag_show_item |
+		threaded_process::flag_show_abort |
+		threaded_process::flag_show_delayed,
+		parent,
+		m_strFilter.get_length() ? "preparing tree view releases..." : "filtering tree view releases..."
+	);
+}
+
+void tree_apply_filter_process_callback::safe_run(threaded_process_status& p_status, abort_callback& p_abort) {
+	p_status.set_item(!m_strFilter.get_length() ? "show all" : PFC_string_formatter() << "filter: " << m_strFilter);
+
+	CFindReleaseDialog* find_dlg = g_discogs->find_release_dialog;
+	try {
+		find_dlg->apply_filter(m_strFilter, m_force_redraw, m_force_rebuild, p_status, p_abort);
+	}
+	catch (foo_discogs_exception e) {
+		//..
+	}
+}
+
+void tree_apply_filter_process_callback::on_success(HWND p_wnd) {
+	//todo
+	CFindReleaseDialog* find_dlg = g_discogs->find_release_dialog;
+	::ShowWindow(find_dlg->m_release_tree, SW_SHOW);
+	::InvalidateRect(g_discogs->find_release_dialog->m_release_tree, NULL, TRUE);
+
+}
+
+void tree_apply_filter_process_callback::on_abort(HWND p_wnd) {
+
+	CFindReleaseDialog* find_dlg = g_discogs->find_release_dialog;
+	::ShowWindow(find_dlg->m_release_tree, SW_SHOW);
+	::InvalidateRect(g_discogs->find_release_dialog->m_release_tree, NULL, TRUE);
+}
+
+void tree_apply_filter_process_callback::on_error(HWND p_wnd) {
+	on_abort(p_wnd);
+}
+
+
+
+void on_search_artist_done_process_callback::start(HWND parent) {
+	threaded_process::g_run_modeless(
+		this,
+		threaded_process::flag_show_item |
+		threaded_process::flag_show_abort |
+		threaded_process::flag_show_delayed,
+		parent,
+		"Search finished, preparing results..."
+	);
+}
+
+void on_search_artist_done_process_callback::safe_run(threaded_process_status& p_status, abort_callback& p_abort) {
+	p_status.set_item(PFC_string_formatter() << m_p_artist_exact_matches.get_count() << " exact, " << m_p_artist_other_matches.get_count() << "other matches");
+
 	CFindReleaseDialog* find_dlg = g_discogs->find_release_dialog;
 	find_dlg->on_expand_master_release_complete();
 }
 
-void expand_master_release_process_callback::on_error(HWND p_wnd) {
+void on_search_artist_done_process_callback::on_success(HWND p_wnd) {
+
+	CFindReleaseDialog* find_dlg = g_discogs->find_release_dialog;
+
+	find_dlg->ilo_get_uilist()->Invalidate(true);
+	init_scroolbars(find_dlg->ilo_get_uilist()->m_hWnd);
+}
+
+void on_search_artist_done_process_callback::on_abort(HWND p_wnd) {
+	//..
+}
+
+void on_search_artist_done_process_callback::on_error(HWND p_wnd) {
+	//..
+}
+
+void on_get_artist_done_process_callback::start(HWND parent) {
+	threaded_process::g_run_modeless(
+		this,
+		threaded_process::flag_show_item |
+		threaded_process::flag_show_abort |
+		threaded_process::flag_show_delayed,
+		parent,
+		"Artist ready, preparing results..."
+	);
+}
+
+void on_get_artist_done_process_callback::safe_run(threaded_process_status& p_status, abort_callback& p_abort) {
+	p_status.set_item(m_artist.get() ? m_artist->name : "");
+
 	CFindReleaseDialog* find_dlg = g_discogs->find_release_dialog;
 	find_dlg->on_expand_master_release_complete();
 }
@@ -1011,7 +1246,7 @@ void process_release_callback::start(HWND parent) {
 
 void process_release_callback::safe_run(threaded_process_status& p_status, abort_callback& p_abort) {
 
-	pfc::string8 base_status = "Fetching release information...";
+	pfc::string8 base_status = "fetching release information...";
 	p_status.set_item(base_status);
 
 	Release_ptr p_release;
@@ -1047,7 +1282,7 @@ void process_release_callback::safe_run(threaded_process_status& p_status, abort
 				}
 
 				if (!has_thumb) {
-					p_status.set_item("Fetching small album art...");
+					p_status.set_item("fetching small album art...");
 					try {
 						discogs_interface->fetcher->fetch_url(p_release->images[0]->url150, "", p_release->small_art, p_abort, false);
 					}
@@ -1074,14 +1309,10 @@ void process_release_callback::safe_run(threaded_process_status& p_status, abort
 
 	m_dialog->hide();
 
-//todo: sort out this hack...
-//releases with fake album artists
-//prevent moving them to the cache!
+#ifdef SIM_VA_MA_BETA
+	bool bva_as_ma = CONF.find_release_dlg_flags & CFindReleaseDialog::FLG_VA_AS_MA;
 
-#ifdef SIM_VA_MA_BETA_VER
-	bool va_as_multi = CONF.find_release_dlg_flags & CFindReleaseDialog::FLG_VARIOUS_AS_MULTI_ARTIST;
-
-	if (va_as_multi) {
+	if (bva_as_ma) {
 
 		titleformat_hook_impl_multiformat hook(&p_release);
 		hook.set_release(&p_release);
@@ -1092,7 +1323,7 @@ void process_release_callback::safe_run(threaded_process_status& p_status, abort
 		service_ptr_t<titleformat_object> tf_script;
 		static_api_ptr_t<titleformat_compiler>()->compile_force(tf_script, "[%RELEASE_ARTISTS_ID%]");
 		track->format_title(nullptr, rel_artist_ids_tag, tf_script, nullptr);
-		
+
 		std::unordered_set<std::string> unique_ids;
 
 		if (!rel_artist_ids_tag.get_length()) {
@@ -1129,7 +1360,7 @@ void process_release_callback::safe_run(threaded_process_status& p_status, abort
 		else {
 			std::vector<pfc::string8> vfake_artists;
 			split(rel_artist_ids_tag, ";", 0, vfake_artists);
-			for (auto w : vfake_artists) {
+			for (pfc::string8 w : vfake_artists) {
 				w.trim(' ');
 				if (w.get_length()) {
 					unique_ids.insert(w.c_str());
@@ -1139,7 +1370,7 @@ void process_release_callback::safe_run(threaded_process_status& p_status, abort
 
 		if (unique_ids.size()) {
 			std::vector<std::string> vtrue_artists;
-			for (auto w : p_release->artists) {
+			for (ReleaseArtist_ptr w : p_release->artists) {
 				vtrue_artists.emplace_back(w->id);
 			}
 			for (std::string stdfw : unique_ids) {
@@ -1171,7 +1402,7 @@ void process_release_callback::safe_run(threaded_process_status& p_status, abort
 									//fullartist
 									tmpArtistRelease_ptr->id = full_artist->id;
 									tmpArtistRelease_ptr->name = full_artist->name;
-									tmpArtistRelease_ptr->roles.append_single(string_encoded_array("hack"));
+									tmpArtistRelease_ptr->roles.append_single(string_encoded_array("beta credit artwork"));
 									p_release->artists.append_single(tmpArtistRelease_ptr);
 								}
 							}
@@ -1181,7 +1412,7 @@ void process_release_callback::safe_run(threaded_process_status& p_status, abort
 			}
 		}
 	}
-#endif //SIM_VA_MA_BETA_VER
+#endif //SIM_VA_MA_BETA
 
 	m_tag_writer = std::make_shared<TagWriter>(m_finfo_manager, p_release);
 	if (p_release) {
@@ -1211,13 +1442,20 @@ void process_release_callback::on_success(HWND p_wnd) {
 	auto tw_release = m_tag_writer->GetRelease();
 	if (tw_release) {
 		rppair row = std::pair(std::pair(tw_release->id, tw_release->title),
-			std::pair(tw_release->artists[0]->full_artist->id, tw_release->artists[0]->full_artist->name));
-	
+			std::pair("", ""));
+
 		//release history
 		m_dialog->add_history(oplog_type::release, kHistoryProccessRelease, row);
 	}
 
-	fb2k::newDialog<CTrackMatchingDialog>(core_api::get_main_window(), m_tag_writer, false);
+	{
+		//todo: trace race condition
+		std::lock_guard<std::mutex> ul(g_discogs->create_match_tracking_mutex);
+
+		if (!g_discogs->track_matching_dialog) {
+			fb2k::newDialog<CTrackMatchingDialog>(core_api::get_main_window(), m_tag_writer, false);
+		}
+	}
 }
 
 void process_release_callback::on_abort(HWND p_wnd) {

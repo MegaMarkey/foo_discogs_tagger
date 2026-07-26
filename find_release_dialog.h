@@ -126,11 +126,31 @@ public:
 
 	LRESULT OnEditFilter(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 	void OnTypeFilterTimer(WPARAM id);
-	void apply_filter(pfc::string8 strFilter, bool force_redraw = false, bool force_rebuild = false);
+	void apply_filter(pfc::string8 strFilter, bool force_redraw, bool force_rebuild, threaded_process_status& p_status, abort_callback& p_abort);
+
+	void SetSearchMode(SearchMode sm);
+	void SetSearchModeText(const pfc::string8 msg, bool mode_prefix = true);
+	void SetSearchModeFlag(SearchMode sm, bool enabled);
+	size_t GetSearchMode();
+
+	bool GetCustomQueryTF(pfc::string8& frm_custom_tf);
+
+	bool GetSearchMultiArtistsString(pfc::string8& out);
+
+	pfc::string8 GetSearchModeMsg();
+	void UpdateSearchQueryHasRun(const pfc::string8 expression);
+	void UpdateSearchArtistHasRun(const pfc::string8 artist);
+	void GetCurrentExpression(pfc::string8& out);
+	void GetCurrentSearchArtist(pfc::string8& out);
+	void UpdateSearchModeDisplayMode(const char* artist);
+	void InvalidateSearchDisplay(bool list_tree);
 
 	//todo: 
 	friend class expand_master_release_process_callback;
+	friend class tree_apply_filter_process_callback;
 	friend class get_artist_process_callback;
+	friend class on_search_artist_done_process_callback;
+	friend class on_get_artist_done_process_callback;
 	friend class get_multi_artists_process_callback;
 	friend class search_artist_process_callback;
 
@@ -166,14 +186,17 @@ public:
 
 	size_t get_tree_artist_list_pos() { return m_dctree.Get_Artist_List_Position(); }
 
-	//serves profile refresh requests from tree, ...
+	void ShowArtistSearchResults(Artist_ptr artist);
+
+	//serves tree profile refresh requests, ...
 	void UpdateArtistProfile(Artist_ptr artist);
 	pfc::string EscapeWin(pfc::string8 keyWord) {
 		pfc::string8 out_keyWord(keyWord);
 		out_keyWord.replace_string("&", "&&");
 		return out_keyWord;
 	}
-	void print_root_stats(rppair root_stat, bool save = true);
+
+	void print_root_stats(rppair root_stat, bool save = true, bool isartist = true, bool onlylink = false);
 
 	bool add_history(oplog_type optype, std::string cmd, pfc::string8 ff, pfc::string8 fs, pfc::string8 sf, pfc::string8 ss);
 	bool add_history(oplog_type optype, std::string cmd, rppair row);
@@ -505,27 +528,21 @@ private:
 
 	void set_role_label(bool filtered) {
 
-		pfc::string8 note = (PFC_string_formatter() << "main role " << (filtered ? "&& filtered versions" : ""));
+		pfc::string8 note = (PFC_string_formatter() << "&main role " << (filtered ? "&& filtered versions" : ""));
 		uSetDlgItemText(m_hWnd, IDC_CHK_FIND_RELEASE_FILTER_ROLEMAIN, note);
 	}
 
 	void init_cfged_dialog_controls();
-
-	bool get_VA_search_str(pfc::string8& out);
 
 	// dlg config
 
 	bool build_current_cfg();
 	void pushcfg();
 
-	// update releases
-
-	std::pair<rppair_t, rppair_t> update_releases(const pfc::string8& filter, updRelSrc updsrc, bool init_expand);
-
 	// artist get/search service callbacks
 
 	void on_get_artist_done(cupdRelSrc updsrc, Artist_ptr& artist);
-	void on_search_artist_done(const pfc::array_t<Artist_ptr>& p_artist_exact_matches, const pfc::array_t<Artist_ptr>& p_artist_other_matches, bool append);
+	void on_search_artist_done(const pfc::array_t<Artist_ptr>& p_artist_exact_matches, const pfc::array_t<Artist_ptr>& p_artist_other_matches, bool append, std::pair<size_t, size_t>& out_va_cap = std::pair<size_t, size_t>(0,0));
 
 	// route artist search
 	void route_artist_search(pfc::string8 artistname, bool dlgbutton, bool idded);
@@ -534,7 +551,6 @@ private:
 
 	void call_expand_master_service(MasterRelease_ptr& master_release, int pos); //serves tree
 	void on_expand_master_release_done(const MasterRelease_ptr& master_release, int pos, threaded_process_status& p_status, abort_callback& p_abort);
-	void on_expand_master_release_complete();
 
 	// spawns get_artist_process_callback
 
