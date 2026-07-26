@@ -1,5 +1,6 @@
 #pragma once
 #include "resource.h"
+#include <filesystem>
 #include "helpers/DarkMode.h"
 
 #include "libPPUI/PaintUtils.h"
@@ -420,13 +421,13 @@ private:
 			uSendDlgItemMessageText(hparent, id, CB_ADDSTRING, 0, selected_name);
 
 		size_t pos = 0;
-		for (auto walk : v) {
+		for (rppair walk : v) {
 
 			pfc::string8 walk_name(walk.first.second);
 
 			int rowId = uSendDlgItemMessageText(hparent, id, CB_INSERTSTRING, pos, walk_name);
 			::uSendDlgItemMessage(hparent, id, CB_SETITEMDATA, rowId, atoi(walk.first.first));
-			
+
 			if (selected_name && std::string(selected_name).compare(std::string(walk.first.second)) == 0) {
 				rowId = uSendDlgItemMessageText(hparent, id, CB_SETCURSEL, rowId, 0);
 			}
@@ -448,7 +449,7 @@ private:
 
 	CTagMappingList m_tag_list;
 	CMyEditWithButtons cewb_highlight;
-	CHyperLink help_link;
+	CHyperLink m_help_link;
 	fb2k::CDarkModeHooks m_dark;
 
 };

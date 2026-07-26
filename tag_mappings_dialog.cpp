@@ -85,6 +85,8 @@ void CTagMappingDialog::pushcfg() {
 		//ref (patch 1.0.21.1, CFG_ALT_WRITE_FLAGS) - applymapping
 		//conf.alt_write_flags = CONF.alt_write_flags;
 
+		conf.alt_write_flags = CONF.alt_write_flags;
+
 		CONF.save(CConf::cfgFilter::TAG, conf);
 		CONF.load();
 	}
@@ -115,6 +117,7 @@ LRESULT CTagMappingDialog::OnInitDialog(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM
 
 	HWND hwnd_tag_credits = uGetDlgItem(IDC_SPLIT_BTN_TAG_CAT_CREDIT);
 	HWND hwnd_tag_id3 = uGetDlgItem(IDC_SPLIT_BTN_TAG_ID3_ADD_NEW);
+
 	::ShowWindow(hwnd_tag_id3, SW_SHOW);
 	::ShowWindow(hwnd_tag_credits, SW_HIDE);
 	//darkmode
@@ -136,15 +139,7 @@ LRESULT CTagMappingDialog::OnInitDialog(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM
 
 	uSetWindowText(wnd_hledit, conf.edit_tags_dlg_hl_keyword);
 
-	help_link.SubclassWindow(GetDlgItem(IDC_SYNTAX_HELP));
-	COLORREF lnktx = m_dark.IsDark() ? GetSysColor(/*COLOR_BTNHIGHLIGHT*/COLOR_MENUHILIGHT) : (COLORREF)(-1);
-	help_link.m_clrLink = lnktx;
-	help_link.m_clrVisited = lnktx;
-	pfc::string8 url = profile_usr_components_path();
-	url << "\\" << "foo_discogs_help.html";
-
-	pfc::stringcvt::string_wide_from_utf8 wtext(url.get_ptr());
-	help_link.SetHyperLink((LPCTSTR)const_cast<wchar_t*>(wtext.get_ptr()));
+	subclass_hyper_link_help_syntax(m_help_link, GetDlgItem(IDC_SYNTAX_HELP), m_dark.IsDark());
 
 	DlgResize_Init(mygripp.enabled, true); 
 	cfg_dialog_position_tag_mapping_dlg.AddWindow(m_hWnd);
@@ -236,22 +231,43 @@ void CTagMappingDialog::update_list_width() {
 
 void CTagMappingDialog::applymappings() {
 
-	set_cfg_tag_mappings(m_ptag_map);
+	bool only_save_conf = false;
 
-	auto old_alf = CONF.alt_write_flags;
-	auto new_alf = awt_update_mod_flag(false);
+	{
+		std::lock_guard<std::mutex> guard(g_discogs->locked_tag_generation_rw_mutex);
+		if (g_discogs->locked_tag_generation) {
+			log_msg("tag generation is busy, try applying the mapping later.");
+			//return;
+			only_save_conf = true;
+		}
+		else {
+			set_cfg_tag_mappings(m_ptag_map);
+		}
+	}
 
-	if (old_alf != new_alf) {
+	auto old_awf = CONF.alt_write_flags;
+	auto new_awf = awt_update_mod_flag(false);
+
+	if (old_awf != new_awf) {
 		//todo:
 		//ref (patch 1.0.21.1, CFG_ALT_WRITE_FLAGS) - pushcfg
-		conf.alt_write_flags = new_alf;
+		conf.alt_write_flags = new_awf;
 		//
 		CONF.save(CConf::cfgFilter::TAG, CONF, CFG_ALT_WRITE_FLAGS);
 	}
 
+	if (only_save_conf) {
+		//
+		return;
+		//
+	}
+
 	if (g_discogs->preview_tags_dialog) {
 		CPreviewTagsDialog* dlg = g_discogs->preview_tags_dialog;
-		dlg->spawn_generate_tag_mappings();
+		if (dlg->is_enabled()) {
+
+			dlg->spawn_generate_tag_mappings();
+		}
 	}
 }
 
@@ -584,7 +600,7 @@ bool CTagMappingDialog::ExportJSON(std::filesystem::path os_file) {
 		return true;
 	}
 
-
+	int jf = -1;
 	try {
 
 		log_msg("Preparing to write data file.");
@@ -813,7 +829,8 @@ bool CTagMappingDialog::ImportJSON(std::filesystem::path os_file, tag_mapping_li
 
 		//update master list
 		out_tag_mapping.remove_all();
-		for (auto w : temp_data) {
+
+		for (tag_mapping_entry w : temp_data) {
 			out_tag_mapping.add_item(w);
 		}
 
@@ -825,7 +842,7 @@ bool CTagMappingDialog::ImportJSON(std::filesystem::path os_file, tag_mapping_li
 }
 
 LRESULT CTagMappingDialog::OnEditHLText(WORD wNotifyCode, WORD wID, HWND hWndCtl, BOOL& /*bHandled*/) {
-	
+
 	if (wNotifyCode == EN_CHANGE)
 	{
 		pfc::string8 hl_str = pfc::stringToLower(trim(pfc::string8(uGetWindowText(hWndCtl).c_str())));
@@ -1022,11 +1039,11 @@ LRESULT CTagMappingDialog::OnSplitDropDown(WORD wNotifyCode, WORD wID, HWND hWnd
 		InsertMenuItem(hSplitMenu, MENU_MORE, true, &menu_more_info);
 
 		const size_t iSubs = 2;
-		HMENU submenu_other[iSubs];
+		HMENU submenu_other[iSubs] = {};
 		LPWSTR submenus_data[iSubs] = {
 		_T("ID3 template"), _T("ID3 MS Explorer"), };
 
-		MENUITEMINFO submenus_infos[iSubs];
+		MENUITEMINFO submenus_infos[iSubs] = {};
 		for (size_t walk_sub = 0; walk_sub < iSubs; walk_sub++) {
 			AppendMenu(hSplitMenuMore, MF_STRING, MENU_MORE_ALL_ID3_23 + walk_sub, submenus_data[walk_sub]);
 		}
