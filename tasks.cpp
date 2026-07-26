@@ -1914,11 +1914,13 @@ void generate_oauth_process_callback::safe_run(threaded_process_status &p_status
 }
 
 void generate_oauth_process_callback::on_success(HWND p_wnd) {
-	
-	CConfigurationDialog* dlg = g_discogs->configuration_dialog;
-	uSetWindowText(dlg->m_hwndTokenEdit, token->key().c_str());
-	uSetWindowText(dlg->m_hwndSecretEdit, token->secret().c_str());
 
-	delete token;
-	token = nullptr;
+	CConfigurationDialog* dlg = g_discogs->configuration_dialog;
+	if (token) {
+		uSetWindowText(dlg->m_hwndTokenEdit, token->key().c_str());
+		uSetWindowText(dlg->m_hwndSecretEdit, token->secret().c_str());
+		delete token;
+		token = nullptr;
+	}
+
 }
