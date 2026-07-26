@@ -1083,14 +1083,20 @@ bool DiscogsInterface::get_thumbnail_from_cache(Release_ptr release, bool isArti
 bool DiscogsInterface::delete_artist_cache(const pfc::string8& artist_id, const pfc::string8& release_id) {
 
 	bool bonlyRelease = release_id.get_length();
+	bool bmissingArtist = !artist_id.get_length();
+	bool bmissingRelease = !release_id.get_length();
 
 	Artist_ptr artist = get_artist_from_cache(artist_id);
 
-	if (artist.get()) {
+	bool delres = true;
 
-		// cache memory
+	//cache memory
 
-		bool delres = bonlyRelease ? cache_releases-remove(release_id) : cache_artists->remove(artist_id);
+	if (!bmissingArtist && artist.get()) {
+
+		size_t lkey = encode_mr(0, pfc::string8(release_id));
+		delres = cache_releases->remove(lkey);
+		delres = cache_artists->remove(artist_id);
 
 		if (bonlyRelease) {
 			size_t lkey = encode_mr(artist->search_role_list_pos, pfc::string8(release_id));
@@ -1098,16 +1104,59 @@ bool DiscogsInterface::delete_artist_cache(const pfc::string8& artist_id, const 
 		}
 		else {
 			for (size_t walk = 0; walk < artist->master_releases.get_count(); walk++) {
-				LPARAM lkey = MAKELPARAM(atoi(artist->master_releases[walk]->id), atoi(artist->id));
+				unsigned long lkey = encode_mr(atoi(artist_id), atoi(artist->master_releases[walk]->id));
 
 				delres &= cache_master_releases->remove(lkey);
+
+				//todo: clean-up encode_mr with 0, artist_id and search_artist_rol pos
+				lkey = encode_mr(0, atoi(artist->master_releases[walk]->id));
+				delres &= cache_master_releases->remove(lkey);
+				lkey = encode_mr(artist->search_role_list_pos, atoi(artist->master_releases[walk]->id));
+				delres &= cache_master_releases->remove(lkey);
+
+				//remove main releases
+				lkey = encode_mr(artist->search_role_list_pos, artist->master_releases[walk]->main_release->id);
+				delres &= cache_releases->remove(lkey);
+
+				//todo: clean-up encode_mr with 0, artist_id and search_artist_rol pos
+				lkey = encode_mr(0, atoi(artist->master_releases[walk]->main_release->id));
+				delres &= cache_releases->remove(lkey);
+				lkey = encode_mr(atoi(artist->id), atoi(artist->master_releases[walk]->main_release->id));
+				delres &= cache_releases->remove(lkey);
+
+
 			}
 			for (size_t walk = 0; walk < artist->releases.get_count(); walk++) {
 				size_t lkey = encode_mr(artist->search_role_list_pos, artist->releases[walk]->id);
 				delres &= cache_releases->remove(lkey);
+
+				//todo: clean-up encode_mr with 0, artist_id and search_artist_rol pos
+				lkey = encode_mr(0, atoi(artist->releases[walk]->id));
+				delres &= cache_releases->remove(lkey);
+				lkey = encode_mr(atoi(artist->id), atoi(artist->releases[walk]->id));
+				delres &= cache_releases->remove(lkey);
 			}
 		}
-		
+	}
+	else {
+		if (!bmissingRelease) {
+			size_t lkey = encode_mr(0, pfc::string8(release_id));
+			delres = cache_releases->remove(lkey);
+			//todo: clean-up encode_mr with 0, artist_id and search_artist_rol pos
+			if (artist) {
+				lkey = encode_mr(artist->search_role_list_pos, pfc::string8(release_id));
+				delres &= cache_releases->remove(lkey);
+				lkey = encode_mr(atoi(artist->id), pfc::string8(release_id));
+				delres &= cache_releases->remove(lkey);
+			}
+			// exit
+
+			return delres;
+		}
+	}
+
+	if (artist.get()) {
+
 		// disk cache
 
 		pfc::string8 parent_path = ol::get_offline_path(artist_id, ol::GetFrom::Artist, "", true);
@@ -1146,9 +1195,6 @@ bool DiscogsInterface::delete_artist_cache(const pfc::string8& artist_id, const 
 
 			parent_path = ol::get_offline_path(artist_id, ol::GetFrom::Thumbs, "", true);
 			os_path = std::filesystem::u8path(parent_path.c_str());
-			if (!fs::exists(os_path)) {
-				//..return false;
-			}
 
 			std::filesystem::remove_all(os_path, ec);
 			delres &= !(!!ec.value());
@@ -1166,6 +1212,9 @@ bool DiscogsInterface::delete_artist_cache(const pfc::string8& artist_id, const 
 			}
 			return !ec.value();
 		}
+	}
+	if (!bonlyRelease && artist.get()) {
+		artist->loaded_releases_offline = true;
 	}
 	return false;
 }
