@@ -1,5 +1,9 @@
 #include "stdafx.h"
 #include "libPPUI/gdiplus_helpers.h"
+#include "SDK/service.h"
+
+#include "discogs_interface.h"
+
 #include "utils.h"
 #include "tags.h"
 #include "multiformat.h"
@@ -61,6 +65,7 @@ class initquit_discogs : public initquit
 		discogs_interface = new DiscogsInterface();
 
 		g_discogs = new foo_discogs();
+		g_pprompt_dlg = new CPromptDialog();
 		g_os_is_wine = check_os_wine();
 		load_dlls();
 
@@ -74,6 +79,11 @@ class initquit_discogs : public initquit
 	}
 	virtual void on_quit() override {
 		console::print("Quitting");
+
+		if (g_pprompt_dlg) {
+			delete g_pprompt_dlg;
+		}
+
 		if (g_discogs) {
 			DeleteObject(g_discogs->icon);
 			delete g_discogs; //(1)

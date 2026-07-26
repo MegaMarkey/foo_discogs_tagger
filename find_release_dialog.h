@@ -604,6 +604,8 @@ private:
 	CMyEditWithButtons cewb_release_filter;
 	CMyEditWithButtons cewb_release_url;
 
+	inline static bool m_is_wine_light_theme;
+
 	CHyperLink m_artist_link;
 
 	fb2k::CDarkModeHooks m_dark;

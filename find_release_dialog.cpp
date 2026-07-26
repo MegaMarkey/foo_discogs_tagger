@@ -497,21 +497,25 @@ LRESULT CFindReleaseDialog::OnInitDialog(UINT /*uMsg*/, WPARAM /*wParam*/, LPARA
 
 	set_history_key_override();
 
+	//fix wine light theme
+	set_conditioned_invalidation();
+
 	cewb_release_filter.SetEnterEscHandlers();
 	ceqwb_artist_search.SetEnterEscHandlers();
 	cewb_release_url.SetEnterEscHandlers();
 
+	COLORREF link_color = get_hyper_link_color(m_dark.IsDark());
+
+	//first override ext. style
+	m_artist_link.SetHyperLinkExtendedStyle(0, HLINK_UNDERLINED);
+	m_artist_link.SetHyperLinkExtendedStyle(HLINK_NOTUNDERLINED, HLINK_NOTUNDERLINED);
+	m_artist_link.SetHyperLinkExtendedStyle(HLINK_SINGLELINE, HLINK_SINGLELINE);
+	m_artist_link.SetHyperLinkExtendedStyle(HLINK_NOTOOLTIP, HLINK_NOTOOLTIP);
+	//then subclass
 	m_artist_link.SubclassWindow(GetDlgItem(IDC_STATIC_FIND_REL_STATS));
-	COLORREF lnktx = m_dark.IsDark() ? GetSysColor(/*COLOR_BTNHIGHLIGHT*/COLOR_MENUHILIGHT) : (COLORREF)(-1);
-	m_artist_link.m_clrLink = lnktx;
-	m_artist_link.m_clrVisited = lnktx;
-
-	// init cfged
-	init_cfged_dialog_controls();
-
-	bool db_ready_to_search = false;
-
-	// retreive selection info
+	//then set colors
+	m_artist_link.m_clrLink = link_color;
+	m_artist_link.m_clrVisited = link_color;
 
 	pfc::string8 frm_album;
 	pfc::string8 frm_artist;

@@ -1,6 +1,7 @@
 #include "stdafx.h"
 
 #include "multiformat.h"
+#include "querydefmap.h"
 #include "string_encoded_array.h"
 
 bool titleformat_hook_impl_multiformat::process_field(titleformat_text_out * p_out, const char * p_name, size_t p_name_length, bool & p_found_flag) {
@@ -863,6 +864,28 @@ bool titleformat_hook_impl_multiformat::process_function(titleformat_text_out * 
 			if (param_count > 1) {
 				for (size_t i = 1; i < param_count; i++) {
 					params[0].multi_mod(params[i]);
+				}
+				result = &params[0];
+			}
+			else {
+				wrong_param_count = true;
+			}
+		}
+		else if (pfc::strcmp_ex(p_name, p_name_length, "isvarious", pfc::infinite_size) == 0) {
+			if (param_count == 1) {
+				pfc::string8 pfx = has_csv_prefix(params[0].get_value(), va_csv, true, false);
+	
+				if (pfx.get_length()) {
+					params[0] = true;
+				}
+				else {
+					pfx = has_csv_prefix(params[0].get_value(), va_csv, true, true);
+					if (pfx.get_length()) {
+						params[0] = true;
+					}
+					else {
+						params[0].force_reset();
+					}
 				}
 				result = &params[0];
 			}
