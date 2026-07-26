@@ -271,8 +271,6 @@ void Fetcher::fetch_url(const pfc::string8 &url, const pfc::string8 &params, pfc
 
 					log_msg(msg_status);
 
-					int error_code = std::stoi(substr(status, 9, 3).get_ptr());
-					
 					switch (error_code) {
 					case 404:
 						throw http_404_exception();

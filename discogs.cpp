@@ -2387,7 +2387,7 @@ void Discogs::parseMasterVersions(json_t *root, MasterRelease *master_release, i
 				}
 
 				bool duplicate = false;
-				for (auto walk_subrelease : master_release->sub_releases) {
+				for (Release_ptr walk_subrelease : master_release->sub_releases) {
 
 					if (walk_subrelease->id == release->id) {
 						duplicate = true;
@@ -2502,8 +2502,8 @@ void Discogs::Artist::load(threaded_process_status &p_status, abort_callback &p_
 			initialize_null_artist(this);
 			return;
 		}
-		
-		pfc::string8 msg("Loading artist ");
+
+		pfc::string8 msg(PFC_string_formatter() << (offline_can_read && expired? "expired:" :"") << "loading artist " << id);
 		msg << id << "...";
 		p_status.set_item(msg);
 
@@ -2713,7 +2713,7 @@ void Discogs::Release::load(threaded_process_status &p_status, abort_callback &p
 		if (btransient) {
 
 			pfc::string8 msg;
-			msg << "Loading online releases\\" << id;
+			msg << "loading online releases.(" << id << ")";
 			p_status.set_item(msg);
 
 			pfc::string8 url;
@@ -2793,7 +2793,7 @@ void Discogs::Release::load_my_rating(threaded_process_status &p_status, abort_c
 		return;
 	}
 	try {
-		pfc::string8 msg("Loading release ");
+		pfc::string8 msg("loading release ");
 		msg << id << " personal rating...";
 		p_status.set_item(msg);
 

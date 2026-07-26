@@ -1531,14 +1531,14 @@ int CConf::expiration_days() {
 
 void CConf::set_expiration_enabled(bool enabled) {
 
-	auto k_enabled = 1 << 0;
+	auto flg_enabled = 1 << 0;
 	auto flg = HIWORD(disk_cache_exp);
 
 	if (enabled) {
-		flg |= k_enabled;
+		flg |= flg_enabled;
 	}
 	else {
-		flg &= ~k_enabled;
+		flg &= ~flg_enabled;
 	}
 	disk_cache_exp = MAKELPARAM(LOWORD(disk_cache_exp), flg);
 }

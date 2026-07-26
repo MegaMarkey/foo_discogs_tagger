@@ -61,7 +61,7 @@ HBITMAP LoadDpiBitmapResource(Icon icon, bool isDark) {
 
 HICON LoadDpiIconResource(Icon icon, bool isDark) {
 
-	HICON h_icon;
+	HICON h_icon = nullptr;
 
 	CGdiPlusBitmapResource rec_image;
 

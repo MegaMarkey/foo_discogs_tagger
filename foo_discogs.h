@@ -13,7 +13,7 @@
 using namespace Discogs;
 
 const UINT WM_CUSTOM_ANV_CHANGED = WM_USER + 100;
-const UINT WM_CUSTOM_VA_AS_MULTI_ARTIST_CHANGED = WM_USER + 101;
+const UINT WM_CUSTOM_VA_AS_MA_RESET = WM_USER + 101;
 
 
 class CFindReleaseDialog;

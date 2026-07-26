@@ -28,7 +28,7 @@ class file_info_impl_wrapper
 {
 public:
 	file_info_impl info;
-	bool mask;
+	bool mask = false;
 };
 typedef std::shared_ptr<file_info_impl_wrapper> file_info_impl_wrapper_ptr;
 
@@ -78,10 +78,6 @@ public:
 
 	inline void validate_item(size_t p_index) {
 		info_wrappers[p_index]->mask = true;
-	}
-
-	inline void invalidate_item(size_t p_index) {
-		info_wrappers[p_index]->mask = false;
 	}
 
 	inline void invalidate_all() {

@@ -916,7 +916,7 @@ pfc::string8 DiscogsInterface::get_username(threaded_process_status &p_status, a
 
 pfc::string8 DiscogsInterface::load_username(threaded_process_status &p_status, abort_callback &p_abort) {
 	try {
-		pfc::string8 status("Loading identity...");
+		pfc::string8 status("loading identity...");
 		p_status.set_item(status);
 
 		pfc::string8 json;
@@ -1023,7 +1023,7 @@ bool DiscogsInterface::get_thumbnail_from_cache(Release_ptr release, bool isArti
 
 	if (n8_cache_thumbs.get_count()) {
 
-		p_status.set_item("Fetching artwork preview small album art from cache ...");
+		p_status.set_item("fetching artwork preview small album art from cache ...");
 
 		bool bexists = true;
 		pfc::string8 n8_file_name = n8_cache_thumbs[0];

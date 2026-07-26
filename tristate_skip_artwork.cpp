@@ -29,7 +29,7 @@ UINT  CTristate::GetState() {
 
 void CTristate::SetTristate(UINT prestate, UINT poststate) {
 
-	::CheckDlgButton(parent->m_hWnd, IDC_CHK_SKIP_ARTWORK, BST_INDETERMINATE);
+	::CheckDlgButton(parent->m_hWnd, IDC, BST_INDETERMINATE);
 
 	// SET TRI-STATE STYLE 
 

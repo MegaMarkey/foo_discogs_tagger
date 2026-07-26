@@ -38,19 +38,19 @@ const t_size TagWriter::get_artists_art_count() {
 		return 0;
 	}
 	size_t res = release->images.get_count();
-	for (auto wra : release->artists) {
+	for (ReleaseArtist_ptr wra : release->artists) {
 		res += wra->full_artist->images.get_count();
 	}
 	return res;
 }
 
 bool TagWriter::Staging_Results() {
-	for (auto wr : tag_results) {
+	for (const tag_result_ptr wr : tag_results) {
 		if (wr->result_approved) {
 			return true;
 		}
 	}
-	for (auto wr : tag_results) {
+	for (const tag_result_ptr wr : tag_results) {
 		bool usr_app = wr->r_usr_approved.find_first(true, 0, wr->r_usr_approved.size() < wr->r_usr_approved.size());
 		if (usr_app) {
 			return true;

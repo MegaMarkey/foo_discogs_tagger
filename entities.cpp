@@ -380,6 +380,6 @@ pfc::string8 decode_html_entities_utf8(const char *src) {
 	*to = 0;
 
 	pfc::string8 result = pfc::string8(dest);
-	delete dest;
+	delete[] dest;
 	return result;
 }
