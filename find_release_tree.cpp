@@ -1209,8 +1209,8 @@ bool CFindReleaseTree::on_tree_display_cell_image(size_t item, size_t subitem, s
 }
 
 void CFindReleaseTree::set_image_list() {
-
-	m_hImageList.Create(fb2k::isDarkMode() ? IDB_BITMAP_TRACER_EXT_DRK : IDB_BITMAP_TRACER_EXT, 16, ILC_COLOR4, fb2k::isDarkMode() ? RGB(0, 0, 0) : RGB(255, 255, 255));
+	bool bdark = fb2k::isDarkMode() || check_os_wine_dark_no_theme();
+	m_hImageList.Create(bdark ? IDB_BITMAP_TRACER_EXT_DRK : IDB_BITMAP_TRACER_EXT, 16, ILC_COLOR4, bdark ? RGB(0, 0, 0) : RGB(255, 255, 255));
 	SendMessage(m_hwndTreeView, TVM_SETIMAGELIST, 0, (LPARAM)(HIMAGELIST)m_hImageList);
 }
 

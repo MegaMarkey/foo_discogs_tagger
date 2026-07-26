@@ -81,7 +81,12 @@ static struct rzgripp {
 } mygripp;
 
 extern inline bool check_os_win_eleven();
-extern inline bool check_os_wine();
+extern inline pfc::string8 check_os_wine();
+extern inline bool check_os_wine_ver_after(int amajor, int aminor, pfc::string8 currver);
+extern inline bool check_os_wine_dark_no_theme();
+
+extern inline COLORREF get_hyper_link_color(bool is_dark);
+bool subclass_hyper_link_help_syntax(CHyperLink& help_link, HWND hWnd, bool is_dark);
 
 static const pfc::string8 match_failed("FAILED TO MATCH TRACK ORDER");
 static const pfc::string8 match_success("MATCHED TRACK ORDER");
@@ -127,7 +132,6 @@ size_t encode_mr(const int a, pfc::string8& sb);
 std::pair<int, unsigned long> decode_mr(const size_t coded);
 
 extern void szcstr(size_t n, pfc::string8& out);
-//extern const char* ulcstr(unsigned long ul);
 
 // Make strings lowercase
 extern pfc::string8 lowercase(pfc::string8 str);
@@ -146,7 +150,6 @@ extern inline pfc::string8 substr(const pfc::string8 &s, size_t start, size_t co
 
 // Open URL in default browser
 extern void display_url(const pfc::string8 &url);
-//extern void list_replace_text(HWND list, int pos, const char *text);
 
 extern pfc::string8 extract_max_number(const pfc::string8& s, const char mode, const bool once = false);
 extern pfc::string8 extract_musicbrainz_mib(const pfc::string8& s);

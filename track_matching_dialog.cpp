@@ -1,4 +1,4 @@
-#include "stdafx.h"
+﻿#include "stdafx.h"
 #include "resource.h"
 #include <gdiplus.h>
 #include <filesystem> //makeBuffer
@@ -76,14 +76,10 @@ LRESULT CTrackMatchingDialog::OnInitDialog(UINT /*uMsg*/, WPARAM /*wParam*/, LPA
 	HWND file_list = uGetDlgItem(IDC_UI_FILE_ARTWORK_LIST);
 	if (IsWine()) {
 		HWND hwndWriteTags = GetDlgItem(IDC_BTN_WRITE_TAGS);
-		pfc::string8 wine_text;
-		uGetWindowText(hwndWriteTags, wine_text);
-		wine_text.set_string(PFC_string_formatter() << u8"☰" << "  " << wine_text);
 		TCHAR outBuffer[MAX_PATH + 1] = {};
-		pfc::stringcvt::convert_utf8_to_wide(outBuffer, MAX_PATH,
-			wine_text.get_ptr(), wine_text.get_length());
-
-		::SetWindowText(hwndWriteTags, outBuffer);
+		::GetWindowText(hwndWriteTags, outBuffer, MAX_PATH);
+		std::wstring ws(L"\x2630  "); ws.append(outBuffer);//u8"☰"
+		::SetWindowText(hwndWriteTags, ws.c_str());
 	}
 	else {
 		HWND hwndWriteTags = GetDlgItem(IDC_BTN_WRITE_TAGS);

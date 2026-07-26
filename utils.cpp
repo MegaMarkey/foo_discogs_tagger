@@ -1,6 +1,7 @@
 #include "stdafx.h"
 
 #include "foo_discogs.h"
+#include "utils_path.h"
 #include "utils.h"
 #include <algorithm>
 #include <regex>
@@ -832,33 +833,184 @@ bool check_os_win_eleven() {
 	OSVERSIONINFO ver = { sizeof(ver) };
 	WIN32_OP_D(GetVersionEx(&ver));
 	if (ver.dwMajorVersion == 10 && ver.dwBuildNumber >= 22000)
-		return false;
-	else
 		return true;
+	else
+		return false;
 }
 
-bool check_os_wine() {
+// wine colors
 
-#ifdef OS_IS_WINE
-	return TRUE;
+bool is_dark_luminance(COLORREF fore, COLORREF back) {
+
+	const uint8_t Rf = GetRValue(fore);
+	const uint8_t Gf = GetGValue(fore);
+	const uint8_t Bf = GetBValue(fore);
+
+	const uint8_t Rb = GetRValue(back);
+	const uint8_t Gb = GetGValue(back);
+	const uint8_t Bb = GetBValue(back);
+
+	const double rgf = Rf <= 10 ? Rf / 3294.0 : std::pow((Rf / 269.0) + 0.0513, 2.4);
+	const double ggf = Gf <= 10 ? Gf / 3294.0 : std::pow((Gf / 269.0) + 0.0513, 2.4);
+	const double bgf = Bf <= 10 ? Bf / 3294.0 : std::pow((Bf / 269.0) + 0.0513, 2.4);
+
+	double lum_fore = (1 - 0.2126 * rgf) + (1 - 0.7152 * ggf) + (1 - 0.0722 * bgf);
+
+	const double rgb = Rb <= 10 ? Rb / 3294.0 : std::pow((Rb / 269.0) + 0.0513, 2.4);
+	const double ggb = Gb <= 10 ? Gb / 3294.0 : std::pow((Gb / 269.0) + 0.0513, 2.4);
+	const double bgb = Bb <= 10 ? Bb / 3294.0 : std::pow((Bb / 269.0) + 0.0513, 2.4);
+
+	double lum_back = (1 - 0.2126 * rgb) + (1 - 0.7152 * ggb) + (1 - 0.0722 * bgb);
+	return lum_fore < lum_back;
+}
+
+using Tokens = std::vector<std::string>;
+
+inline Tokens StringSplit(const std::string& text, int separator) {
+	Tokens vs(text.empty() ? 0 : 1);
+	for (const char ch : text) {
+		if (ch == separator) {
+			vs.emplace_back();
+		}
+		else {
+			vs.back() += ch;
+		}
+	}
+	return vs;
+}
+
+LONG GetStringRegKey(HKEY hKey, const std::wstring& strValueName, std::wstring& strValue, const std::wstring& strDefaultValue)
+{
+	strValue = strDefaultValue;
+	WCHAR szBuffer[512];
+	DWORD dwBufferSize = sizeof(szBuffer);
+	ULONG nError;
+	nError = RegQueryValueExW(hKey, strValueName.c_str(), 0, NULL, (LPBYTE)szBuffer, &dwBufferSize);
+	if (ERROR_SUCCESS == nError)
+	{
+		strValue = szBuffer;
+	}
+	return nError;
+}
+
+#ifndef W2U
+#define W2U(Text) pfc::stringcvt::string_utf8_from_wide(Text).get_ptr()
 #endif
 	HMODULE hntdll = GetModuleHandle(L"ntdll.dll");
 	if (!hntdll)
 	{
 		puts("Not running on NT.");
-		return false;
+		return "";
 	}
 
-	auto pwine_get_version = (void*)GetProcAddress(hntdll, "wine_get_version");
-	if (pwine_get_version)
+	FARPROC fpwine_get_version = GetProcAddress(hntdll, "wine_get_version");
+	auto pcwine_get_version = reinterpret_cast<char* (CDECL * )(void)>(fpwine_get_version);
+
+	if (pcwine_get_version)
 	{
-		log_msg("Wine detected.");
-		return true;
+		wine_ver = PFC_string_formatter() << pcwine_get_version();
+		return wine_ver;
 	}
 	else
 	{
-		return false;
+		return "";
 	}
+}
+
+bool check_os_wine_ver_after(int amajor, int aminor, pfc::string8 currver) {
+	int major = 0;
+	int minor = 0;
+	std::vector<pfc::string8> vsplit;
+	split(currver, ".", 0, vsplit);
+	if (vsplit.size() < 2) return false;
+	if (vsplit.size() > 0) major = std::stoi(vsplit[0].c_str());
+	if (vsplit.size() > 1) minor = std::stoi(vsplit[1].c_str());
+	//bool bres = check_os_wine();
+	if (major > amajor)
+		return true;
+	else if (major < amajor)
+		return false;
+
+	if (minor > aminor)
+		return true;
+	else if (minor < aminor)
+		return false;
+
+	return false;
+}
+
+bool check_os_wine_dark_no_theme() {
+
+	if (!IsWine()) return false;
+
+	bool is_wine_dark_no_theme = true;
+
+	TCHAR theme_name[MAX_PATH] = { 0 };
+	HRESULT hres = GetCurrentThemeName(theme_name, MAX_PATH, nullptr, 0, nullptr, 0);
+	if (hres == S_OK) {
+		hres = GetThemeDocumentationProperty(theme_name,
+			SZ_THDOCPROP_DISPLAYNAME, theme_name, MAX_PATH);
+	}
+	pfc::string8 str_cvt = pfc::stringcvt::string_utf8_from_os(theme_name, MAX_PATH);
+
+	is_wine_dark_no_theme &= !str_cvt.length();
+
+	if (is_wine_dark_no_theme) {
+		is_wine_dark_no_theme &= CheckDarkLuminance();
+	}
+
+	return is_wine_dark_no_theme;
+}
+
+COLORREF get_hyper_link_color(bool is_dark) {
+
+	COLORREF link_color;
+
+	bool bv2 = core_version_info_v2::get()->test_version(2, 0, 0, 0);
+
+	if (bv2) {
+		if (g_os_is_wine) {
+
+			if (is_dark) {
+				//old versions with wine dark mode
+				link_color = is_dark ? GetSysColor(COLOR_HIGHLIGHT) : GetSysColor(COLOR_HOTLIGHT);
+			}
+			else {
+				//newer versions dark mode with winecfg (isDark() = false)
+				link_color = ui_config_manager::get()->getSysColor(COLOR_HOTLIGHT);
+			}
+		}
+		else {
+			link_color = is_dark ? GetSysColor(COLOR_HIGHLIGHT) : GetSysColor(COLOR_HOTLIGHT);
+		}
+	}
+	else {
+		link_color = GetSysColor(COLOR_HOTLIGHT);
+	}
+
+	return link_color;
+}
+
+bool subclass_hyper_link_help_syntax(CHyperLink& help_link, HWND hWnd, bool is_dark) {
+
+	help_link.SetHyperLinkExtendedStyle(0, HLINK_UNDERLINED);
+	help_link.SetHyperLinkExtendedStyle(HLINK_NOTUNDERLINED, HLINK_NOTUNDERLINED);
+	help_link.SetHyperLinkExtendedStyle(HLINK_SINGLELINE, HLINK_SINGLELINE);
+	help_link.SetHyperLinkExtendedStyle(HLINK_NOTOOLTIP, HLINK_NOTOOLTIP);
+
+	help_link.SubclassWindow(hWnd);
+
+	COLORREF link_color = get_hyper_link_color(is_dark);
+
+	help_link.m_clrLink = link_color;
+	help_link.m_clrVisited = link_color;
+
+	pfc::string8 url = profile_usr_components_path();
+	url << "\\" << "foo_discogs_help.html";
+
+	pfc::stringcvt::string_wide_from_utf8 wtext(url.get_ptr());
+	help_link.SetHyperLink((LPCTSTR)const_cast<wchar_t*>(wtext.get_ptr()));
+	return hWnd;
 }
 
 void CustomFont(HWND hwndParent, size_t flag, bool check_font, bool apply) {

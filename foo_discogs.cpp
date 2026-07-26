@@ -54,9 +54,8 @@ class initquit_discogs : public initquit
 				entry.enable_update = current_alt & (1 << 1);
 			}
 
-
 			entry.is_multival_meta = is_multivalue_meta(entry.tag_name);
-		
+
 		}
 		init_tag_mappings();
 		discogs_interface = new DiscogsInterface();
@@ -64,6 +63,14 @@ class initquit_discogs : public initquit
 		g_discogs = new foo_discogs();
 		g_os_is_wine = check_os_wine();
 		load_dlls();
+
+		auto wine_ver = check_os_wine();
+		g_os_is_wine = wine_ver.length() > 0;
+
+		if (g_os_is_wine) {
+			log_msg(PFC_string_formatter() << "Wine detected (" << wine_ver << ")");
+		}
+
 	}
 	virtual void on_quit() override {
 		console::print("Quitting");

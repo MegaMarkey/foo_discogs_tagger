@@ -23,7 +23,8 @@ static cfgDialogPosition cfg_dialog_position_find_release_mini_dlg(guid_cfg_dial
 void load_global_icons() {
 
 	auto dpiX = QueryScreenDPIEx(core_api::get_main_window()).cx;
-	bool bdark = fb2k::isDarkMode();
+
+	bool bdark = fb2k::isDarkMode() || check_os_wine_dark_no_theme();
 	g_hIcon_quian = LoadDpiIconResource(!bdark ? Icon::Quian : Icon::Quian_Dark, dpiX);
 	g_hIcon_rec = LoadDpiBitmapResource(Icon::Record, bdark);
 
@@ -66,6 +67,24 @@ CFindReleaseDialog::CFindReleaseDialog(HWND p_parent, metadb_handle_list items, 
 	static_api_ptr_t<titleformat_compiler>()->compile_force(m_album_name_script, "[%album%]");
 	static_api_ptr_t<titleformat_compiler>()->compile_force(m_artist_name_script, "[%artist%]");
 	static_api_ptr_t<titleformat_compiler>()->compile_force(m_album_artist_script, "[%album artist%]");
+	static_api_ptr_t<titleformat_compiler>()->compile_force(m_track_title_script, "[%title%]");
+
+	std::call_once(is_wine_light_theme_flag, []() {
+		if (IsWine()) {
+			TCHAR theme_name[MAX_PATH];
+			auto hres = GetCurrentThemeName(theme_name, MAX_PATH, nullptr, 0, nullptr, 0);
+			hres = GetThemeDocumentationProperty(theme_name,
+				SZ_THDOCPROP_DISPLAYNAME, theme_name, MAX_PATH);
+			auto cvt = pfc::stringcvt::string_utf8_from_os(theme_name, MAX_PATH);
+			pfc::string8 str_cvt(cvt);
+			m_is_wine_light_theme = str_cvt.equals("Light");
+		}
+		else {
+			m_is_wine_light_theme = false;
+		}
+
+		});
+
 }
 
 CFindReleaseDialog::~CFindReleaseDialog() {

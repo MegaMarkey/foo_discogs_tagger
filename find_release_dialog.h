@@ -14,6 +14,8 @@ class expand_master_release_process_callback;
 class get_artist_process_callback;
 class search_artist_process_callback;
 
+static std::once_flag is_wine_light_theme_flag;
+
 class CFindReleaseDialog : public MyCDialogImpl<CFindReleaseDialog>,
 	public CMessageFilter, public ILOD_artist_list,
 	public CDialogResize<CFindReleaseDialog> {
@@ -218,6 +220,12 @@ private:
 	void KTurnOffFilterTimer() throw() { KillTimer(KTypeFilterTimerID); }
 
 	//controls
+
+	std::function<bool()>stdf_conditioned_invalidation = [this]() {
+
+		return  is_wine_light_theme;
+	};
+
 
 	std::function<bool()>stdf_enteroverride_artist = [this]() {
 
@@ -526,6 +534,13 @@ private:
 		}
 	}
 
+	void set_conditioned_invalidation()
+	{
+		ceqwb_artist_search.SetConditionedInvalidation(stdf_conditioned_invalidation);
+		cewb_release_filter.SetConditionedInvalidation(stdf_conditioned_invalidation);
+		cewb_release_url.SetConditionedInvalidation(stdf_conditioned_invalidation);
+
+	}
 	void set_role_label(bool filtered) {
 
 		pfc::string8 note = (PFC_string_formatter() << "&main role " << (filtered ? "&& filtered versions" : ""));

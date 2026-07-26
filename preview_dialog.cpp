@@ -318,14 +318,10 @@ LRESULT CPreviewTagsDialog::OnInitDialog(UINT /*uMsg*/, WPARAM /*wParam*/, LPARA
 	//add rec icon to write tags button
 	if (IsWine()) {
 		HWND hwndWriteTags = GetDlgItem(IDC_BTN_WRITE_TAGS);
-		pfc::string8 wine_text;
-		uGetWindowText(hwndWriteTags, wine_text);
-		wine_text.set_string(PFC_string_formatter() << u8"☰" << "  " << wine_text);
 		TCHAR outBuffer[MAX_PATH + 1] = {};
-		pfc::stringcvt::convert_utf8_to_wide(outBuffer, MAX_PATH,
-			wine_text.get_ptr(), wine_text.get_length());
-
-		::SetWindowText(hwndWriteTags, outBuffer);
+		::GetWindowText(hwndWriteTags, outBuffer, MAX_PATH);
+		std::wstring ws(L"\x2630  "); ws.append(outBuffer);//u8"☰"
+		::SetWindowText(hwndWriteTags, ws.c_str());
 	}
 	else {
 		HWND hwndWriteTags = GetDlgItem(IDC_BTN_WRITE_TAGS);
@@ -749,9 +745,6 @@ bool CPreviewTagsDialog::init_other_controls_and_results() {
 
 	enable(true, true);
 	return true;
-}
-void CPreviewTagsDialog::reset_tag_result_stats() {
-	//..
 }
 
 void CPreviewTagsDialog::replace_tag_result(size_t item, tag_result_ptr result) {
