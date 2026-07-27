@@ -426,9 +426,7 @@ namespace Discogs
 
 		bool format_incl_vol = false;
 
-		bool is_box() const {
-			return name.equals("Box Set") || name.equals("All Media");
-		}
+		bool is_box() const { return name.equals("Box Set") || name.equals("All Media"); }
 		string_encoded_array get_quantity() const {
 			return qty;
 		}
@@ -547,8 +545,10 @@ namespace Discogs
 	public:
 		pfc::string8 title;
 		pfc::string8 title_index;
+		pfc::array_t<pfc::string8> subtrack_durations;
 		pfc::string8 title_subtrack;
 		pfc::string8 title_heading;
+		pfc::string8 title_heading_duration;
 		ReleaseHeading_ptr heading_ptr;
 		ReleaseIndexes_ptr index_ptr;
 		pfc::string8 discogs_duration_raw;
@@ -557,7 +557,8 @@ namespace Discogs
 		int discogs_indextrack_duration_seconds = 0;
 		int track_number = 0;
 		int disc_track_number = 0;
-		bool disc_track_side = false;
+		bool disc_track_two_sided = false;
+		int disc_track_side = 0;
 		pfc::string8 discogs_track_number;
 		pfc::array_t<std::shared_ptr<ReleaseTrack>> hidden_tracks;
 		int discogs_hidden_duration_seconds = 0;
@@ -567,6 +568,9 @@ namespace Discogs
 		}
 		string_encoded_array get_disc_track_number() const {
 			return disc_track_number;
+		}
+		string_encoded_array get_disc_track_two_sided() const {
+			return disc_track_two_sided;
 		}
 		string_encoded_array get_disc_track_side() const {
 			return disc_track_side;
@@ -587,6 +591,9 @@ namespace Discogs
 		//--
 		string_encoded_array get_title_index() const {
 			return title_index;
+		}
+		string_encoded_array get_subtrack_durations() const {
+			return subtrack_durations;
 		}
 		string_encoded_array get_title_subtrack() const {
 			return title_subtrack;
@@ -611,10 +618,12 @@ namespace Discogs
 			ExposedMap<ReleaseTrack> m;
 			m["NUMBER"] = { &ReleaseTrack::get_track_number, &ReleaseTrack::load };
 			m["DISC_TRACK_NUMBER"] = { &ReleaseTrack::get_disc_track_number, &ReleaseTrack::load };
+			m["DISC_TRACK_TWO_SIDED"] = { &ReleaseTrack::get_disc_track_two_sided, &ReleaseTrack::load };
 			m["DISC_TRACK_SIDE"] = { &ReleaseTrack::get_disc_track_side, &ReleaseTrack::load };
 			m["DISCOGS_TRACK_NUMBER"] = { &ReleaseTrack::get_discogs_track_number, &ReleaseTrack::load };
 			m["TITLE"] = { &ReleaseTrack::get_title, &ReleaseTrack::load };
 			m["INDEXTRACK_TITLE"] = { &ReleaseTrack::get_title_index, &ReleaseTrack::load };
+			m["SUBTRACK_DURATIONS"] = { &ReleaseTrack::get_subtrack_durations, &ReleaseTrack::load };
 			m["HEADING"] = { &ReleaseTrack::get_title_heading, &ReleaseTrack::load };
 			m["SUBTRACK_TITLE"] = { &ReleaseTrack::get_title_subtrack, &ReleaseTrack::load };
 			m["INDEXTRACK_DURATION_RAW"] = { &ReleaseTrack::get_discogs_indextrack_duration_raw, &ReleaseTrack::load };
@@ -629,22 +638,22 @@ namespace Discogs
 
 		ReleaseTrack* clone() {
 			ReleaseTrack *rt = new ReleaseTrack();
-			// WARNING: We are copying pointers to artists, Artist
-			rt->track_number = track_number;
-			rt->disc_track_number = disc_track_number; 
-			rt->discogs_track_number = discogs_track_number;
+			// WARNING: We are copying pointers to artists, Artist, headings and indexes
 			rt->title = title;
 			rt->title_index = title_index;
 			rt->title_subtrack = title_subtrack;
+			rt->subtrack_durations = subtrack_durations;
 			rt->title_heading = title_heading;
+			rt->title_heading_duration = title_heading_duration;
 			rt->heading_ptr = heading_ptr;
 			rt->index_ptr = index_ptr;
 			rt->discogs_duration_raw = discogs_duration_raw;
 			rt->discogs_duration_seconds = discogs_duration_seconds;
 			rt->track_number = track_number;
-			rt->disc_track_number = disc_track_number; 
-			rt->disc_track_side = disc_track_side; 
+			rt->disc_track_number = disc_track_number;
 			rt->discogs_track_number = discogs_track_number;
+			rt->disc_track_two_sided = disc_track_two_sided;
+			rt->disc_track_side = disc_track_side;
 			rt->artists = artists;
 			rt->credits = credits;
 			return rt;
@@ -1186,7 +1195,7 @@ namespace Discogs
 	extern void parseImages(json_t *array, pfc::array_t<Image_ptr> &images);
 	extern Image_ptr parseImage(json_t *element);
 
-	extern void parseArtistReleases(json_t *element, Artist *artist, int query_mode, std::map<std::string, MasterRelease_ptr>& mva_masters, std::pair<size_t, size_t>& qry_mr_found = std::pair<size_t, size_t>{ 0,0 });
+	extern void parseArtistReleases(json_t *element, Artist *artist, int query_mode, std::map<std::string, MasterRelease_ptr>& mva_masters, std::pair<size_t, size_t>& qry_mr_found = std::pair<size_t, size_t>{ 0,0 }/*, pfc::array_t<MasterRelease_ptr> va_masters, pfc::array_t<Release_ptr> va_releases*/);
 	extern void parseMasterVersions(json_t *element, MasterRelease *master_release, int query_mode);
 
 	extern ReleaseArtist_ptr parseReleaseArtist(json_t *element, bool preload = false);
@@ -1207,6 +1216,7 @@ namespace Discogs
 	extern ReleaseFormat_ptr parseReleaseFormat(json_t *element);
 	extern void parseReleaseFormats(json_t *element, pfc::array_t<ReleaseFormat_ptr> &formats);
 
-	extern void parseAllReleaseTracks(json_t* element, bool isRelease, HasTracklist* has_tracklist, HasArtists* has_artists, HasIndexes* has_indexes);
-	extern void parseReleaseTrack(json_t* element, pfc::array_t<ReleaseTrack_ptr>& tracks, /*unsigned& discogs_original_track_number,*/ pfc::string8 heading, ReleaseTrack_ptr* index, HasArtists* has_artists, HasIndexes* has_indexes);
+	extern void parseAllReleaseTracks(json_t* element, bool isRelease, const pfc::array_t<ReleaseFormat_ptr>& formats, HasTracklist* has_tracklist, HasArtists* has_artists, HasIndexes* has_indexes);
+	extern void parseReleaseTrack(json_t* element, pfc::array_t<ReleaseTrack_ptr>& tracks, pfc::string8 heading, pfc::string8 heading_duration, ReleaseTrack_ptr* index, HasArtists* has_artists, HasIndexes* has_indexes,
+		size_t& last_disc_number, size_t& last_track_number);
 }

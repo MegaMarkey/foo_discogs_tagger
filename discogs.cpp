@@ -380,12 +380,6 @@ pfc::string8 Discogs::strip_artist_name(const pfc::string8 str) {
 	return result;
 }
 
-pfc::string8 Discogs::format_track_number(int tracknumber) {
-	char buf[4];
-	sprintf_s(buf, "%d", tracknumber);
-	return buf;
-}
-
 ReleaseArtist_ptr Discogs::parseReleaseArtist(json_t *element, bool preload) {
 	assert_is_object(element);
 	pfc::string8 artist_id = JSONAttributeString(element, "id");
@@ -696,8 +690,8 @@ void Discogs::DistReleaseTrackCredits(const pfc::array_t<pfc::string8>& arrTrack
 	}
 
 	if (cTracks > 1) {
-		//RECURSION (TAIL)
-        //todo: pass 'from' position instead 
+		//tail recursion
+		//todo: pass 'from' position instead 
 		pfc::array_t<pfc::string8> arrTracksTail; arrTracksTail.resize(arrTracks.get_count() - 1);
 		int c = 1;
 		for (auto& ti : arrTracksTail) {
@@ -769,7 +763,7 @@ Image_ptr Discogs::parseImage(json_t *element) {
 }
 
 void Discogs::parseImages(json_t *array, pfc::array_t<Image_ptr> &images) {
-	pfc::array_t<Image_ptr> temp;
+	pfc::array_t<Image_ptr> sec_images;
 	if (json_is_array(array)) {
 		for (size_t i = 0; i < json_array_size(array); i++) {
 			json_t *img = json_array_get(array, i);
@@ -779,20 +773,24 @@ void Discogs::parseImages(json_t *array, pfc::array_t<Image_ptr> &images) {
 					images.append_single(std::move(image));
 				}
 				else {
-					temp.append_single(std::move(image));
+					sec_images.append_single(std::move(image));
 				}
 			}
 		}
 	}
-
-	images.append(sec_images);
-
+	if (images.size()) {
+		images.append(sec_images);
+	}
+	else {
+		//todo: rev
+		images.append(sec_images);
+	}
 	if (images.size() - param_image_count != json_array_size(array)) {
-        pfc::string8 msg("Error parsing ");
-        msg << PFC_string_formatter() << (json_array_size(array) - sec_images.size());
-        msg << PFC_string_formatter() << " out of " << json_array_size(array) << " images";
-        log_msg(msg);
-    }
+		pfc::string8 msg("Error parsing ");
+		msg << PFC_string_formatter() << (json_array_size(array) - sec_images.size());
+		msg << PFC_string_formatter() << " out of " << json_array_size(array) << " images";
+		log_msg(msg);
+	}
 }
 
 ReleaseFormat_ptr Discogs::parseReleaseFormat(json_t *element) {
@@ -817,7 +815,6 @@ bool remove_chars(char c) {
 	return !((c >= '0' && c <= '9') || c == '-');
 }
 
-
 struct ptp_nfo {
 
 	pfc::string8 dctn;
@@ -828,6 +825,7 @@ struct ptp_nfo {
 
 	bool bvol_alpha;
 	bool btrk_alpha;
+	bool bmod_subtrack_track_is_disc;
 
 	pfc::string8 format;
 	pfc::string8 altformat;
@@ -836,6 +834,7 @@ struct ptp_nfo {
 
 	bool bformat_incl_vol;
 	bool bformat_incl_sideb;
+	pfc::string8 side_trk_postfix;
 
 	ReleaseFormat_ptr p_rf;
 
@@ -843,6 +842,8 @@ struct ptp_nfo {
 
 		bvol_alpha = false;
 		btrk_alpha = false;
+
+		bmod_subtrack_track_is_disc = false;
 
 		format_qty = 0;
 		ql_format_qty = ~0;
@@ -855,12 +856,12 @@ struct ptp_nfo {
 
 struct trk_name_nfo {
 
-	const pfc::string8 dctn;
-	
+	/*const*/ pfc::string8 dctn;
+
 	pfc::string8 tn_nosub;
 	pfc::string8 tn_nosub_chopped;
 	pfc::string8 tn_std;
-	
+
 	bool isIndex;
 
 	trk_name_nfo(const pfc::string8 dctn, bool isIndex): dctn(dctn), isIndex(isIndex) {
@@ -900,8 +901,8 @@ std::pair<ReleaseFormat_ptr, LPARAM> get_format_name(pfc::array_t<ReleaseFormat_
 	return no_res;
 }
 
-
-void get_format_info(const pfc::string8 dc_track, const std::pair<ReleaseFormat_ptr, size_t> format_nfo_curr, const std::pair<ReleaseFormat_ptr, size_t> format_nfo_next,
+//todo: depricate
+bool get_format_info(const pfc::string8 dc_track, const std::pair<ReleaseFormat_ptr, size_t> format_nfo_curr, const std::pair<ReleaseFormat_ptr, size_t> format_nfo_next,
 	int curr_disc_number, ptp_nfo& ptpos, pfc::string8& chop, bool& bjump, size_t& jump_disc) {
 
 	bjump = false;
@@ -931,7 +932,7 @@ void get_format_info(const pfc::string8 dc_track, const std::pair<ReleaseFormat_
 
 			for (size_t wdesc = 0; wdesc < format_nfo_curr.first->descriptions.get_count(); wdesc++) {
 
-				auto desc = format_nfo_curr.first->descriptions[wdesc];
+				pfc::string8 desc = format_nfo_curr.first->descriptions[wdesc];
 
 				if (dc_track.has_prefix(desc)) {
 					if (format_nfo_curr.first == ptpos.p_rf) {
@@ -983,7 +984,7 @@ void get_format_info(const pfc::string8 dc_track, const std::pair<ReleaseFormat_
 
 				for (size_t wdesc = 0; wdesc < format_nfo_next.first->descriptions.get_count(); wdesc++) {
 
-					auto desc = format_nfo_next.first->descriptions[wdesc];
+					pfc::string8 desc = format_nfo_next.first->descriptions[wdesc];
 
 					if (dc_track.has_prefix(desc)) {
 						if (format_nfo_next.first == ptpos.p_rf) {
@@ -1013,11 +1014,41 @@ void get_format_info(const pfc::string8 dc_track, const std::pair<ReleaseFormat_
 			}
 		}
 	}
+
+	return chop.get_length();
 }
 
-// PARSE TRACK POSITION
+// todo: depricate
+// 1..N in/out params
+// second are start/end release format positions
 
-void parseTrackPosition(ReleaseTrack_ptr& track, const std::pair<ReleaseFormat_ptr, size_t> format_nfo_curr, const std::pair<ReleaseFormat_ptr, size_t> format_nfo_next, 
+ReleaseFormat_ptr get_matching_format_info(const pfc::array_t<ReleaseFormat_ptr>* formats, pfc::string8 dc_track, ptp_nfo& ptpos, pfc::string8& chop) {
+
+	if (is_number(dc_track.c_str())) return nullptr;
+
+	const ReleaseFormat* wf = (*formats)[0].get();
+
+	size_t boxset_offset = static_cast<size_t>(wf->is_box());
+	size_t cDisc = 0;
+
+	for (size_t w = 0; w < formats->get_count(); w++) {
+
+		const ReleaseFormat_ptr wf = (*formats)[w];
+		auto qty = atoi(wf->get_quantity().print().c_str());
+
+		if (dc_track.has_prefix(wf->get_name().get_cvalue())) {
+			ptpos.format = chop = wf->get_name();
+			ptpos.p_rf = wf;
+			ptpos.ql_format_qty = atoi(ptpos.p_rf->qty);
+			ptpos.bformat_incl_vol = wf->format_incl_vol;
+			return wf;
+		}
+	}
+	return nullptr;
+}
+
+void parseTrackPosition(ReleaseTrack_ptr& track, const pfc::array_t<ReleaseFormat_ptr>* formats, bool& bformats_unsorted,
+	const std::pair<ReleaseFormat_ptr, size_t> format_nfo_curr, const std::pair<ReleaseFormat_ptr, size_t> format_nfo_next,
 	ptp_nfo & ptpos, bool multi_format,int curr_vol_number, int next_track_number) {
 
 	if (!(bool)curr_vol_number) {
@@ -1025,7 +1056,7 @@ void parseTrackPosition(ReleaseTrack_ptr& track, const std::pair<ReleaseFormat_p
 		curr_vol_number = 1;
 	}
 
-	//patch crash: rewind-hidden 0 tracks
+	//rewind-hidden track 0 not supported
 	if (track->discogs_track_number.equals("-1")) {
 		track->discogs_track_number = "1a";
 	}
@@ -1048,6 +1079,7 @@ void parseTrackPosition(ReleaseTrack_ptr& track, const std::pair<ReleaseFormat_p
 
 	ptpos.bformat_incl_vol = false;
 	ptpos.bformat_incl_sideb = false;
+	ptpos.side_trk_postfix = "";
 
 	bool bjump = false;
 	size_t jump_disc = ~0;
@@ -1058,7 +1090,16 @@ void parseTrackPosition(ReleaseTrack_ptr& track, const std::pair<ReleaseFormat_p
 	size_t dotpos;
 	if ((dotpos = trk_name.dctn.find_last('.')) < trk_name.dctn.get_length()) {
 
-		ptpos.subtrk_postfix = substr(trk_name.dctn, dotpos + 1);
+	bool dotpos_is_len = dotpos == trk_name.dctn.get_length() - 1;
+	if (dotpos_is_len) {
+		trk_name.dctn << std::to_string(next_track_number).c_str();
+	}
+
+	ptpos.subtrk_postfix = substr(trk_name.dctn, dotpos + 1);
+	int dec = RomanToDecimal(ptpos.subtrk_postfix);
+	if (dec) {
+		ptpos.subtrk_postfix = std::to_string(dec).c_str();
+	}
 
 		trk_name.tn_nosub = substr(trk_name.dctn, 0, dotpos);
 	}
@@ -1068,21 +1109,60 @@ void parseTrackPosition(ReleaseTrack_ptr& track, const std::pair<ReleaseFormat_p
 	}
 
 	// QUERY FORMATS / DISC RANGES
-	get_format_info(trk_name.dctn, format_nfo_curr, format_nfo_next, curr_vol_number,
-		ptpos, chop, bjump, jump_disc);
+
+	//todo: repricate
+	if (!bformats_unsorted) {
+		get_format_info(trk_name.dctn, format_nfo_curr, format_nfo_next, curr_vol_number,
+			ptpos, chop, bjump, jump_disc);
+		if (!chop.get_length()) {
+			//format will not help match
+			bformats_unsorted = true;
+		}
+	}
+	//todo: repricate
+	if (bformats_unsorted) {
+		auto f = get_matching_format_info(formats, trk_name.dctn, ptpos, chop);
+	}
 
 	// PREPLACE DISC NUMBERS & FORMAT PREFIXES
 	size_t choplen = chop.get_length();
 
 	pfc::string8 mod_dc_tn = trk_name.dctn;
+
 	if (choplen) {
 
 		ptpos.format = chop;
+
 		//remove media format preffix
 		mod_dc_tn = substr(mod_dc_tn, choplen);
-			
-		if (mod_dc_tn[0] == '-') {
-			mod_dc_tn = substr(trk_name.dctn, choplen + 1);
+
+		size_t min_pos = mod_dc_tn.find_first('-');
+		if (min_pos != SIZE_MAX) {
+			if (min_pos == 0) {
+				jump_disc = curr_vol_number;
+				pfc::string8 tmp_trk(mod_dc_tn.subString(1));
+				if (is_number(tmp_trk.c_str())) {
+					if (atoi(tmp_trk) < next_track_number) {
+						jump_disc = curr_vol_number + 1;
+					}
+
+					ptpos.vol_preffix = PFC_string_formatter() << jump_disc;
+
+				}
+				bjump = false;
+			}
+			else {
+				pfc::string8 tmp(mod_dc_tn.subString(0, min_pos));
+				if (is_number(tmp.c_str())) {
+					jump_disc = atoi(tmp);
+					ptpos.vol_preffix = PFC_string_formatter() << jump_disc;
+					bjump = false;
+				}
+				else {
+					//..
+				}
+			}
+			mod_dc_tn = PFC_string_formatter() <<  jump_disc << "-" << substr(trk_name.dctn, choplen + min_pos + 1);
 		}
 	}
 
@@ -1094,8 +1174,8 @@ void parseTrackPosition(ReleaseTrack_ptr& track, const std::pair<ReleaseFormat_p
 
 		if (!ptpos.bformat_incl_vol) {
 
-			size_t track_minus;
-			if ((track_minus = mod_dc_tn.find_first('-')) < mod_dc_tn.get_length()) {
+			size_t track_minus = mod_dc_tn.find_first('-');
+			if (track_minus  < mod_dc_tn.get_length()) {
 
 				mod_dc_tn = PFC_string_formatter() << jump_disc << substr(mod_dc_tn, track_minus);
 			}
@@ -1112,12 +1192,14 @@ void parseTrackPosition(ReleaseTrack_ptr& track, const std::pair<ReleaseFormat_p
 	// EXTRACT SUBTRACK 2
 	size_t subdotpos;
 
-	if ((subdotpos = mod_dc_tn.find_last('.')) < mod_dc_tn.get_length()) {
+	if ((subdotpos = mod_dc_tn.find_last('.')) < mod_dc_tn.get_length() -1) {
 
 		ptpos.subtrk_postfix = substr(mod_dc_tn, subdotpos + 1);
+		ptpos.trk_postfix = substr(mod_dc_tn, 0, subdotpos);
+
 		if (!trk_name.isIndex) {
 
-			trk_name.tn_nosub_chopped = substr(mod_dc_tn, 0, subdotpos);
+			trk_name.tn_nosub_chopped = ptpos.trk_postfix;
 		}
 		else {
 
@@ -1131,6 +1213,51 @@ void parseTrackPosition(ReleaseTrack_ptr& track, const std::pair<ReleaseFormat_p
 			trk_name.tn_nosub_chopped = trk_name.dctn;
 		}
 	}
+
+	if (ptpos.bmod_subtrack_track_is_disc) {
+		if (subdotpos > mod_dc_tn.get_length()) {
+			std::string s = mod_dc_tn;
+			std::replace_if(s.begin(), s.end(), [](unsigned char c)
+				{
+					return !std::isdigit(c);
+				}, '.');
+			mod_dc_tn = s.c_str();
+		}
+		ptpos.subtrk_postfix = substr(mod_dc_tn, subdotpos + 1);
+		ptpos.trk_postfix = substr(mod_dc_tn, 0, subdotpos);
+
+		size_t trk_subdotpos = ptpos.trk_postfix.find_last('.');
+
+		if (subdotpos != trk_subdotpos && trk_subdotpos < ptpos.trk_postfix.get_length() - 1) {
+			ptpos.vol_preffix = substr(ptpos.trk_postfix, 0, trk_subdotpos);
+			ptpos.trk_postfix = substr(ptpos.trk_postfix, trk_subdotpos+1);
+		}
+		else {
+		
+			ptpos.vol_preffix = ptpos.trk_postfix;
+			ptpos.trk_postfix = ptpos.subtrk_postfix;
+			ptpos.subtrk_postfix = "0";
+		}
+
+		std::string tmpPre = ptpos.vol_preffix;
+		std::string tmpPost = ptpos.trk_postfix;
+		std::string tmpSub = ptpos.subtrk_postfix;
+		tmpPre.erase(0, tmpPre.find_first_not_of('0'));
+		tmpPost.erase(0, tmpPost.find_first_not_of('0'));
+		tmpSub.erase(0, tmpSub.find_first_not_of('0'));
+		ptpos.vol_preffix = tmpPre.c_str();
+		ptpos.trk_postfix = tmpPost.c_str();
+		ptpos.subtrk_postfix = tmpSub.c_str();
+
+		if (ptpos.vol_preffix.get_length())
+			ptpos.bvol_alpha = !pfc::string_is_numeric(ptpos.vol_preffix);
+		if (ptpos.trk_postfix.get_length())
+			ptpos.btrk_alpha = !pfc::string_is_numeric(ptpos.trk_postfix);
+		//..
+		return;
+		//..
+	}
+
 
 	// FINISH PARSE TRACK...
 
@@ -1180,6 +1307,12 @@ void parseTrackPosition(ReleaseTrack_ptr& track, const std::pair<ReleaseFormat_p
 		tmp_pre = substr(trk_name.tn_nosub_chopped, 0, _trk_div_pos);
 		tmp_post = substr(trk_name.tn_nosub_chopped, _trk_div_pos + 1);
 
+		int dec = RomanToDecimal(tmp_post);
+		if (dec) {
+			ptpos.subtrk_postfix = std::to_string(dec).c_str();
+			tmp_post = ptpos.subtrk_postfix;
+		}
+
 		// VOL_ALPHA AND TRK_ALPHA 
 
 		ptpos.bvol_alpha = !pfc::string_is_numeric(tmp_pre);
@@ -1201,31 +1334,38 @@ void parseTrackPosition(ReleaseTrack_ptr& track, const std::pair<ReleaseFormat_p
 			tmp_pre = substr(trk_name.tn_nosub_chopped, 0, last_num_pos);
 			tmp_post = substr(trk_name.tn_nosub_chopped, last_num_pos);
 
-			// A1 B1a C3
+			// A1 B1a C3 or x, y
+			auto ndx = (int)tmp_pre.toLower()[0] - 97;
 			if (tmp_pre.get_length() == 1) {
-
-				pfc::string8 tmp_pre_lower = tmp_pre.toLower();
-				auto ndx = (int)tmp_pre_lower[0] - 97; //(97 - 122)
-
-				if (ndx >= 0 && ndx < 26) {
-
-					if (ndx % 2) {
-						//odd
-						auto album = (ndx + 1) / (double)2 /*+ 0.5*/;
-						tmp_pre = std::to_string((int)album).c_str();
-						//SIDE B
-						ptpos.bformat_incl_sideb = true;
-					}
-					else {
-						auto album = (ndx + 1) / (double)2 + 0.5;
-						//even
-						tmp_pre = std::to_string((int)album).c_str();
-					}
-					tmp_post = std::to_string(next_track_number).c_str();
+				//fix of fix xy
+				if (((ndx + 1) / (double)2) - curr_vol_number > 1) {
+					//x, y
+					tmp_post = PFC_string_formatter() << next_track_number;
+					tmp_pre = PFC_string_formatter() << curr_vol_number;
 				}
 				else {
-					// other chars
-					tmp_pre = std::to_string(curr_vol_number).c_str();
+					if (ndx >= 0 && ndx < 26) {
+
+						ptpos.side_trk_postfix = tmp_post;
+
+						if (ndx % 2) {
+							//odd
+							auto album = (ndx + 1) / (double)2 /*+ 0.5*/;
+							tmp_pre = std::to_string((int)album).c_str();
+							//SIDE B
+							ptpos.bformat_incl_sideb = true;
+						}
+						else {
+							auto album = (ndx + 1) / (double)2 + 0.5;
+							//even
+							tmp_pre = std::to_string((int)album).c_str();
+						}
+						tmp_post = std::to_string(next_track_number).c_str();
+					} // end album letters
+					else {
+						// other chars
+						tmp_pre = std::to_string(curr_vol_number).c_str();
+					}
 				}
 			}
 		}
@@ -1276,17 +1416,14 @@ void parseTrackPosition(ReleaseTrack_ptr& track, const std::pair<ReleaseFormat_p
 
 			ptpos.btrk_alpha = (bool)halpha.get_length();
 
-			if (!CONF.parse_hidden_as_regular) {
-				if (ptpos.btrk_alpha) {
+			if (ptpos.btrk_alpha) {
 
-					ptpos.hidden_postfix = halpha;
-				}
-
+				ptpos.hidden_postfix = halpha;
 			}
-
 		}
 
 	}
+
 
 	// check leftovers
 
@@ -1331,7 +1468,6 @@ void parseTrackPosition(ReleaseTrack_ptr& track, const std::pair<ReleaseFormat_p
 
 			if (!pfc::string_is_numeric(mytrack)) {
 
-				//TODO: use get_last_num
 				std::string lastnum;
 				std::string str_mod = mytrack.c_str();
 
@@ -1358,23 +1494,42 @@ void parseTrackPosition(ReleaseTrack_ptr& track, const std::pair<ReleaseFormat_p
 	}
 }
 
+	bool test_track_is_vol(int total_discs, pfc::string8 last_track_discogs_position) {
+		bool bres = false;
+		size_t dotpos;
+		if ((dotpos = last_track_discogs_position.find_first('.')) < last_track_discogs_position.get_length()) {
+			bres = substr(last_track_discogs_position, 0, dotpos).equals(std::to_string(total_discs).c_str());
+		}
+		return bres;
+	}
+
 // PARSE ALL TRACK POSITIONS
 
-void parseAllTrackPositions(pfc::array_t<ReleaseTrack_ptr>& intermediate_tracks, HasTracklist* release) {
+bool parseAllTrackPositions(pfc::array_t<ReleaseTrack_ptr>& intermediate_tracks, HasTracklist* release) {
+
+	if (!intermediate_tracks.get_count() || !release) {
+		return false;
+	}
 
 	//counters
-	int track_number = 1;
-	int disc_track_number = 1;
-	int disc_number = 1;
+	int ctrack_number = 1;
+	int cdisc_track_number = 1;
+	int cdisc_number = 0;
 
 	bool bsubtrack = false;
+	bool bfake_subtrack_header_changed = false;
 
 	bool bmerge_subtracks = CONF.cache_offline_cache_flag & ol::CacheFlags::MERGE_SUBTRACKS;
-	bool bmerge_hidden = CONF.parse_hidden_as_regular && !CONF.parse_hidden_merge_titles;
+	bool bmerge_tracks_to_header = CONF.cache_offline_cache_flag & ol::CacheFlags::MERGE_TRACKS_DOTTED_TO_HEADER;
+	bool bmerge_hidden = !CONF.parse_hidden_as_regular;
 
 	bool last_hidden = false;
-	bool last_subtrack = false;
-	
+	bool last_ssubtrack = false;
+	bool last_fake_subtrack = false;
+
+	pfc::string8 merging_track = "";
+	pfc::string8 last_heading = "";
+
 	bool last_vol_alpha = false;
 
 	pfc::string8 last_vol_preffix = "0";
@@ -1389,69 +1544,108 @@ void parseAllTrackPositions(pfc::array_t<ReleaseTrack_ptr>& intermediate_tracks,
 	std::pair<ReleaseFormat_ptr, LPARAM> format_nfo_current = std::pair(nullptr, 0);
 	std::pair<ReleaseFormat_ptr, LPARAM> format_nfo_next = std::pair(nullptr, 0);
 
-	// WALK TRACKS
 
+	bool formats_unsorted = false;
+	if (intermediate_tracks.get_size() > 1) {
+		parse_nfo.bmod_subtrack_track_is_disc =
+				test_track_is_vol(release->discogs_total_discs, intermediate_tracks[intermediate_tracks.get_size() -1]->discogs_track_number);
+	}
+
+	try {
+
+	// WALK TRACKS
 	for (size_t i = 0; i < intermediate_tracks.get_size(); i++) {
 
-		auto currdisc = (std::max)((int)release->discs.get_count(), 1);
+		auto current_disc = (std::max)((int)release->discs.get_count(), 1);
 
-		if (currdisc > release->discogs_total_discs) {
-			currdisc = release->discogs_total_discs;
+		if (current_disc > release->discogs_total_discs) {
+			current_disc = release->discogs_total_discs;
 		}
 
 		// query format refs
 
-		format_nfo_current = get_format_name(formats, (std::min)(release->discogs_total_discs, (int)currdisc));
+		format_nfo_current = get_format_name(formats, (std::min)(release->discogs_total_discs, (int)current_disc));
 		if (format_nfo_current.first) {
 			format_nfo_next = get_format_name(formats, (std::min)(release->discogs_total_discs, (int)HIWORD(format_nfo_current.second) + 1));
 		}
 
 		ReleaseTrack_ptr& track = intermediate_tracks[i];
 
+		//
 		// PARSE TRACK POSITION
+		//
 
-		parseTrackPosition(track, format_nfo_current, format_nfo_next, parse_nfo, ptmp->formats.get_count(),
-			release->discs.get_count(), disc_track_number);
+		parseTrackPosition(track, formats, formats_unsorted,
+				format_nfo_current,  format_nfo_next,
+				parse_nfo, ptmp->formats.get_count(),
+				release->discs.get_count(),
+			cdisc_track_number);
 
 		//
 
 		bool bdiscogs_track_number_std = (atoi(parse_nfo.vol_preffix) > 0 && atoi(parse_nfo.trk_postfix) > 0);
-
+		bool bhidden = (bool)parse_nfo.hidden_postfix.get_length();
+		bhidden |= parse_nfo.subtrk_postfix.get_length() && !(track->/*title_index*/title_subtrack.get_length() || track->title_index.get_length() || track->title_heading.get_length());
+		if (bhidden && !parse_nfo.hidden_postfix.get_length()) parse_nfo.hidden_postfix = parse_nfo.subtrk_postfix;
+		bhidden |= parse_nfo.subtrk_postfix.get_length() && !pfc::string_is_numeric(parse_nfo.subtrk_postfix);
+		if (bhidden && !parse_nfo.hidden_postfix.get_length()) parse_nfo.hidden_postfix = parse_nfo.subtrk_postfix;
 
 		// SUBTRACK STATUS
 
-		bsubtrack = (bool)track->title_subtrack.get_length() && (!track->discogs_duration_raw.get_length() && parse_nfo.subtrk_postfix.get_length());
+		//todo: rev hidden subtracks?
 
-		if (!bsubtrack) {
+		pfc::string8 curr_heading = track->title_heading;
+		curr_heading << track->title_index;
 
+		bsubtrack = !bhidden;
+		bsubtrack &= (bool)track->title_subtrack.get_length();
+		bool bheading_changed = last_heading.get_length() && !curr_heading.equals(last_heading);
+
+		bool bfake_subtrack = !bhidden;
+
+		bfake_subtrack &= (bool)track->title_heading.get_length() && (!track->discogs_duration_raw.get_length() && parse_nfo.subtrk_postfix.get_length());
+		if (bfake_subtrack) {
+
+			bfake_subtrack_header_changed = last_heading.get_length() && !last_heading.equals(curr_heading);
+
+		}
+		else {
+			//..
+		}
+
+		if (!bsubtrack && !bfake_subtrack) {
 			if (track->discogs_duration_raw.get_length()) {
 
 				if (parse_nfo.subtrk_postfix.get_length()) {
-
-					//alt-subtrack notation (5.1 non indexed subtracks?)
-					//temp fix to reduce false alt-subtrack parsing
-					//could fail with multidisk releases
-					//todo: test case releases ids?
-
-					auto dtd = (std::max)(release->discogs_total_discs, 1);
-					if (atoi(parse_nfo.trk_postfix) <= dtd) {
-						//track to disc and subtrack to track
-						parse_nfo.vol_preffix = parse_nfo.trk_postfix;
-						parse_nfo.trk_postfix = parse_nfo.subtrk_postfix;
-					}
+					//..
 				}
-			}
-
-			if (last_subtrack && bmerge_subtracks) {
-
-				//resume disc track counter (1/2)
-				++disc_track_number;
 			}
 		}
 
-		// new disc precond
+		bool last_merge_off = last_ssubtrack && !bmerge_subtracks;
+		last_merge_off |= last_fake_subtrack && !bmerge_tracks_to_header;
+		last_merge_off |= last_hidden && !bmerge_hidden;
 
-		if (last_vol_preffix != parse_nfo.vol_preffix || last_vol_alpha != parse_nfo.bvol_alpha) {
+		bool last_header_changed = last_ssubtrack && bheading_changed;
+		last_header_changed |= last_fake_subtrack && bfake_subtrack_header_changed;
+
+		pfc::string8 without_hidd_postfix = substr(track->discogs_track_number, 0, track->discogs_track_number.get_length() - parse_nfo.hidden_postfix.get_length());
+		bool end_merging = false;
+		if (merging_track.get_length()) {
+			end_merging = !without_hidd_postfix.equals(substr(merging_track, 0, without_hidd_postfix.get_length()));
+		}
+
+		if (end_merging || (((bhidden && bmerge_hidden) || (bsubtrack && bmerge_subtracks) || (bfake_subtrack && bmerge_tracks_to_header)) && last_header_changed)
+			|| (!last_merge_off && (!bhidden && !bsubtrack && !bfake_subtrack) && (last_header_changed))) {
+			//resume disc track counter (1/2)
+			++cdisc_track_number;
+		}
+
+		merging_track = "";
+
+		bool bAddDisk = last_vol_preffix != parse_nfo.vol_preffix || last_vol_alpha != parse_nfo.bvol_alpha;
+
+		if (bAddDisk) {
 			// + NEW DISC
 			disc = std::make_shared<ReleaseDisc>();
 			release->discs.append_single(disc);
@@ -1469,7 +1663,6 @@ void parseAllTrackPositions(pfc::array_t<ReleaseTrack_ptr>& intermediate_tracks,
 			}
 
 			strFormat = strFormat.toUpper();
-			strFormat = strFormat.replace("VINYL", "LP");
 
 			if (strFormat.get_length() > 4) {
 				strFormat = substr(strFormat, 0, 3);
@@ -1479,113 +1672,165 @@ void parseAllTrackPositions(pfc::array_t<ReleaseTrack_ptr>& intermediate_tracks,
 			// increment disc counter
 			// set disc attributes
 
-			disc_track_number = 1;
-			disc->disc_number = ++disc_number;
-			disc->format = strFormat;
-			
+			cdisc_track_number = 1;
+			disc->disc_number = ++cdisc_number;
+			disc->format = strFormat/*parse_nfo.format.get_length() ? parse_nfo.format : parse_nfo.altformat.c_str()*/;
+
 			parse_nfo.trk_postfix = "1";
 
 			// reset last subtrack, hidden & vol alpha
 
-			last_subtrack = last_hidden = false;
+			last_ssubtrack = last_fake_subtrack = last_hidden = false;
 			last_vol_alpha = parse_nfo.bvol_alpha;
 
 		} //new disc
 
 		// BUILD TRACK
 
-		if (bdiscogs_track_number_std && !last_subtrack) {
+		if (bdiscogs_track_number_std && !track->title_subtrack.get_length() && !track->title_heading) {
 
 			//may overwrite counters
 			disc->disc_number = atoi(parse_nfo.vol_preffix);
 
 			track->disc_track_number = atoi(parse_nfo.trk_postfix);
-			track->disc_track_side = parse_nfo.bformat_incl_sideb;
-			track->track_number = track_number;
+			track->disc_track_two_sided = parse_nfo.bformat_incl_sideb;
+			track->disc_track_side = atoi(parse_nfo.side_trk_postfix);
 
-			disc_number = disc->disc_number;
-			disc_track_number = track->disc_track_number;
+			track->track_number = ctrack_number;
+
+			cdisc_number = disc->disc_number;
+			cdisc_track_number = track->disc_track_number;
 		}
+
 		else {
 
-			track->disc_track_number = disc_track_number;
-			track->disc_track_side = parse_nfo.bformat_incl_sideb;
-			track->track_number = track_number;
+			track->disc_track_number = cdisc_track_number;
+			track->disc_track_two_sided = parse_nfo.bformat_incl_sideb;
+			track->disc_track_side = atoi(parse_nfo.side_trk_postfix);
+
+			track->track_number = ctrack_number;
 		}
+
 
 		// ROUTE TRACK
 
 		bool bdisc_empty = !(bool)disc->tracks.get_size();
-		bool bhidden = (bool)parse_nfo.hidden_postfix.get_length();
 
-		// new track precond 1
+		bool skip_first_alpha_hidden = (bhidden && last_trk_postfix == parse_nfo.trk_postfix) && bmerge_hidden;
 
-		if (bdisc_empty || !bhidden || !last_hidden || last_trk_postfix != parse_nfo.trk_postfix ) {
+		if (!skip_first_alpha_hidden && (bdisc_empty || !bhidden || !last_hidden || (bhidden && !bmerge_hidden) || last_trk_postfix != parse_nfo.trk_postfix)) {
 
-			// new track precond 2
+			// new track precondition 2
+			bool merge_off = bsubtrack && !bmerge_subtracks;
+			merge_off |= bfake_subtrack && !bmerge_tracks_to_header;
+			merge_off |= bhidden && !bmerge_hidden;
+			bool last_changed = bsubtrack && !(last_ssubtrack && bmerge_subtracks);
+			last_changed |= bfake_subtrack && !(last_fake_subtrack && bmerge_tracks_to_header);
+			last_changed |= bhidden && !(last_hidden && bmerge_hidden);
+			bool headed_changed = bsubtrack && bheading_changed;
+			headed_changed |= bfake_subtrack && bfake_subtrack_header_changed;
+			headed_changed |= bhidden && (last_heading.get_length() && !last_heading.equals(track->title_heading));
 
-			if (!(bsubtrack && last_subtrack && bmerge_subtracks)) {
+			if ((!bhidden && !bsubtrack && !bfake_subtrack) || (merge_off || last_changed || headed_changed)) {
 
 				// ADD NEW TRACK
 
 				disc->tracks.append_single(std::move(track));
 
-				track_number++;
+				ctrack_number++;
 
-				bool can_advance_subtrack = !(bsubtrack && bmerge_subtracks);
-				bool can_advance_continuous_subtracks = !((bsubtrack || last_subtrack) && bmerge_subtracks);
-				bool bdisc_track_ptnfo_match = atoi(parse_nfo.vol_preffix) == disc_number && atoi(parse_nfo.trk_postfix) == disc_track_number;
+				bool can_fake_duration = bfake_subtrack && bfake_subtrack_header_changed;
+				bool can_advance_subtrack = bsubtrack && !bmerge_subtracks;
+				bool can_advance_continuous_subtracks = (bsubtrack || last_ssubtrack) && !bmerge_subtracks;
+				bool can_advance_continuous_fake_subtracks = (bfake_subtrack || last_fake_subtrack) && !bmerge_tracks_to_header; 
+				bool can_advance_continuous_hidden = (bhidden || last_hidden) && !bmerge_hidden;
+				bool bdisc_track_ptnfo_match = atoi(parse_nfo.vol_preffix) == cdisc_number && atoi(parse_nfo.trk_postfix) == cdisc_track_number;
 
-				if (bsubtrack) {
+				if (!merge_off && ((bsubtrack || bfake_subtrack) || can_fake_duration)) {
 
 					if (last_vol_preffix != parse_nfo.vol_preffix || last_trk_postfix != parse_nfo.trk_postfix) {
 
 						// assign subtrack discogs durations to first subtrack
+						bool not_both = (bool)track->discogs_indextrack_duration_raw.get_length() != (bool)track->title_heading_duration.get_length();
+						if (!track->discogs_duration_raw.get_length() || not_both) {
+							track->discogs_duration_seconds = track->discogs_indextrack_duration_seconds;
+							track->discogs_duration_raw = track->discogs_indextrack_duration_raw;
 
-						track->discogs_duration_seconds = track->discogs_indextrack_duration_seconds;
-						track->discogs_duration_raw = track->discogs_indextrack_duration_raw;
-
+							//nested heading->subtrack not supported
+							if (track->title_heading_duration.get_length() && !track->discogs_indextrack_duration_raw.get_length()) {
+								track->discogs_duration_raw = track->title_heading_duration;
+							}
+						}
 					}
 				}
 
 				//resume disc track counter (2/2)
-				if (!parse_nfo.btrk_alpha && can_advance_subtrack) {
+				if (!bhidden && !bsubtrack && !bfake_subtrack) {
+					// +++
+					cdisc_track_number++;
+					// +++
+				}
+				else if (!parse_nfo.btrk_alpha && can_advance_subtrack) {
 
-					disc_track_number++;
+					// +++
+					cdisc_track_number++;
+					// +++
+
+					}
 				}
 				else {
 
-					if (can_advance_continuous_subtracks && !bhidden && bdisc_track_ptnfo_match) {
+					if ((can_advance_continuous_subtracks)
+						|| (can_advance_continuous_fake_subtracks)
+						|| can_advance_continuous_hidden) {
 
-						disc_track_number++;
+
+						// +++
+						cdisc_track_number++;
+						// +++
 					}
 				}
-			} // end new track precond 2
-			else {
+			}
+		} // end new track precond 2
+		else {
 
-				// ROUTE MERGE TITLES
+			// ROUTE MERGE TITLES
 
-				// merge subrack precond 1
-				if (last_subtrack && bmerge_subtracks) {
-					//other cases not needing insertion (merging bsubtrack titles into container title)
-
+			// merge subrack precond 1
+			if ((last_ssubtrack && bmerge_subtracks) || (last_fake_subtrack && bmerge_tracks_to_header)) {
+				//other cases not needing insertion (merging bsubtrack titles into container title)
 					// merge subrack precond 2
 					if (disc->tracks.get_count()) {
 
 						// APPEND TITLES: SUBTRACK
 
-						disc->tracks[disc->tracks.get_count() - 1]->title << " + " << track->title_subtrack;
+						if (bfake_subtrack) {
+
+							disc->tracks[disc->tracks.get_count() - 1]->title << " + " << track->title;
+						}
+						else {
+							disc->tracks[disc->tracks.get_count() - 1]->title << " + " << track->title_subtrack;
+	
+							//was empty
+							if (!disc->tracks[disc->tracks.get_count() - 1]->subtrack_durations.get_count()) {
+								pfc::string8 first_duration = disc->tracks[disc->tracks.get_count() - 1]->discogs_duration_raw;
+								disc->tracks[disc->tracks.get_count() - 1]->subtrack_durations.append_single(first_duration);
+							}
+							//current
+							if (track->discogs_duration_raw.get_length()) {
+								disc->tracks[disc->tracks.get_count() - 1]->subtrack_durations.append_single(track->discogs_duration_raw/*pfc::string8("99:99")*/);
+							}
+							//later remove last
+						}
 					}
 				}
 			}
-
-		} // new track precond 1
-
+		}
 		else {
 
 			// discard track...
 
-			if (bhidden && last_hidden) {
+			if ((bhidden && last_hidden) || skip_first_alpha_hidden) {
 
 				// last_hidden (n > 1)
 				// accumulate hidden duration
@@ -1595,6 +1840,8 @@ void parseAllTrackPositions(pfc::array_t<ReleaseTrack_ptr>& intermediate_tracks,
 				if (!track->title.equals("(silence)")) {
 
 					disc->tracks[disc->tracks.get_size() - 1]->hidden_tracks.append_single(std::move(track));
+
+					merging_track = track->discogs_track_number;
 
 					if (!CONF.parse_hidden_as_regular && CONF.parse_hidden_merge_titles) {
 
@@ -1609,20 +1856,42 @@ void parseAllTrackPositions(pfc::array_t<ReleaseTrack_ptr>& intermediate_tracks,
 		last_vol_preffix = parse_nfo.vol_preffix;
 		last_trk_postfix = parse_nfo.trk_postfix;
 
-		last_subtrack = bsubtrack;
+		if (last_ssubtrack && !bsubtrack) {
+			//remove last index
+			size_t prev_size = disc->tracks[disc->tracks.get_count() - 1]->subtrack_durations.get_count();
+			if (prev_size) {
+				disc->tracks[disc->tracks.get_count() - 1]->subtrack_durations.resize(prev_size - 1);
+			}
+		}
+	
+		last_ssubtrack = bsubtrack;
+	
+		last_heading = track->title_heading;
+		last_heading << track->title_index;
 		last_hidden = bhidden;
 
 	} // track loop
-
+}
+catch (...) {
+		foo_discogs_exception ex;
+		ex << "Unknown error parsing track positions.";
+		throw ex;
 }
 
-void Discogs::parseReleaseTrack(json_t* element, pfc::array_t<ReleaseTrack_ptr>& tracks, pfc::string8 heading, ReleaseTrack_ptr* index,HasArtists* has_artists, HasIndexes* has_indexes) {
+	return true;
+}
+
+void Discogs::parseReleaseTrack(json_t* element, pfc::array_t<ReleaseTrack_ptr>& tracks, 
+		const pfc::string8 heading, const pfc::string8 heading_duration,
+		ReleaseTrack_ptr* index,HasArtists* has_artists, HasIndexes* has_indexes,
+		size_t& last_disc_number, size_t& last_track_number) {
 
 	assert_is_object(element);
 
 	ReleaseTrack_ptr track(new ReleaseTrack());
 
 	track->title_heading = heading;
+	track->title_heading_duration = heading_duration;
 
 	track->title = JSONAttributeString(element, "title");
 	pfc::string8 duration = JSONAttributeString(element, "duration");
@@ -1635,16 +1904,20 @@ void Discogs::parseReleaseTrack(json_t* element, pfc::array_t<ReleaseTrack_ptr>&
 
 		track->title_index = (*index)->title;
 		track->title_subtrack = track->title;
-		pfc::string8 temp = (*index)->title;
-		temp << " - " << track->title;
-		track->title = temp;
+
+		//USE title format in tag mapping instead
+		//pfc::string8 temp = (*index)->title;
+		//temp << " - " << track->title;
+		//track->title = temp;
 
 		track->credits = (*index)->credits;
+		track->catcredits_gxc = (*index)->catcredits_gxc;
+		track->catcredits_gxp = (*index)->catcredits_gxp;
 
 		auto& p_ndx = has_indexes->indexes[has_indexes->indexes.get_count() - 1];
 		pfc::string8 std_trk_pos = track->discogs_track_number;
 
-		if (p_ndx->dc_track_first.length() == 0) {
+		if (!p_ndx->dc_track_first.length()) {
 			p_ndx->dc_track_first = std_trk_pos;
 		}
 		p_ndx->dc_track_last = std_trk_pos;
@@ -1653,6 +1926,8 @@ void Discogs::parseReleaseTrack(json_t* element, pfc::array_t<ReleaseTrack_ptr>&
 
 		track->discogs_indextrack_duration_raw = (*index)->discogs_duration_raw;
 		track->discogs_indextrack_duration_seconds = (*index)->discogs_duration_seconds;
+
+		//tracks[tracks.get_count()-1]->subtrack_durations.append_single(pfc::string8("99:99"));
 	}
 	else {
 
@@ -1684,24 +1959,9 @@ void Discogs::parseReleaseTrack(json_t* element, pfc::array_t<ReleaseTrack_ptr>&
 
 	int duration_seconds;
 	if (duration.get_length() != 0) {
-		size_t pos = min(duration.find_first(':'), duration.find_first('.'));
-		size_t pos2 = min(duration.find_first(':', pos + 1), duration.find_first('.', pos + 1));
-		if (pos2 != pfc::infinite_size) {
-			pfc::string8 hour = substr(duration, 0, pos);
-			pfc::string8 min = substr(duration, pos + 1, pos2);
-			pfc::string8 sec = substr(duration, pos2 + 1);
-			duration_seconds = (3600 * atoi(hour.get_ptr()) + 60 * atoi(min.get_ptr()) + atoi(sec.get_ptr()));
-		}
-		else if (pos != pfc::infinite_size) {
-			pfc::string8 min = substr(duration, 0, pos);
-			pfc::string8 sec = substr(duration, pos + 1);
-			duration_seconds = (60 * atoi(min.get_ptr()) + atoi(sec.get_ptr()));
-		}
-		else {
-			duration_seconds = 0;
-			pfc::string8 msg("Error parsing track duration: ");
-			msg << duration;
-			log_msg(msg);
+		duration_seconds = duration_in_seconds(duration);
+		if (!duration_seconds) {
+			log_msg(PFC_string_formatter() << "Error parsing track duration: " << duration);
 		}
 		track->discogs_duration_raw = duration;
 		track->discogs_duration_seconds = duration_seconds;
@@ -1715,9 +1975,15 @@ void Discogs::parseReleaseTrack(json_t* element, pfc::array_t<ReleaseTrack_ptr>&
 
 			//APPEND TRACK
 			tracks.append_single(move(track));
+			//first track could be a subtrack?
+			if (!index || !last_track_number) {
+				++last_track_number;
+			}
 		}
 	}
 	else if (STR_EQUAL(type, "index")) {
+
+		// may contain subtracks (bsubtrack parse loop)
 
 		ReleaseIndexes_ptr index_p = std::make_shared<ReleaseIndexes>();
 
@@ -1734,22 +2000,27 @@ void Discogs::parseReleaseTrack(json_t* element, pfc::array_t<ReleaseTrack_ptr>&
 
 		if (json_is_array(sub_tracks)) {
 			for (size_t i = 0; i < json_array_size(sub_tracks); i++) {
-				json_t* sub_track = json_array_get(sub_tracks, i);
+				json_t* js_sub_track = json_array_get(sub_tracks, i);
 				//recursion
-				parseReleaseTrack(sub_track, tracks, heading, /*index*/&track, has_artists, has_indexes);
+				parseReleaseTrack(js_sub_track, tracks, track->title_heading, track->title_heading_duration,
+						/*index*/&track, has_artists, has_indexes, last_disc_number, last_track_number);
 			}
 		}
 	}
 }
 
-void Discogs::parseAllReleaseTracks(json_t* jsTracklist, bool isRelease, HasTracklist* has_tracklist, HasArtists* has_artists, HasIndexes* has_indexes) {
+void Discogs::parseAllReleaseTracks(json_t* jsTracklist, bool isRelease, const pfc::array_t<ReleaseFormat_ptr>& formats, HasTracklist* has_tracklist, HasArtists* has_artists, HasIndexes* has_indexes) {
 
 	assert_is_array(jsTracklist);
 
 	pfc::array_t<ReleaseTrack_ptr> intermediate_tracks;
 
 	pfc::string8 heading = "";
+	pfc::string8 heading_duration = "";
 	has_tracklist->total_headings = 0;
+
+	size_t last_track_number = 0;
+	size_t last_disc_number = 0;
 
 	for (size_t w = 0; w < json_array_size(jsTracklist); w++) {
 
@@ -1761,21 +2032,183 @@ void Discogs::parseAllReleaseTracks(json_t* jsTracklist, bool isRelease, HasTrac
 		if (STR_EQUAL(type, "heading")) {
 
 			heading = JSONAttributeString(jstrack, "title");
+			heading_duration = JSONAttributeString(jstrack, "duration");
 			has_tracklist->total_headings++;
 		}
 		else {
+
 			// parse track fields
-			parseReleaseTrack(jstrack, intermediate_tracks, heading, nullptr, has_artists, has_indexes);
+
+			parseReleaseTrack(jstrack, intermediate_tracks, heading, heading_duration,
+				/*index*/nullptr, has_artists, has_indexes, last_disc_number, last_track_number);
+
 		}
 	}
 
-	has_tracklist->discogs_tracklist_count = intermediate_tracks.get_count()/*discogs_original_track_count*/;
+	has_tracklist->discogs_tracklist_count = intermediate_tracks.get_count()/*discogs_ori_track_count*/;
 	has_tracklist->discs.force_reset();
 
-	// parse rpositions
+	// roman, english notation preprocessor
 
+	std::vector<std::string>vbk_romans_alphas; vbk_romans_alphas.resize(intermediate_tracks.get_count());
+	std::vector<std::string>vbk_romans_nums; vbk_romans_nums.resize(intermediate_tracks.get_count());
+	size_t ndx = 0;
+	bool no_separator = true;
+	bool invalid_separator = false;
+	std::string sep;
+	for (auto wi : intermediate_tracks) {
+		std::string outputAlpha;
+		std::string outputNum;
+		const std::string tmp = wi->discogs_track_number.toUpper().trim('.').get_ptr();
+		copy_if(tmp.begin(), tmp.end(), back_inserter(outputAlpha), [](char c) {
+			return isalpha(c);
+			});
+		copy_if(tmp.begin(), tmp.end(), back_inserter(outputNum), [](char c) {
+			return !isalpha(c);
+			});
+
+
+		if (!outputAlpha.size() || !outputNum.size()) {
+			vbk_romans_alphas.clear();
+			vbk_romans_nums.clear();
+			break;
+		}
+
+		vbk_romans_alphas[ndx] = outputAlpha;
+		vbk_romans_nums[ndx] = outputNum;
+
+		no_separator &= outputAlpha.size() + outputNum.size() == tmp.size();
+		if (!no_separator) {
+			std::string old_sep;
+			copy_if(tmp.begin(), tmp.end(), back_inserter(sep), [](char c) {
+				return (c == '-' || c== '.');
+				});
+			if (ndx == 0) old_sep = sep;
+			invalid_separator |= ((sep.size() > 1) | ((bool)sep.compare(old_sep)));
+		}
+		++ndx;
+	}
+
+	// check all are romans
+
+	bool all_subroman = vbk_romans_alphas.size();
+	size_t it_wi = 0;
+	for (auto wi : vbk_romans_alphas) {
+		if (!it_wi) {
+			//check roman = CD, DVD
+			for (ReleaseFormat_ptr wrf : formats) {
+				if (wrf->get_name().get_cvalue().equals(wi.c_str())) {
+					all_subroman = false;
+					break;
+				}
+			}
+		}
+		all_subroman &= validation_of_roman_number(wi);
+		if (!all_subroman) break;
+		++it_wi;
+	}
+
+	// check all english
+	bool all_subenglish = vbk_romans_alphas.size();
+	it_wi = 0;
+	for (auto wi : vbk_romans_alphas) {
+		if (!it_wi) {
+			//..
+		}
+		all_subenglish &= (EnglishToDecimal(wi) != SIZE_MAX);
+		if (!all_subenglish) break;
+		++it_wi;
+	}
+
+	// if they are backup original romans and susbtitute by digits (1-1,1-2... 2-1, 2-2)
+
+	std::vector<pfc::string8>vbk_romans;
+	bool roman_done = false;
+	if (all_subroman && sep.size() <= 1 && !invalid_separator) {
+		roman_done = true;
+		vbk_romans.resize(intermediate_tracks.get_count());
+		size_t ndx = 0;
+		for (auto wi : intermediate_tracks) {
+			vbk_romans[ndx] = wi->discogs_track_number;
+			wi->discogs_track_number = PFC_string_formatter() << RomanToDecimal(vbk_romans_alphas[ndx].c_str());
+			wi->discogs_track_number << (no_separator ? "-" : sep.c_str());
+			wi->discogs_track_number << vbk_romans_nums[ndx].c_str();
+			++ndx;
+		}
+	}
+
+	bool english_done = false;
+	if (all_subenglish && sep.size() <= 1 && !invalid_separator) {
+		english_done = true;
+		vbk_romans.resize(intermediate_tracks.get_count());
+		size_t ndx = 0;
+		for (auto wi : intermediate_tracks) {
+			vbk_romans[ndx] = wi->discogs_track_number;
+			wi->discogs_track_number = vbk_romans_nums[ndx].c_str();
+			wi->discogs_track_number << PFC_string_formatter() << EnglishToDecimal(vbk_romans_alphas[ndx].c_str());
+			++ndx;
+		}
+	}
+
+	// if not a combination, try pure romans (I, II, III, IV,...)
+
+	if (!roman_done && !english_done) {
+
+		//test only roman https://www.discogs.com/release/29273164-Dvne-Asheran?redirected=true
+
+		//roman numbers (all)
+		bool allroman = true;
+		size_t it_wi = 0;
+		for (auto wi : intermediate_tracks) {
+			if (!it_wi) {
+				//check roman = CD, DVD
+				for (ReleaseFormat_ptr wrf : formats) {
+					if (wrf->get_name().get_cvalue().equals(wi->discogs_track_number.trim('.').toUpper().c_str())) {
+						all_subroman = false;
+						break;
+					}
+				}
+			}
+			allroman &= validation_of_roman_number(wi->discogs_track_number.trim('.').toUpper().c_str());
+			if (!allroman) break;
+			++it_wi;
+		}
+
+		if (allroman) {
+			//backup discogs_track_numbers
+			roman_done = true;
+			vbk_romans.resize(intermediate_tracks.get_count());
+			size_t ndx = 0;
+			for (auto& wi : intermediate_tracks) {
+				vbk_romans[ndx] = wi->discogs_track_number;
+				wi->discogs_track_number = PFC_string_formatter() << RomanToDecimal(vbk_romans[ndx].toUpper().trim('.'));
+				++ndx;
+			}
+		}
+	}
+
+	// parse release track positions
+
+	bool res = false;
 	if (isRelease) {
-		parseAllTrackPositions(intermediate_tracks, has_tracklist);
+		try {
+			res = parseAllTrackPositions(intermediate_tracks, has_tracklist);
+		}
+		catch (...) {
+			log_msg("Error parsing track posisitons");
+		}
+	}
+
+	// end release track positions
+
+	// roman, english notation postprocessor
+
+	if (roman_done || english_done) {
+		size_t ndx = 0;
+		for (auto& wi : intermediate_tracks) {
+			wi->discogs_track_number = vbk_romans[ndx];
+			++ndx;
+		}
 	}
 
 }
@@ -1806,8 +2239,12 @@ void Discogs::parseRelease(Release *release, json_t *root) {
 	release->id = JSONAttributeString(root, "id");
 
 
-	MasterRelease_ptr master = discogs_interface->get_master_release(JSONAttributeString(root, "master_id"));
-	release->set_master_release(master);
+	auto master_id = JSONAttributeString(root, "master_id");
+	master_id = !(atoi(master_id)) ? "" : master_id;
+	if (master_id.get_length()) {
+		MasterRelease_ptr master = discogs_interface->get_master_release(master_id);
+		release->set_master_release(std::move(master));
+	}
 
 	release->title = JSONAttributeString(root, "title");
 	release->country = JSONAttributeString(root, "country");
@@ -1855,35 +2292,37 @@ void Discogs::parseRelease(Release *release, json_t *root) {
 	json_t *formats = json_object_get(root, "formats");
 	parseReleaseFormats(formats, release->formats);
 
-	//total number of volumes in release
-	pfc::string8 rel_fq(JSONAttributeString(root, "format_quantity").get_ptr());
+	size_t volume_count = 0;
+	size_t volume_discarded_count = 0;
 
-	size_t cformatted_discs = 0;
-	
-	for (size_t walk_format = 0; walk_format < release->formats.get_count(); walk_format++) {
-
-		ReleaseFormat w_rf = *release->formats[walk_format].get();
-		const pfc::string8 str_walk_format = w_rf.get_name();
-
-		if (w_rf.is_box()) {
-			//..
-		}
-		else if (STR_EQUAL("File", str_walk_format)) {
-			//..
+	for (size_t w = 0; w < release->formats.get_count(); w++) {
+		if (release->formats[w]->format_incl_vol) {
+			volume_count += atoi(release->formats[w]->get_quantity().get_value());
 		}
 		else {
-
-			cformatted_discs += std::atoi(w_rf.qty);
-			//todo: test/trace
-			if (cformatted_discs > std::atoi(rel_fq)) {
-				cformatted_discs = std::atoi(rel_fq);
-				uMessageBox(core_api::get_main_window(), "Release format mismatch", "Parse release format", 0);
-				break;
+			if (release->formats[w]->get_name().get_value().equals("Box Set") ||
+					release->formats[w]->get_name().get_value().equals("All Media")) {
+				//..
+				++volume_discarded_count;
+			}
+			else if (release->formats[w]->get_name().get_value().equals("File")) {
+				//put files into a volume (disk)
+				++volume_count;
+			}
+			else {
+				volume_count += atoi(release->formats[w]->get_quantity().get_value());
 			}
 		}
 	}
 
-	release->discogs_total_discs = cformatted_discs;
+	//total number of volumes in release + 1 for each Box Sets
+	pfc::string8 rel_fq(JSONAttributeString(root, "format_quantity").get_ptr());
+
+	if (atoi(rel_fq) != (volume_count + volume_discarded_count)) {
+		log_msg(PFC_string_formatter() << "Release format mismatch (" << release->id <<"");
+	}
+
+	release->discogs_total_discs = volume_count;
 
 	json_t *artists = json_object_get(root, "artists");
 	parseReleaseArtists(artists, release->artists, true);
@@ -1898,7 +2337,7 @@ void Discogs::parseRelease(Release *release, json_t *root) {
 
 	// PARSE ALL RELEASE TRACKS
 
-	parseAllReleaseTracks(jsTrackList, true, /*has track list*/release,/*has artists*/ release, /*has indexes*/ release);
+	parseAllReleaseTracks(jsTrackList, true, release->formats, /*has track list*/release,/*has artists*/ release, /*has indexes*/ release);
 
 	//
 
@@ -1952,14 +2391,18 @@ void Discogs::parseMasterRelease(MasterRelease *master_release, json_t *root) {
 
 	master_release->id = JSONAttributeString(root, "id");
 	master_release->main_release_id = JSONAttributeString(root, "main_release");
-	Release_ptr main_release = discogs_interface->get_release(encode_mr(0, master_release->main_release_id));
+	Release_ptr main_release = discogs_interface->get_release(encode_mr(0, master_release->main_release_id/*->id*/)/*,JSONAttributeString(root, "main_release")*/);
 	master_release->set_main_release(main_release);
 	master_release->main_release_api_url = JSONAttributeString(root, "main_release_url");
 	master_release->main_release_url << "https://www.discogs.com/release/" << master_release->main_release_id;
 
 	master_release->most_recent_release_id = JSONAttributeString(root, "most_recent_release");
 	master_release->most_recent_release_url << "https://www.discogs.com/release/" << master_release->most_recent_release_id;
+
+	/*= JSONAttributeString(root, "uri")*/;
 	master_release->release_year = JSONAttributeString(root, "year");
+	if (!atoi(master_release->release_year)) master_release->release_year = ""; //remove bad entry "0" years
+
 	master_release->versions_api_url = JSONAttributeString(root, "versions_url");
 	master_release->title = JSONAttributeString(root, "title");
 	master_release->discogs_data_quality = JSONAttributeString(root, "data_quality");
@@ -1984,7 +2427,7 @@ void Discogs::parseMasterRelease(MasterRelease *master_release, json_t *root) {
 
 	json_t *jsTracklist = json_object_get(root, "tracklist");
 
-	parseAllReleaseTracks(jsTracklist, false, master_release, master_release, master_release);
+	parseAllReleaseTracks(jsTracklist, false, pfc::array_t<ReleaseFormat_ptr>(), master_release, master_release, master_release);
 
 }
 
@@ -2075,7 +2518,6 @@ void parse_release_search_fields(json_t* rel, Release_ptr release) {
 
 	size_t minors_lenght = 0;
 	json_t* formats = json_object_get(rel, "formats");
-
 	if (json_is_array(formats)) {
 		pfc::array_t<pfc::string8> mf;
 		std::unordered_set<std::string> sminors;
@@ -2242,13 +2684,12 @@ void Discogs::parseArtistReleases(json_t* root, Artist* artist, int query_mode, 
 
 						size_t lkey = encode_mr(artist->search_role_list_pos, dbid);
 
-						Release_ptr release = discogs_interface->get_release(lkey, true, query_mode & SearchMode::AT);
 						//..
+						Release_ptr release = discogs_interface->get_release(lkey, true, query_mode & SearchMode::AT);
 						parse_release_search_fields(rel, release);
 						//..
 
-						if (query_mode || (!release->loaded_preview && !release->loaded)) {
-
+						if (query_mode ||(!release->loaded_preview && !release->loaded)) {
 							release->master_id = JSONAttributeString(rel, "master_id");
 							release->master_id = !atoi(release->master_id) ? "" : release->master_id;
 							if (!atoi(release->master_id)) {
@@ -2277,6 +2718,7 @@ void Discogs::parseArtistReleases(json_t* root, Artist* artist, int query_mode, 
 								bool done = false;
 
 								for (MasterRelease_ptr wamr : artist->master_releases) {
+
 									if (done = wamr->id.equals(release->master_id)) {
 										// ADD SUBRELEASE TO ANOHTER MASTER
 										wamr->sub_releases.add_item(release);
@@ -2321,8 +2763,8 @@ void Discogs::parseArtistReleases(json_t* root, Artist* artist, int query_mode, 
 							}
 
 							// APPEND SEARCH ORDER AND REL
-							artist->releases.append_single(std::move(release));
-							artist->search_order_master.append_single(false);
+								artist->releases.append_single(std::move(release));
+								artist->search_order_master.append_single(false);
 						}
 					}
 					else {
@@ -2351,7 +2793,6 @@ void Discogs::parseMasterVersions(json_t *root, MasterRelease *master_release, i
 				pfc::string8 release_id = JSONAttributeString(rel, "id");
 
 				Release_ptr release;
-
 				size_t lkey;
 				size_t found_i = SIZE_MAX;
 
@@ -2682,10 +3123,6 @@ void Discogs::Release::load(threaded_process_status& p_status, abort_callback& p
 		return;
 	}
 	try {
-		pfc::string8 msg("Loading release ");
-		msg << id << "...";
-		p_status.set_item(msg);
-
 		pfc::string8 json;
 		pfc::string8 url;
 		url << "https://api.discogs.com/releases/" << id;
@@ -2745,16 +3182,13 @@ void Discogs::Release::load(threaded_process_status &p_status, abort_callback &p
 		}
 		else {
 			discogs_interface->get_entity_offline_cache(ol::GetFrom::Release, artist_id, release_id, json, p_abort, "Fetching offline release...", p_status);
-
 			offline_can_write = false;
 		}
-
 
 		//parse json and release
 
 		JSONParser jp(json);
 		parseRelease(this, jp.root);
-
 		//..
 
 		loaded = true;
@@ -2849,7 +3283,8 @@ void Discogs::Release::load_my_rating(threaded_process_status &p_status, abort_c
 }
 
 void Discogs::MasterRelease::load(threaded_process_status &p_status, abort_callback &p_abort, bool throw_all) {
-	if (loaded || !id.get_length()) {
+	bool noid = !atoi(id);
+	if (loaded || !atoi(id)) {
 		return;
 	}
 	try {

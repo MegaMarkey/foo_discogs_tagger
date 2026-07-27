@@ -109,7 +109,6 @@ struct nota_info {
 extern inline bool remove_continous_space(pfc::string8 in, pfc::string8& out);
 extern inline std::string any_case_substring(std::string s, std::string a, const std::string& b);
 
-
 extern pfc::string8 sanitize_track_semi_media(const pfc::string8& tracks);
 extern pfc::string8 sanitize_track_commas(const pfc::string8& tracks);
 extern pfc::string8 sanitize_track_to(const pfc::string8& tracks);
@@ -148,7 +147,7 @@ extern int tokenize_multi(const pfc::string8 &src, const pfc::array_t<pfc::strin
 
 extern void makeFsCompliant(pfc::string8 &str);
 extern pfc::string8 urlEscape(const pfc::string8 &src);
-extern void urldecode2(char* dst, const char* src);
+void urldecode2(char* dst, const char* src);
 extern inline pfc::string8 substr(const pfc::string8 &s, size_t start, size_t count = pfc::infinite_size);
 
 // Open URL in default browser
@@ -183,10 +182,14 @@ extern void CustomFont(HWND hwndParent, size_t flag, bool check_font = true, boo
 extern bool sortByVal(const std::pair<int, int>& a, const std::pair<int, int>& b);
 
 extern int duration_in_seconds(pfc::string8 duration);
+extern size_t EnglishToDecimal(const std::string& s);
+extern bool validation_of_roman_number(std::string str);
+extern int RomanToDecimal(const pfc::string8& s);
+extern int roman_to_integer(pfc::string8 rstr);
 
 extern const int IMAGELIST_OFFLINE_CACHE_NDX;
 extern const int IMAGELIST_OFFLINE_DB_NDX;
 
-inline const size_t LINES_LONGFIELD = 4;
-
 extern size_t MAX_ARTISTS;
+
+inline const size_t LINES_LONGFIELD = 4;

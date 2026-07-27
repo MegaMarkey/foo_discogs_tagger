@@ -52,6 +52,7 @@ void init_scroolbars(HWND wnd) {
 
 	si.nMax = sz.cy;
 	si.nPage = sz.cy;
+	SetScrollInfo(wnd, SB_VERT, &si, false);
 }
 
 bool enable_multiline_list_input(HWND wnd, CFontHandle font, const float col_width, const pfc::string8 &str) {
@@ -652,6 +653,192 @@ void display_url(const pfc::string8 &url) {
 		}
 	}
 }
+
+
+// ROMAN
+
+// Function to convert a Roman numeral to an integer
+int roman_to_integer(pfc::string8 rstr) {
+	int n = int(rstr.length());
+	if (0 == n) {
+		return 0;
+	}
+
+	// Initialize the result
+	int result = 0;
+
+	// Iterate through each character in the Roman numeral string
+	for (int i = 0; i < n; i++) {
+		// Switch statement to handle different Roman numeral characters
+		switch (rstr[i]) {
+		case 'I':
+			result += 1;
+			break;
+		case 'V':
+			result += 5;
+			break;
+		case 'X':
+			result += 10;
+			break;
+		case 'L':
+			result += 50;
+			break;
+		case 'C':
+			result += 100;
+			break;
+		case 'D':
+			result += 500;
+			break;
+		case 'M':
+			result += 1000;
+			break;
+		}
+	}
+
+	// Loop to handle subtraction cases (like IV, IX, XL, XC, etc.)
+	for (int i = 1; i < n; i++) {
+		if ((rstr[i] == 'V' || rstr[i] == 'X') && rstr[i - 1] == 'I') {
+			result -= 1 + 1; // Subtract 1 for I and add 1 for V or X
+		}
+
+		if ((rstr[i] == 'L' || rstr[i] == 'C') && rstr[i - 1] == 'X') {
+			result -= 10 + 10; // Subtract 10 for X and add 10 for L or C
+		}
+
+		if ((rstr[i] == 'D' || rstr[i] == 'M') && rstr[i - 1] == 'C') {
+			result -= 100 + 100; // Subtract 100 for C and add 100 for D or M
+		}
+	}
+
+	return result; // Return the resulting integer
+}
+
+bool validation_of_roman_number(std::string str)
+{
+	if (str.empty()) return false;
+	const std::regex pattern("^M{0,3}(CM|CD|D?C{0,3})(XC|XL|L?X{0,3})(IX|IV|V?I{0,3})$");
+
+	if (std::regex_match(str, pattern)) {
+		return true;
+	}
+	else {
+		return false;
+	}
+}
+
+std::unordered_map<char, int> kmRomanToNumber = { {'I', 1},
+																									{'V', 5},
+																									{'X', 10},
+																									{'L', 50},
+																									{'C', 100},
+																									{'D', 500},
+																									{'M', 1000} };
+
+int RomanToDecimal(const pfc::string8& s) {
+
+	int res = 0;
+	for (int i = 0; i < s.length(); i++) {
+
+		// if the current value is less than the next value, 
+		// subtract current from next and add to res
+		if (i + 1 < s.length() && kmRomanToNumber[s[i]] < kmRomanToNumber[s[i + 1]]) {
+			res += kmRomanToNumber[s[i + 1]] - kmRomanToNumber[s[i]];
+
+			// skip the next symbol
+			i++;
+		}
+		else {
+
+			// otherwise, add the current value to res
+			res += kmRomanToNumber[s[i]];
+		}
+	}
+
+	return res;
+}
+
+const std::unordered_map<std::string_view, size_t> kEnglishToNumberMap = {
+		{"zero", 0},
+		{"one", 1},
+		{"two", 2},
+		{"three", 3},
+		{"four", 4},
+		{"five", 5},
+		{"six", 6},
+		{"seven", 7},
+		{"eight", 8},
+		{"nine", 9},
+		{"ten", 10},
+		{"eleven", 11},
+		{"twelve", 12},
+		{"thirteen", 13},
+		{"fourteen", 14},
+		{"fifteen", 15},
+		{"sixteen", 16},
+		{"seventeen", 17},
+		{"eighteen", 18},
+		{"nineteen", 19},
+		{"twenty", 20},
+		{"thirty", 30},
+		{"forty", 40},
+		{"fifty", 50},
+		{"sixty", 60},
+		{"seventy", 70},
+		{"eighty", 80},
+		{"ninety", 90},
+		{"hundred", 100},
+		{"thousand", 1000},
+		//{"million", 1000000},
+		//{"billion", 1000000000},
+		// ... Add more mappings here
+};
+
+size_t EnglishToDecimal(const std::string& s) {
+	size_t res, trot_num;
+	res = 0;
+	trot_num = SIZE_MAX;
+
+	pfc::string8 str8(s.c_str());
+	std::istringstream ss(str8.toLower().c_str());
+	std::string word;
+
+
+	bool bneg = false;
+
+	while (ss >> word) {
+		if (word == "and") {
+			continue;
+		}
+		if (word == "minus" || word == "negative") {
+			/*bneg = true;
+			continue;*/
+			return SIZE_MAX;
+		}
+		auto it = kEnglishToNumberMap.find(word);
+		if (it != kEnglishToNumberMap.end()) {
+
+			if (trot_num == SIZE_MAX) { trot_num = 0; }
+
+			if (it->second >= 100) {
+				trot_num *= it->second;
+			}
+			else {
+				trot_num += it->second;
+			}
+		}
+		if (trot_num >= 1000) {
+			res += trot_num;
+			trot_num = 0;
+		}
+	}
+
+	res += trot_num;
+	if (bneg) {
+		res *= -1;
+	}
+	return res;
+}
+
 
 pfc::string8 substr(const pfc::string8 &s, size_t start, size_t count) {
 	return pfc::string8(s.get_ptr() + start, count);
