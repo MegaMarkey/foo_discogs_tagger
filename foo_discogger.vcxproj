@@ -252,11 +252,14 @@
     <ClCompile Include="conf_flag_mng.cpp" />
     <ClCompile Include="find_artist_list.cpp" />
     <ClCompile Include="find_artist_list_ILO.cpp" />
+    <ClCompile Include="find_release_dialog.cpp" />
+    <ClCompile Include="header_static.cpp" />
     <ClCompile Include="history_oplog.cpp" />
     <ClCompile Include="preview_ILO.cpp" />
     <ClCompile Include="preview_list.cpp" />
     <ClCompile Include="preview_leading_tag_dialog.cpp" />
     <ClCompile Include="preview_leading_tag_ILO.cpp" />
+    <ClCompile Include="querydefmap.cpp" />
     <ClCompile Include="track_matching_ILO.cpp" />
     <ClCompile Include="tristate_skip_artwork.cpp" />
     <ClCompile Include="conf.cpp" />
@@ -269,7 +272,6 @@
     <ClCompile Include="fetcher.cpp" />
     <ClCompile Include="file_info_manager.cpp" />
     <ClCompile Include="find_release_artist_dlg.cpp" />
-    <ClCompile Include="find_release_dialog.cpp" />
     <ClCompile Include="find_release_tree.cpp" />
     <ClCompile Include="foo_discogs.cpp" />
     <ClCompile Include="icon_map.cpp" />
@@ -277,15 +279,14 @@
     <ClCompile Include="main.cpp" />
     <ClCompile Include="mainmenu.cpp" />
     <ClCompile Include="multiformat.cpp" />
-    <ClCompile Include="PCH.cpp">
+    <ClCompile Include="preview_dialog.cpp" />
+    <ClCompile Include="prompt_dialog.cpp" />
+    <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="preview_dialog.cpp" />
-    <ClCompile Include="prompt_dialog.cpp" />
-    <ClCompile Include="stdafx.cpp" />
     <ClCompile Include="string_encoded_array.cpp" />
     <ClCompile Include="tags.cpp" />
     <ClCompile Include="tag_mappings_dialog.cpp" />
@@ -301,14 +302,19 @@
     <ClInclude Include="art_download_attribs.h" />
     <ClInclude Include="cache.h" />
     <ClInclude Include="conf_flag_mng.h" />
+    <ClInclude Include="crc.h" />
     <ClInclude Include="find_artist_list.h" />
     <ClInclude Include="find_artist_list_ILO.h" />
+    <ClInclude Include="find_release_dialog.h" />
+    <ClInclude Include="header_static.h" />
     <ClInclude Include="history_oplog.h" />
     <ClInclude Include="my_tabentry.h" />
     <ClInclude Include="preview_ILO.h" />
     <ClInclude Include="preview_list.h" />
     <ClInclude Include="preview_leading_tag_dialog.h" />
     <ClInclude Include="preview_leading_tag_ILO.h" />
+    <ClInclude Include="querydefmap.h" />
+    <ClInclude Include="sqlite3.h" />
     <ClInclude Include="track_matching_ILO.h" />
     <ClInclude Include="tristate_skip_artwork.h" />
     <ClInclude Include="my_editwithbuttons.h" />
@@ -326,7 +332,6 @@
     <ClInclude Include="fetcher.h" />
     <ClInclude Include="file_info_manager.h" />
     <ClInclude Include="find_release_artist_dlg.h" />
-    <ClInclude Include="find_release_dialog.h" />
     <ClInclude Include="find_release_tree.h" />
     <ClInclude Include="find_release_utils.h" />
     <ClInclude Include="foo_discogs.h" />
@@ -362,9 +367,9 @@
     <ResourceCompile Include="foo_discogger_ver.rc" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\libPPUI\libPPUI.vcxproj">
-      <Project>{7729eb82-4069-4414-964b-ad399091a03f}</Project>
-    </ProjectReference>
+    <None Include="readme.txt" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\..\pfc\pfc.vcxproj">
       <Project>{ebfffb4e-261d-44d3-b89c-957b31a0bf9c}</Project>
     </ProjectReference>
