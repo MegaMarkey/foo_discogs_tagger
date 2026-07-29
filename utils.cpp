@@ -394,9 +394,48 @@ pfc::string8 join(const pfc::array_t<pfc::string8> &in, const pfc::string8 &join
 	return out;
 }
 
-int tokenize(const pfc::string8 &src, const pfc::string8 &delim, pfc::array_t<pfc::string8> &tokens, bool remove_blanks) {
+int tokenize_quoted(pfc::string8& src, pfc::array_t<pfc::string8>& tokens) {
 
 	tokens.force_reset();
+	if (!src.get_length()) return 0;
+
+	std::regex regex_v;
+	try {
+		regex_v = std::regex("\"[^\"]*\"");
+	}
+	catch (std::regex_error e) {
+		return 0;
+	}
+
+	std::string str_with_quotes(src.c_str());
+	std::sregex_iterator begin = std::sregex_iterator(str_with_quotes.begin(), str_with_quotes.end(), regex_v);
+	std::sregex_iterator end = std::sregex_iterator();
+
+	bool bdone = false;
+	for (std::sregex_iterator i = begin; i != end; i++) {
+		bdone |= true;
+		pfc::string8 token = i->str().c_str();
+		tokens.append_single(token.replace("\"", ""));
+	}
+
+	try {
+		src = std::regex_replace(src.c_str(), regex_v, "").c_str();
+	}
+	catch (std::regex_error e) {
+		return 0;
+	}
+
+	if (bdone) {
+		remove_continous_space(src, src);
+	}
+	return (int)tokens.get_size();
+}
+
+int tokenize(const pfc::string8 &src, const pfc::string8 &delim, pfc::array_t<pfc::string8> &tokens, bool remove_blanks, bool reset_tokens) {
+
+	if (reset_tokens) {
+		tokens.force_reset();
+	}
 	if (!src.get_length()) return 0;
 
 	size_t pos;
@@ -413,7 +452,9 @@ int tokenize(const pfc::string8 &src, const pfc::string8 &delim, pfc::array_t<pf
 	if (remove_blanks) {
 		tmp = trim(tmp);
 	}
-	tokens.append_single(tmp);
+	if (tmp.get_length()) {
+		tokens.append_single(tmp);
+	}
 	return (int)tokens.get_size();
 }
 
@@ -520,7 +561,8 @@ int tokenize_multi(const pfc::string8 &src, const pfc::array_t<pfc::string8> &de
 
 bool tokenize_filter(pfc::string8 filter, pfc::array_t<pfc::string>& out_filter_words_lowercase) {
 	pfc::array_t<pfc::string8> filter_words;
-	tokenize(filter, " ", filter_words, true);
+	tokenize_quoted(filter, filter_words);
+	tokenize(filter, " ", filter_words, true, false);
 
 	for (size_t i = 0; i < filter_words.get_size(); i++) {
 		out_filter_words_lowercase.append_single(pfc::string(filter_words[i].get_ptr()).toLower());

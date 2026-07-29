@@ -141,7 +141,8 @@ extern pfc::string8 lowercase(pfc::string8 str);
 extern pfc::string8 join(const pfc::array_t<pfc::string8> &in, const pfc::string8 &join_field);
 
 // Tokenize string
-extern int tokenize(const pfc::string8 &src, const pfc::string8 &delim, pfc::array_t<pfc::string8> &tokens, bool remove_blanks);
+extern int tokenize(const pfc::string8 &src, const pfc::string8 &delim, pfc::array_t<pfc::string8> &tokens, bool remove_blanks, bool reset_tokens = true);
+extern int tokenize_quoted(pfc::string8 &src, pfc::array_t<pfc::string8> &tokens);
 extern int tokenize_non_bracketed(const pfc::string8& src, const pfc::string8& delim, pfc::array_t<pfc::string8>& tokens, bool remove_blanks);
 extern int tokenize_multi(const pfc::string8 &src, const pfc::array_t<pfc::string8> &delims, pfc::array_t<pfc::string8> &tokens, bool trim_tokens, bool remove_blanks);
 
