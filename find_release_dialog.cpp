@@ -990,7 +990,7 @@ LRESULT CFindReleaseDialog::OnButtonSearch(WORD /*wNotifyCode*/, WORD wID, HWND 
 	if (bquery) {
 
 		std::pair<std::string, std::string> exp_pair;
-		bool bres = search_query::MapToText(m_qdm_search_query, exp_pair, false);
+		bool bres = search_query::MapToText(m_qdm_search_query, exp_pair, false, false);
 
 		if (!exp_pair.first.compare(m_search_expression)) {
 
@@ -1002,7 +1002,7 @@ LRESULT CFindReleaseDialog::OnButtonSearch(WORD /*wNotifyCode*/, WORD wID, HWND 
 
 		if (bres) {
 
-			search_query::MapToText(m_qdm_search_query, exp_pair, true);
+			search_query::MapToText(m_qdm_search_query, exp_pair, true, false);
 			pfc::string8 artist_meta_scaped = exp_pair.second.c_str();
 
 			trot_text = artist_meta_scaped;

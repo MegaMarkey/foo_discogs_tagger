@@ -69,7 +69,7 @@ namespace search_query {
 
 	inline const size_t k_nested_suggestions = 5;
 
-	bool MapToText(QueryDefMap qdm_search_query, std::pair<std::string, std::string>& out, bool alltypes = false);
+	bool MapToText(QueryDefMap qdm_search_query, std::pair<std::string, std::string>& out, bool alltypes = false, bool artist_or_q = true);
 	bool TextToMap(const pfc::string8 expr, QueryDefMap& qdm_search_query);
 	bool UrlToMap(const pfc::string8 expr, QueryDefMap& qdm_search_query);
 

@@ -70,7 +70,7 @@ extern bool has_csv_links(pfc::string& field, const pfc::string& csv, bool repla
 
 namespace search_query {
 
-	bool MapToText(QueryDefMap qdm_search_query, std::pair<std::string, std::string>& out, bool alltypes) {
+	bool MapToText(QueryDefMap qdm_search_query, std::pair<std::string, std::string>& out, bool alltypes, bool artist_or_q) {
 
 		if (!qdm_search_query.size()) return {};
 
@@ -86,7 +86,7 @@ namespace search_query {
 					continue;
 				}
 
-				if (!fld.compare("artist=") && qdm_search_query.at("q=").first.size()) {
+				if (!fld.compare("artist=") && qdm_search_query.at("q=").first.size() && artist_or_q) {
 					continue;
 				}
 
