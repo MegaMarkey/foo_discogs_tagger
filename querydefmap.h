@@ -46,7 +46,7 @@ static const pfc::string8 DISCOGS_PUBLIC_SEARCH_URL = "https://www.discogs.com/s
 //check various artists prefixes
 extern pfc::string8 has_csv_prefix(const pfc::string& field, const pfc::string& csv, bool only_first_word, bool exact);
 //check multiple artists joins
-extern bool has_csv_links(const pfc::string& field, const pfc::string& csv);
+extern bool has_csv_links(pfc::string& field, const pfc::string& csv, bool replace);
 
 using FieldValPair = std::pair<std::string, std::string>;
 using QueryDefMap = std::map<std::string, FieldValPair>;

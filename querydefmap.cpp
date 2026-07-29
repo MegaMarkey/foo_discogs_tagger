@@ -37,7 +37,7 @@ extern pfc::string8 has_csv_prefix(const pfc::string& field, const pfc::string& 
 }
 
 //check multiple artists joins
-extern bool has_csv_links(const pfc::string& field, const pfc::string& csv) {
+extern bool has_csv_links(pfc::string& field, const pfc::string& csv, bool replace) {
 
 	bool cfg_px_lnk_enabled = CONF.on_init_query_flags & InitQueryMng::INIT_QUERY_PX_LNK_ENABLED;
 	if (!cfg_px_lnk_enabled) return false;
@@ -50,9 +50,17 @@ extern bool has_csv_links(const pfc::string& field, const pfc::string& csv) {
 	}
 
 	if (field.get_length()) {
+		bool bcontains = false;
 		for (auto wprepo : prepos) {
-			if (bres |= field.contains(wprepo)) {
-				break;
+
+			if (bcontains = field.contains(wprepo)) {
+				bres |= bcontains;
+				if (!replace) {
+					break;
+				}
+				else {
+					field = field.replace(wprepo, " & ");
+				}
 			}
 		}
 	}
@@ -198,8 +206,8 @@ namespace search_query {
 			}
 		}
 
-		pfc::string8 artist_name = qdm_search_query.at("artist=").first.c_str();
-		artist_name = artist_name.toLower();
+		pfc::string8 artist_name_mod = qdm_search_query.at("artist=").first.c_str();
+		//artist_name = artist_name.toLower();
 
 		pfc::string8 album_name = qdm_search_query.at("title=").first.c_str();
 		pfc::string8 track_name = qdm_search_query.at("track=").first.c_str();
@@ -207,10 +215,10 @@ namespace search_query {
 
 		bool use_q = false;
 
-		use_q |= has_csv_links(artist_name, CONF.multiple_artists_links);
+		use_q |= has_csv_links(artist_name_mod, CONF.multiple_artists_links, true);
 
 		if (use_q) {
-			qdm_search_query.at("q=") = qdm_search_query.at("artist=");
+			qdm_search_query.at("q=") = FieldValPair(artist_name_mod, urlEscape(artist_name_mod));
 			pfc::string8 new_q = urlEscape("\"");
 			new_q << qdm_search_query.at("q=").second.c_str() << urlEscape("\"");
 			qdm_search_query.at("q=").second = new_q;
