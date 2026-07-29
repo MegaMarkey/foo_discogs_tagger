@@ -65,7 +65,52 @@ public:
 	bool service_query(service_ptr& p_out, const GUID& p_guid) override;
 };
 
-class CConfigurationDialog : public MyCDialogImpl<CConfigurationDialog>, public CMessageFilter, public preferences_page_instance);
+class CConfigurationDialog : public MyCDialogImpl<CConfigurationDialog>, public CMessageFilter, public preferences_page_instance
+{
+private:
+
+	static INT_PTR WINAPI searching_dialog_proc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+	INT_PTR WINAPI on_searching_dialog_message(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
+	static INT_PTR WINAPI searching_adv_dialog_proc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+	INT_PTR WINAPI on_searching_adv_dialog_message(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
+	static INT_PTR WINAPI matching_dialog_proc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+	INT_PTR WINAPI on_matching_dialog_message(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
+	static INT_PTR WINAPI tagging_dialog_proc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+	INT_PTR WINAPI on_tagging_dialog_message(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
+	static INT_PTR WINAPI caching_dialog_proc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+	INT_PTR WINAPI on_caching_dialog_message(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
+	static INT_PTR WINAPI art_dialog_proc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+	INT_PTR WINAPI on_art_dialog_message(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
+	static INT_PTR WINAPI ui_dialog_proc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+	INT_PTR WINAPI on_ui_dialog_message(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
+	static INT_PTR WINAPI oauth_dialog_proc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+	INT_PTR WINAPI on_oauth_dialog_message(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
+	void init_searching_dialog(HWND wnd, bool subclass);
+	void init_searching_adv_dialog(HWND wnd, bool subclass);
+	void init_matching_dialog(HWND wnd, bool subclass);
+	void init_tagging_dialog(HWND wnd, bool subclass);
+	void init_memory_cache_buttons(HWND wnd);
+	void init_caching_dialog(HWND wnd, bool subclass);
+	void init_art_dialog(HWND wnd, bool subclass);
+	void init_ui_dialog(HWND wnd, bool subclass);
+	void init_oauth_dialog(HWND wnd, bool subclass);
+	void init_current_tab();
+
+	bool build_current_cfg(bool reset);
+	void pushcfg(bool reset);
+
+	void save_searching_dialog(HWND wnd, bool dlgbind);
+	void save_searching_adv_dialog(HWND wnd, bool dlgbind);
+	void save_matching_dialog(HWND wnd, bool dlgbind);
+	void save_tagging_dialog(HWND wnd, bool dlgbind/*, bool apply_multivalues*/);
 	void save_caching_dialog(HWND wnd, bool dlgbind);
 	void save_art_dialog(HWND wnd, bool dlgbind);
 	void save_ui_dialog(HWND wnd, bool dlgbind);

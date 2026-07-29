@@ -426,7 +426,7 @@ void CConfigurationDialog::init_searching_dialog(HWND wnd, bool subclass) {
 		//dark mode
 		m_dark.AddControls(wnd);
 	}
-	::ShowWindow(m_help_link_search, toggle_title_format_help() ? SW_SHOW : SW_HIDE);
+	::ShowWindow(m_help_link_search, SW_SHOW);
 
 	uButton_SetCheck(wnd, IDC_CHK_ENABLE_AUTO_SEARCH, conf.enable_autosearch);
 	uButton_SetCheck(wnd, IDC_CHK_AUTO_REL_LOAD_ON_OPEN, conf.auto_rel_load_on_open);
@@ -478,7 +478,7 @@ void CConfigurationDialog::init_searching_adv_dialog(HWND wnd, bool subclass) {
 		m_dark.AddControls(wnd);
 	}
 
-	::ShowWindow(m_help_link_search_adv, toggle_title_format_help() ? SW_SHOW : SW_HIDE);
+	::ShowWindow(m_help_link_search_adv, SW_SHOW);
 
 	FlgMng fv_init_query;
 	conf.GetFlagVar(CFG_ON_INIT_QUERY_FLAGS, fv_init_query);
@@ -506,7 +506,6 @@ void CConfigurationDialog::init_searching_adv_dialog(HWND wnd, bool subclass) {
 
 	HWND hcmb = ::uGetDlgItem(wnd, IDC_COMBO_REL_INIT_QUERY_TYPE);
 	BOOL res = ::SendMessage(hcmb, CB_SETMINVISIBLE, 10, 0L);
-
 }
 
 void CConfigurationDialog::init_matching_dialog(HWND wnd, bool subclass) {
@@ -521,7 +520,7 @@ void CConfigurationDialog::init_matching_dialog(HWND wnd, bool subclass) {
 		// headers
 
 		HWND wndStaticHeader = ::GetDlgItem(wnd, IDC_GRP_STATIC_TRK_MATCHING);
-		::ShowWindow(m_help_link_matching, toggle_title_format_help() ? SW_SHOW : SW_HIDE);
+		::ShowWindow(m_help_link_matching, SW_SHOW);
 
 		m_staticPrefHeader_Trk_Matching.SubclassWindow(wndStaticHeader);
 		m_staticPrefHeader_Trk_Matching.PaintHeader();
@@ -893,11 +892,11 @@ bool CConfigurationDialog::cfg_searching_has_changed() {
 
 	bres |= conf.release_enter_key_override != conf_edit.release_enter_key_override;
 
-	bcmp = stricmp_utf8(conf.search_release_format_string, conf_edit.search_release_format_string);
+	bcmp = pfc::strcmp_partial(conf.search_release_format_string, conf_edit.search_release_format_string);
 	bres |= bcmp;
-	bcmp = stricmp_utf8(conf.search_master_format_string, conf_edit.search_master_format_string);
+	bcmp = pfc::strcmp_partial(conf.search_master_format_string, conf_edit.search_master_format_string);
 	bres |= bcmp;
-	bcmp = stricmp_utf8(conf.search_master_sub_format_string, conf_edit.search_master_sub_format_string);
+	bcmp = pfc::strcmp_partial(conf.search_master_sub_format_string, conf_edit.search_master_sub_format_string);
 	bres |= bcmp;
 
 	bres |= conf.on_init_query_flags != conf_edit.on_init_query_flags;
@@ -960,11 +959,11 @@ bool CConfigurationDialog::cfg_searching_adv_has_changed() {
 	bool bres = false;
 	bool bcmp = false;
 
-	bcmp = stricmp_utf8(conf.various_prefixes, conf_edit.various_prefixes);
+	bcmp = !conf.various_prefixes.equals(conf_edit.various_prefixes);
 	bres |= bcmp;
-	bcmp = stricmp_utf8(conf.on_init_query_tf, conf_edit.on_init_query_tf);
+	bcmp = !conf.on_init_query_tf.equals(conf_edit.on_init_query_tf);
 	bres |= bcmp;
-	bcmp = stricmp_utf8(conf.multiple_artists_links, conf_edit.multiple_artists_links);
+	bcmp = !conf.multiple_artists_links.equals(conf_edit.multiple_artists_links);
 
 	bres |= bcmp;
 
@@ -1013,11 +1012,11 @@ bool CConfigurationDialog::cfg_matching_has_changed() {
 	bres |= conf.assume_tracks_sorted != conf_edit.assume_tracks_sorted;
 	bres |= conf.skip_mng_flag != conf_edit.skip_mng_flag;
 
-	bcmp = stricmp_utf8(conf.release_discogs_format_string, conf_edit.release_discogs_format_string);
+	bcmp = pfc::strcmp_partial(conf.release_discogs_format_string, conf_edit.release_discogs_format_string);
 	bres |= bcmp;
-	bcmp = stricmp_utf8(conf.release_file_format_string, conf_edit.release_file_format_string);
+	bcmp = pfc::strcmp_partial(conf.release_file_format_string, conf_edit.release_file_format_string);
 	bres |= bcmp;
-	bcmp = stricmp_utf8(conf.release_status_bar_info_format_string, conf_edit.release_status_bar_info_format_string);
+	bcmp = pfc::strcmp_partial(conf.release_status_bar_info_format_string, conf_edit.release_status_bar_info_format_string);
 	bres |= bcmp;
 	return bres;
 }
@@ -1072,9 +1071,9 @@ bool CConfigurationDialog::cfg_tagging_has_changed() {
 	bres |= conf.discard_numeric_suffix != conf_edit.discard_numeric_suffix;
 	bres |= conf.skip_mng_flag != conf_edit.skip_mng_flag;
 	bres |= conf.remove_other_tags != conf_edit.remove_other_tags;
-	bcmp = stricmp_utf8(conf.raw_remove_exclude_tags, conf_edit.raw_remove_exclude_tags);
+	bcmp = pfc::strcmp_partial(conf.raw_remove_exclude_tags, conf_edit.raw_remove_exclude_tags);
 	bres |= bcmp;
-	bcmp = stricmp_utf8(conf.multivalue_fields, conf_edit.multivalue_fields);
+	bcmp = pfc::strcmp_partial(conf.multivalue_fields, conf_edit.multivalue_fields);
 	bres |= bcmp;
 	bres |= conf.tag_save_flags != conf_edit.tag_save_flags;
 	return bres;
@@ -1211,21 +1210,21 @@ bool CConfigurationDialog::cfg_art_has_changed() {
 	bres |= conf.album_art_fetch_all != conf_edit.album_art_fetch_all;
 	bres |= conf.embed_album_art != conf_edit.embed_album_art;
 
-	bcmp = stricmp_utf8(conf.album_art_directory_string, conf_edit.album_art_directory_string);
+	bcmp = pfc::strcmp_partial(conf.album_art_directory_string, conf_edit.album_art_directory_string);
 	bres |= bcmp;
-	bcmp = stricmp_utf8(conf.album_art_filename_string, conf_edit.album_art_filename_string);
+	bcmp = pfc::strcmp_partial(conf.album_art_filename_string, conf_edit.album_art_filename_string);
 	bres |= bcmp;
 
 	bres |= conf.album_art_overwrite != conf_edit.album_art_overwrite;
 	bres |= conf.save_artist_art != conf_edit.save_artist_art;
 	bres |= conf.artist_art_fetch_all != conf_edit.artist_art_fetch_all;
 	//todo: remove not impl
-	bcmp = stricmp_utf8(conf.artist_art_id_format_string, conf_edit.artist_art_id_format_string);
+	bcmp = pfc::strcmp_partial(conf.artist_art_id_format_string, conf_edit.artist_art_id_format_string);
 	bres |= bcmp;
 
 	bres |= conf.embed_artist_art != conf_edit.embed_artist_art;
 
-	bcmp = stricmp_utf8(conf.artist_art_directory_string, conf_edit.artist_art_directory_string);
+	bcmp = pfc::strcmp_partial(conf.artist_art_directory_string, conf_edit.artist_art_directory_string);
 	bres |= bcmp;
 
 	bcmp = stricmp_utf8(conf.artist_art_filename_string, conf_edit.artist_art_filename_string);
@@ -1302,9 +1301,9 @@ bool CConfigurationDialog::cfg_oauth_has_changed() {
 	bool bres = false;
 	bool bcmp = false;
 
-	bcmp = stricmp_utf8(conf.oauth_token, conf_edit.oauth_token);
+	bcmp = pfc::strcmp_partial(conf.oauth_token, conf_edit.oauth_token);
 	bres |= bcmp;
-	bcmp = stricmp_utf8(conf.oauth_token_secret, conf_edit.oauth_token_secret);
+	bcmp = pfc::strcmp_partial(conf.oauth_token_secret, conf_edit.oauth_token_secret);
 	bres |= bcmp;
 
 	return bres;
