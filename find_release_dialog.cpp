@@ -1755,7 +1755,15 @@ void CFindReleaseDialog::print_root_stats(rppair root_stats, bool save, bool isa
 			}
 			url << "/";
 		}
-		url << root_stats.second.second;
+
+		if (isartist && (root_stats.second.second == search_query::k_uk_id || root_stats.second.second == search_query::k_ukm_id)) {
+			url = "";
+			m_artist_link.EnableWindow(false);
+		}
+		else {
+			url << root_stats.second.second;
+			m_artist_link.EnableWindow(true);
+		}
 		pfc::stringcvt::string_wide_from_utf8 wtext(url.get_ptr());
 
 		m_artist_link.SetHyperLink((LPCTSTR)const_cast<wchar_t*>(wtext.get_ptr()));
