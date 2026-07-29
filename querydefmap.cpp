@@ -133,7 +133,7 @@ namespace search_query {
 		}
 
 		for (const std::pair<std::string, FieldValPair> w : qdm_search_query) {
-			pfc::string8  tmprep = "�";
+			pfc::string8  tmprep = "���";
 			pfc::string8  tmp = "&";
 			tmp += w.first.c_str();
 			tmprep += w.first.c_str();
@@ -152,7 +152,7 @@ namespace search_query {
 
 			if (vsplit.size() > 1) {
 
-				auto uspos = vsplit[1].find_first("�");
+				auto uspos = vsplit[1].find_first("���");
 
 				pfc::string8 query_fld_val_scaped;
 				pfc::string8 query_fld_val_sani;
