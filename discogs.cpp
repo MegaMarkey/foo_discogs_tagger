@@ -1188,13 +1188,17 @@ void parseTrackPosition(ReleaseTrack_ptr& track, const pfc::array_t<ReleaseForma
 
 	trk_name.tn_nosub_chopped = mod_dc_tn;
 
-	// TODO: remove prev extract
+	// TODO: remove prev extract !!!
 	// EXTRACT SUBTRACK 2
 	size_t subdotpos;
 
 	if ((subdotpos = mod_dc_tn.find_last('.')) < mod_dc_tn.get_length() -1) {
 
 		ptpos.subtrk_postfix = substr(mod_dc_tn, subdotpos + 1);
+		int dec = RomanToDecimal(ptpos.subtrk_postfix);
+		if (dec) {
+			ptpos.subtrk_postfix = std::to_string(dec).c_str();
+		}
 		ptpos.trk_postfix = substr(mod_dc_tn, 0, subdotpos);
 
 		if (!trk_name.isIndex) {
