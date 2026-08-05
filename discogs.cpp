@@ -1609,7 +1609,9 @@ bool parseAllTrackPositions(pfc::array_t<ReleaseTrack_ptr>& intermediate_tracks,
 		bsubtrack &= (bool)track->title_subtrack.get_length();
 		bool bheading_changed = last_heading.get_length() && !curr_heading.equals(last_heading);
 
-		bool bfake_subtrack = !bhidden;
+		//todo: headed hidden track, subtrack within track header,
+		//      subtrack index right after track header,...
+		bool bfake_subtrack = !bhidden && !bsubtrack;
 
 		bfake_subtrack &= (bool)track->title_heading.get_length() && (!track->discogs_duration_raw.get_length() && parse_nfo.subtrk_postfix.get_length());
 		if (bfake_subtrack) {
