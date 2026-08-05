@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "stdafx.h"
 
 #include <gdiplus.h>
@@ -134,9 +134,9 @@ void coord_presenters::InitUiList(HWND hwnd, lsmode mode, bool tracks, CListCont
 	uipres->SetUIList(uilist);
 }
 
-std::pair<size_t, presenter*> coord_presenters::columnHitTest(CPoint point) {
+std::pair<size_t, presenter*> coord_presenters::columnHitTest(CPoint point, lsmode mode) {
 
-	auto bin = form_mode[lsmode::tracks_ui];
+	auto bin = form_mode[mode];
 
 	size_t icol = pfc_infinite;
 

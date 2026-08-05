@@ -1,4 +1,4 @@
-﻿#include "stdafx.h"
+#include "stdafx.h"
 #include "resource.h"
 #include <gdiplus.h>
 #include <filesystem> //makeBuffer
@@ -1258,7 +1258,7 @@ bool CTrackMatchingDialog::context_menu_track_show(HWND wnd, int idFrom, LPARAM 
 				uAppendMenu(menu, MF_STRING, ID_ROW_NUMBERS, "Show row number");
 				uAppendMenu(menu, MF_STRING | (csel == 1 ? 0 : MF_DISABLED | MF_GRAYED), ID_CLIPBOARD_COPY, "Copy");
 			}
-			std::pair<size_t, presenter*> icol_hit = m_coord.columnHitTest(point);
+			std::pair<size_t, presenter*> icol_hit = m_coord.columnHitTest(point, get_mode());
 			if (icol_hit.first != pfc_infinite) {
 
 				size_t fmt = m_coord.GetUiColumnFormat(icol_hit.first, icol_hit.second);
@@ -1417,17 +1417,17 @@ bool CTrackMatchingDialog::context_menu_track_switch(HWND wnd, POINT point, bool
 		m_coord.ColumnRowToggle();
 		return true;
 	case ID_LEFT_ALIGN: {
-		std::pair<size_t, presenter*> icol_hit = m_coord.columnHitTest(point);
+		std::pair<size_t, presenter*> icol_hit = m_coord.columnHitTest(point, get_mode());
 		m_coord.SetUiColumnFormat(icol_hit.first, icol_hit.second, HDF_LEFT);
 		return true;
 	}
 	case ID_CENTER_ALIGN:	{
-		std::pair<size_t, presenter*> icol_hit = m_coord.columnHitTest(point);
+		std::pair<size_t, presenter*> icol_hit = m_coord.columnHitTest(point, get_mode());
 		m_coord.SetUiColumnFormat(icol_hit.first, icol_hit.second, HDF_CENTER);
 		return true;
 	}
 	case ID_RIGHT_ALIGN: {
-		std::pair<size_t, presenter*> icol_hit = m_coord.columnHitTest(point);
+		std::pair<size_t, presenter*> icol_hit = m_coord.columnHitTest(point, get_mode());
 		m_coord.SetUiColumnFormat(icol_hit.first, icol_hit.second, HDF_RIGHT);
 		return true;
 	}

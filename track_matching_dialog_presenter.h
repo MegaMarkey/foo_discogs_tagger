@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include "resource.h"
 
 #include <variant>
@@ -704,7 +704,7 @@ public:
 	bool isTile();
 
 	void InitUiList(HWND hwnd, lsmode mode, bool tracks, CListControlOwnerData* uilist);
-	std::pair<size_t, presenter*> columnHitTest(CPoint point);
+	std::pair<size_t, presenter*> columnHitTest(CPoint point, lsmode mode);
 	void SetUiColumnFormat(size_t icol, presenter* pres, size_t fmt);
 	bool ColumnRowToggle();
 	size_t GetUiColumnFormat(size_t icol, presenter* pres);
