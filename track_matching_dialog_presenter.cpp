@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include "stdafx.h"
 
 #include <gdiplus.h>
@@ -1071,7 +1071,7 @@ void files_artwork_presenter::define_columns() {
 
 void files_artwork_presenter::build_cfg_columns() {
 
-	build_woas_libppui(m_ui_list,/* m_tile ? 150 / 48 :*/ 1);
+	m_conf_col_woa = build_woas_libppui(m_ui_list,/* m_tile ? 150 / 48 :*/ 1);
 
 	if (m_conf_col_woa.size()) {
 
