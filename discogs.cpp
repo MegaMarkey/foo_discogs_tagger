@@ -1188,13 +1188,17 @@ void parseTrackPosition(ReleaseTrack_ptr& track, const pfc::array_t<ReleaseForma
 
 	trk_name.tn_nosub_chopped = mod_dc_tn;
 
-	// TODO: remove prev extract
+	// TODO: remove prev extract !!!
 	// EXTRACT SUBTRACK 2
 	size_t subdotpos;
 
 	if ((subdotpos = mod_dc_tn.find_last('.')) < mod_dc_tn.get_length() -1) {
 
 		ptpos.subtrk_postfix = substr(mod_dc_tn, subdotpos + 1);
+		int dec = RomanToDecimal(ptpos.subtrk_postfix);
+		if (dec) {
+			ptpos.subtrk_postfix = std::to_string(dec).c_str();
+		}
 		ptpos.trk_postfix = substr(mod_dc_tn, 0, subdotpos);
 
 		if (!trk_name.isIndex) {
@@ -1214,8 +1218,12 @@ void parseTrackPosition(ReleaseTrack_ptr& track, const pfc::array_t<ReleaseForma
 		}
 	}
 
-	if (ptpos.bmod_subtrack_track_is_disc) {
-		if (subdotpos > mod_dc_tn.get_length()) {
+	// fix v1.0.22.2.beta.1 r:364554 first disc track '1-1', 2nd disc '2.1' (disc dot track)
+	// todo: will not work for intermediate 'disc.track' if the last disc has 'disk-track'
+	bool bminuspos = mod_dc_tn.find_last('-') < mod_dc_tn.get_length() - 1;
+	if (ptpos.bmod_subtrack_track_is_disc && !bminuspos) {
+		//fix entry typos 30,3 -> 30.3
+		if (subdotpos > mod_dc_tn.get_length() && mod_dc_tn.get_length() > 2 && !pfc::string_is_numeric(mod_dc_tn)) {
 			std::string s = mod_dc_tn;
 			std::replace_if(s.begin(), s.end(), [](unsigned char c)
 				{
@@ -1601,7 +1609,9 @@ bool parseAllTrackPositions(pfc::array_t<ReleaseTrack_ptr>& intermediate_tracks,
 		bsubtrack &= (bool)track->title_subtrack.get_length();
 		bool bheading_changed = last_heading.get_length() && !curr_heading.equals(last_heading);
 
-		bool bfake_subtrack = !bhidden;
+		//todo: headed hidden track, subtrack within track header,
+		//      subtrack index right after track header,...
+		bool bfake_subtrack = !bhidden && !bsubtrack;
 
 		bfake_subtrack &= (bool)track->title_heading.get_length() && (!track->discogs_duration_raw.get_length() && parse_nfo.subtrk_postfix.get_length());
 		if (bfake_subtrack) {
@@ -1693,23 +1703,23 @@ bool parseAllTrackPositions(pfc::array_t<ReleaseTrack_ptr>& intermediate_tracks,
 			disc->disc_number = atoi(parse_nfo.vol_preffix);
 
 			track->disc_track_number = atoi(parse_nfo.trk_postfix);
-			track->disc_track_two_sided = parse_nfo.bformat_incl_sideb;
-			track->disc_track_side = atoi(parse_nfo.side_trk_postfix);
+			track->disc_track_side = parse_nfo.bformat_incl_sideb;
+			track->disc_track_in_side = atoi(parse_nfo.side_trk_postfix);
 
-			track->track_number = ctrack_number;
+				track->track_number = ctrack_number;
 
-			cdisc_number = disc->disc_number;
-			cdisc_track_number = track->disc_track_number;
-		}
+				cdisc_number = disc->disc_number;
+				cdisc_track_number = track->disc_track_number;
+			}
 
-		else {
+			else {
 
 			track->disc_track_number = cdisc_track_number;
-			track->disc_track_two_sided = parse_nfo.bformat_incl_sideb;
-			track->disc_track_side = atoi(parse_nfo.side_trk_postfix);
+			track->disc_track_side = parse_nfo.bformat_incl_sideb;
+			track->disc_track_in_side = atoi(parse_nfo.side_trk_postfix);
 
-			track->track_number = ctrack_number;
-		}
+				track->track_number = ctrack_number;
+			}
 
 
 		// ROUTE TRACK
