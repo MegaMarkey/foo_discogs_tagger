@@ -94,7 +94,7 @@ Double click on the tag name to open the Preview tag dialog. This dialog display
 
 ## Saving Artwork
 
-foo_discogger provides the ability to download images of the release or artist from Discogs and same them locally. This can be configured in the Artwork tab of the Configuration dialog. 
+foo_discogger provides the ability to download images of the release or artist from Discogs and save them locally. This can be configured in the Artwork tab of the Configuration dialog. 
 
 ## Viewing Pages on Discogs
 
@@ -126,9 +126,9 @@ Note that the Discogs API also does caching of its own, so if you've recently mo
 
 ## Authors
 
-* Michael Pujos (aka bubbleguuum) (up until v1.32)
-* zoomorph (v1.33 to v2.23). [BitBucket](https://bitbucket.org/zoomorph/foo_discogs), [official foobar2000 components page](http://www.foobar2000.org/components/view/foo_discogs)
-* Da yuyu (v1.0.1+)
+* Michael Pujos (aka bubbleguuum) (foo_discogs up until v1.32)
+* zoomorph (foo_discogs v1.33 to v2.23). [BitBucket](https://bitbucket.org/zoomorph/foo_discogs), [official foobar2000 components page](http://www.foobar2000.org/components/view/foo_discogs)
+* Da yuyu (foo_discogger v1.0.1+)
 
 ## Community
 
