@@ -268,6 +268,8 @@ private:
 
 	size_t m_post_selection_param;
 
+	bool m_filter_disabled_title_mismatch = false;
+
 	pfc::string8 m_results_filter;
 	pfc::string8 m_init_master_title;
 	pfc::string8 m_init_release_title;

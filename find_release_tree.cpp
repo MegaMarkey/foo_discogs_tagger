@@ -726,8 +726,13 @@ void CFindReleaseTree::init_titles(Artist_ptr artist, pfc::string8 & filter_hint
 					filter.set_string(mtitle);
 				}
 				else {
-						log_msg("Title mismatch... tree filter is now DISABLED.");
-						filter = "";
+
+					//until disabled filter in edit box amended
+					m_filter_disabled_title_mismatch = true;
+					//todo: rev title mismatch disabled filter != empty filter
+					filter = " ";
+
+					log_msg("Please, amend release title mismatch... tree filter is now DISABLED.");
 				}
 			}
 		}
@@ -827,7 +832,7 @@ void CFindReleaseTree::on_get_artist_done(cupdRelSrc cupdsrc, const Artist_ptr a
 
 		m_results_filter.set_string(hint);
 
-		if (hint.get_length()) {
+        if (!m_filter_disabled_title_mismatch && hint.get_length()) {
 
 			CFindReleaseDialog* dlg = (CFindReleaseDialog*)m_dlg;
 
@@ -1356,7 +1361,7 @@ LRESULT CFindReleaseTree::apply_filter(pfc::string8 filter, bool brolemain, bool
 		bool bfilter_changed = stricmp_utf8(m_results_filter, filter);
 		bool has_ra = m_find_release_artist.get();
 		bool has_rar_av = find_release_artist_releases_available();
-		if (!m_find_release_artist.get() || !find_release_artist_releases_available()/*b_artist_master_or_releases*//*m_find_release_artist->loaded_releases*/ || (!bfilter_changed && !force_redraw)) {
+		if (!m_find_release_artist.get() || !find_release_artist_releases_available() || (!bfilter_changed && !m_filter_disabled_title_mismatch && !force_redraw)) {
 
 			m_results_filter.set_string(filter);
 
@@ -1364,6 +1369,8 @@ LRESULT CFindReleaseTree::apply_filter(pfc::string8 filter, bool brolemain, bool
 
 			return FALSE;
 		}
+
+		m_filter_disabled_title_mismatch = false;
 
 		// VER ++
 
