@@ -396,6 +396,22 @@ pfc::string8 join(const pfc::array_t<pfc::string8> &in, const pfc::string8 &join
 	return out;
 }
 
+extern bool remove_parenthesized(pfc::string8& src) {
+	if (!src.get_length()) return 0;
+
+	bool bdone = false;
+	size_t bb = src.find_first("(");
+	if (bb < src.get_length()) {
+		size_t be = src.find_last(")");
+		if (be < src.get_length() && (be > bb)) {
+			bdone = true;
+			src = substr(src, 0, bb);
+		}
+	}
+
+	return bdone;
+}
+
 int tokenize_quoted(pfc::string8& src, pfc::array_t<pfc::string8>& tokens) {
 
 	tokens.force_reset();

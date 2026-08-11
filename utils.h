@@ -165,7 +165,7 @@ extern void szcstr(size_t n, pfc::string8& out);
 
 // Make strings lowercase
 extern pfc::string8 lowercase(pfc::string8 str);
-
+extern bool remove_parenthesized(pfc::string8& src);
 // Join array/vector
 extern pfc::string8 join(const pfc::array_t<pfc::string8> &in, const pfc::string8 &join_field);
 

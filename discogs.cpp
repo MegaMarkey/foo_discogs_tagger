@@ -1238,8 +1238,8 @@ void parseTrackPosition(ReleaseTrack_ptr& track, const pfc::array_t<ReleaseForma
 		size_t trk_subdotpos = ptpos.trk_postfix.find_last('.');
 
 		if (subdotpos != trk_subdotpos && trk_subdotpos < ptpos.trk_postfix.get_length() - 1) {
-			ptpos.vol_preffix = substr(ptpos.trk_postfix, 0, trk_subdotpos);
-			ptpos.trk_postfix = substr(ptpos.trk_postfix, trk_subdotpos+1);
+			ptpos.vol_preffix = trim(substr(ptpos.trk_postfix, 0, trk_subdotpos));
+			ptpos.trk_postfix = trim(substr(ptpos.trk_postfix, trk_subdotpos+1));
 		}
 		else {
 		
@@ -1313,8 +1313,8 @@ void parseTrackPosition(ReleaseTrack_ptr& track, const pfc::array_t<ReleaseForma
 	}
 
 	if (_trk_div_pos != ~0) {
-		tmp_pre = substr(trk_name.tn_nosub_chopped, 0, _trk_div_pos);
-		tmp_post = substr(trk_name.tn_nosub_chopped, _trk_div_pos + 1);
+		tmp_pre = trim(substr(trk_name.tn_nosub_chopped, 0, _trk_div_pos));
+		tmp_post = trim(substr(trk_name.tn_nosub_chopped, _trk_div_pos + 1));
 
 		int dec = RomanToDecimal(tmp_post);
 		if (dec) {
@@ -2118,6 +2118,14 @@ void Discogs::parseAllReleaseTracks(json_t* jsTracklist, bool isRelease, const p
 		if (!all_subroman) break;
 		++it_wi;
 	}
+
+	bool removed_parenthesized = false;
+
+	for (size_t i = 0; i < intermediate_tracks.get_size(); i++) {
+		ReleaseTrack_ptr& track = intermediate_tracks[i];
+		removed_parenthesized |= remove_parenthesized(track->discogs_track_number);
+	}
+
 
 	// check all english
 	bool all_subenglish = vbk_romans_alphas.size();
