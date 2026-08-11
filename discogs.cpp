@@ -428,6 +428,7 @@ const pfc::array_t<pfc::string8> cCREDIT_DELIMS = get_delims();
 void Discogs::parseReleaseCredits(json_t* element, pfc::array_t<ReleaseCredit_ptr> &credits, Release *release) {
 	assert_is_array(element);
 	pfc::string8 last_role;
+	std::regex regex_v_rcy_sani_commas;
 	for (size_t i = 0; i < json_array_size(element); i++) {
 		json_t *j = json_array_get(element, i);
 		ReleaseArtist_ptr artist = parseReleaseArtist(j);
@@ -445,7 +446,7 @@ void Discogs::parseReleaseCredits(json_t* element, pfc::array_t<ReleaseCredit_pt
 				pfc::array_t<pfc::string8> array_parts;
 
 				pfc::string8 sani_to_tracks = sanitize_track_to(tracks);
-				size_t count = tokenize_multi(sanitize_track_commas(sani_to_tracks), cCREDIT_DELIMS, array_parts, true, true);
+				size_t count = tokenize_multi(sanitize_track_commas(sani_to_tracks, regex_v_rcy_sani_commas), cCREDIT_DELIMS, array_parts, true, true);
 
 				DistReleaseTrackCredits(array_parts, credit, release);
 			}

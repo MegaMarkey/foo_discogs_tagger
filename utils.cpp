@@ -4,7 +4,6 @@
 #include "utils_path.h"
 #include "utils.h"
 #include <algorithm>
-#include <regex>
 
 #ifdef _WIN64
 size_t MAX_ARTISTS = 200;
@@ -74,15 +73,17 @@ inline pfc::string EscapeWin(pfc::string8 keyWord) {
 	return out_keyWord;
 }
 
-inline bool remove_continous_space(pfc::string8 in, pfc::string8& out) {
+inline bool remove_continous_space(pfc::string8 in, pfc::string8& out, std::regex &regex_v) {
 
 	std::string tmpstr = in;
-	std::regex regex_v;
-	try {
-		regex_v = std::regex("\\s*[ ]\\s*");
-	}
-	catch (std::regex_error e) {
-		return false;
+
+	if (regex_v._Empty()) {
+		try {
+			regex_v = std::regex("\\s*[ ]\\s*");
+		}
+		catch (std::regex_error e) {
+			return false;
+		}
 	}
 
 	try {
@@ -174,11 +175,12 @@ pfc::string8 sanitize_track_semi_media(const pfc::string8& tracks) {
 	return res;
 }
 
-pfc::string8 sanitize_track_commas(const pfc::string8& tracks) {
+pfc::string8 sanitize_track_commas(const pfc::string8& tracks, std::regex& regex_v) {
 
-	std::regex regex_v;
+	if (regex_v._Empty()) {
+		regex_v = std::regex("[ ]+,[ ]+");
+	}
 
-	regex_v = std::regex("[ ]+,[ ]+");
 	std::string res_no_extra_comma_spc(tracks.c_str());
 	std::sregex_iterator begin = std::sregex_iterator(res_no_extra_comma_spc.begin(), res_no_extra_comma_spc.end(), regex_v);
 	std::sregex_iterator end = std::sregex_iterator();
@@ -464,7 +466,12 @@ bool replace_bracketed_commas(pfc::string8& out, pfc::string8 what, pfc::string8
 	std::regex regex_v;
 	std::string str_exp(what);
 	str_exp.append("(?=((?!\\[).)*?\\])");
-	regex_v = std::regex(str_exp);
+
+	bool regex_ok = vregex_util_get(str_exp.c_str(), regex_v, true);
+	if (!regex_ok) {
+		return false;
+	}
+
 	std::string res_no_bracketed_commas(out.c_str());
 	std::sregex_iterator begin = std::sregex_iterator(res_no_bracketed_commas.begin(), res_no_bracketed_commas.end(), regex_v);
 	std::sregex_iterator end = std::sregex_iterator();
@@ -897,24 +904,24 @@ pfc::string8 extract_max_number(const pfc::string8& s, const char mode, const bo
 	case 'a':
 		prefix_len = 2;
 		postfix_len = 1;
-		regex_v = "\\[a\\d+?\\]";
+		vregex_util_get("\\[a\\d+?\\]", regex_v, true);
 		break;
 	case 'r':
 		prefix_len = 2;
 		postfix_len = 1;
-		regex_v = "\\[r\\d+?\\]";
+		vregex_util_get("\\[r\\d+?\\]", regex_v, true);
 		break;
 	case 'z':
 		prefix_len = 0;
 		postfix_len = 0;
-		regex_v = "[\\d]";
+		vregex_util_get("[\\d]", regex_v, true);
 		break;
 	case 'w':
 		[[fallthrough]];
 	default:
 		prefix_len = 1;
 		postfix_len = 0;
-		regex_v = "/[\\d]+";
+		vregex_util_get("/[\\d]+", regex_v, true);
 	}
 
 	size_t max = 0;

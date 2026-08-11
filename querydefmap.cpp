@@ -114,14 +114,18 @@ namespace search_query {
 		bool bquery = false;
 		pfc::string8 trot = expr;
 
-		remove_continous_space(trot, trot);
+		// remove continous spaces
+
+		pfc::string8 tmpstr = trot;
+		std::regex regex_v_rcy_cont_sp;
+		remove_continous_space(trot, trot, regex_v_rcy_cont_sp);
 
 		for (const std::pair<std::string, FieldValPair> w : qdm_search_query) {
 			std::string  tmp = w.first.substr(0, w.first.length() - 1).c_str();
 			tmp += " =";
 			std::string res = any_case_substring(trot.c_str(), tmp, w.first.c_str());
 			if (res.compare(trot)) {
-				remove_continous_space(res.c_str(), trot);
+				remove_continous_space(res.c_str(), trot, regex_v_rcy_cont_sp);
 			}
 		}
 
@@ -130,7 +134,7 @@ namespace search_query {
 			tmp += "=";
 			std::string res = any_case_substring(trot.c_str(), tmp.c_str(), w.first.c_str());
 			if (res.compare(trot)) {
-				remove_continous_space(res.c_str(), trot);
+				remove_continous_space(res.c_str(), trot, regex_v_rcy_cont_sp);
 			}
 		}
 
