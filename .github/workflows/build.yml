@@ -57,7 +57,7 @@ jobs:
           New-Item -ItemType Directory -Force "$root\WTL10_9163" | Out-Null
           Copy-Item -Recurse "$dl\nuget\wtl.10.0.10320\lib\native\include" "$root\WTL10_9163\Include"
           # SDK projects (helpers, libPPUI) expect WTL in the global include path
-          Set-Content "$root\Directory.Build.targets" "<Project><PropertyGroup><IncludePath>`$(IncludePath);$root\WTL10_9163\Include</IncludePath></PropertyGroup></Project>"
+          Set-Content "$root\Directory.Build.targets" "<Project><PropertyGroup><IncludePath>`$(IncludePath);`$(VC_ATLMFC_IncludePath);$root\WTL10_9163\Include</IncludePath></PropertyGroup></Project>"
 
           # zlib headers (zlib1.dll is loaded at runtime)
           Invoke-WebRequest -UseBasicParsing https://github.com/madler/zlib/archive/refs/tags/v1.3.1.zip -OutFile "$dl\zlib.zip"
