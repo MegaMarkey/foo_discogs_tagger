@@ -73,3 +73,5 @@ jansson/*.h
 zlib/*.h
 liboauthcpp/*.h
 
+#Discogs application credentials (see BUILDING.md)
+discogs_credentials.h

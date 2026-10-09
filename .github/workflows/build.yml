@@ -112,6 +112,30 @@ jobs:
             lib /nologo /OUT:"%GITHUB_WORKSPACE%\sdk\foobar2000\%%~d\sqlite-amal-336\%TARGET_PLATFORM%\%CONFIG%\sqlite3.lib" sqlite3.obj || exit /b 1
           )
 
+      - name: Discogs application credentials
+        working-directory: sdk/foobar2000/foo_discogger
+        env:
+          DISCOGS_CONSUMER_KEY: ${{ secrets.DISCOGS_CONSUMER_KEY }}
+          DISCOGS_CONSUMER_SECRET: ${{ secrets.DISCOGS_CONSUMER_SECRET }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $key = "$env:DISCOGS_CONSUMER_KEY".Trim()
+          $secret = "$env:DISCOGS_CONSUMER_SECRET".Trim()
+          if (-not $key -or -not $secret) {
+            Write-Host "::warning::Secrets DISCOGS_CONSUMER_KEY/DISCOGS_CONSUMER_SECRET are not set, OAuth will fail with this build (see BUILDING.md)"
+            exit 0
+          }
+          if ($key -notmatch '^[A-Za-z0-9]+$' -or $secret -notmatch '^[A-Za-z0-9]+$') {
+            Write-Host "::error::DISCOGS_CONSUMER_KEY/DISCOGS_CONSUMER_SECRET may only contain letters and digits"
+            exit 1
+          }
+          Set-Content discogs_credentials.h @(
+            '#pragma once'
+            "#define CONSUMER_KEY `"$key`""
+            "#define CONSUMER_SECRET `"$secret`""
+          )
+          Write-Host "discogs_credentials.h written (key: $($key.Length) chars, secret: $($secret.Length) chars)"
+
       - name: Build foo_discogger
         working-directory: sdk/foobar2000/foo_discogger
         run: |

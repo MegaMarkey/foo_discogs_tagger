@@ -4,8 +4,18 @@
 #include "liboauthcpp\liboauthcpp.h"
 #include <chrono>
 
+// Discogs application credentials (discogs.com/settings/developers). They are
+// not in the repository: put them into discogs_credentials.h (see BUILDING.md).
+// With the placeholders below, OAuth fails with "Authorization Failed (401)".
+#if __has_include("discogs_credentials.h")
+#include "discogs_credentials.h"
+#endif
+#ifndef CONSUMER_KEY
 #define CONSUMER_KEY "<<key>>"
+#endif
+#ifndef CONSUMER_SECRET
 #define CONSUMER_SECRET "<<consumer_secret>>"
+#endif
 #define REQUEST_TOKEN_URL "https://api.discogs.com/oauth/request_token"
 #define AUTHORIZE_URL "https://www.discogs.com/oauth/authorize"
 #define ACCESS_TOKEN_URL "https://api.discogs.com/oauth/access_token"

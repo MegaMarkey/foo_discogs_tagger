@@ -32,6 +32,24 @@ The SDK projects `helpers` and `libPPUI` also need WTL in their include path
 | zlib headers (zlib1.dll is loaded at runtime) | `zlib\zlib.h`, `zlib\zconf.h` |
 | SQLite 3.40.1 amalgamation, compiled with `/FI sqlite3ren.h` (symbols renamed to `discogger_*`) | `..\disgogger libs\sqlite-amal-336\<Platform>\<Configuration>\sqlite3.lib` (x64 Release: `..\discogger libs\...`) |
 
+## Discogs application credentials
+
+OAuth needs the consumer key and secret of a Discogs application
+(discogs.com/settings/developers, leave the callback URL empty). They are not
+in the repository. Put them into `discogs_credentials.h` next to `fetcher.h`
+(ignored by git):
+
+```
+#pragma once
+#define CONSUMER_KEY "your consumer key"
+#define CONSUMER_SECRET "your consumer secret"
+```
+
+The CI writes this file from the repository secrets `DISCOGS_CONSUMER_KEY` and
+`DISCOGS_CONSUMER_SECRET`. Without it the build still succeeds, but OAuth fails
+with `Authorization Failed (401)`. OAuth tokens belong to the application they
+were generated with, so a build with different credentials needs a new token.
+
 ## Build
 
 ```
