@@ -98,7 +98,7 @@ namespace search_query {
 
 			}
 		}
-		out = { sanitized, scaped };
+		out = { sanitized.c_str(), scaped.c_str() };
 		return sanitized.get_length();
 	}
 

@@ -16,12 +16,31 @@ public:
 	MSG_WM_SETFOCUS(OnSetFocus)
 	MSG_WM_KILLFOCUS(OnKillFocus)
 	MSG_WM_GETDLGCODE(OnEditGetDlgCode)
+	MESSAGE_HANDLER_EX(WM_SETTEXT, OnTextChanging)
+	MESSAGE_HANDLER_EX(WM_KEYUP, OnTextChanging)
+	MESSAGE_HANDLER_EX(WM_PASTE, OnTextChanging)
+	MESSAGE_HANDLER_EX(WM_CUT, OnTextChanging)
+	MESSAGE_HANDLER_EX(WM_CLEAR, OnTextChanging)
 	CHAIN_MSG_MAP(TParent)
 	END_MSG_MAP()
 
 	UINT OnEditGetDlgCode(LPMSG lpMsg) {
 		if (!lpMsg) return FALSE;
 		SetMsgHandled(!!NoEscSteal); return 0;
+	}
+
+	// Repaint the edit and its buttons when the text may change and the
+	// condition holds (used to work around stale button drawing under Wine).
+	void SetConditionedInvalidation(std::function<bool()> stdf_condition) {
+		m_stdf_conditioned_invalidation = stdf_condition;
+	}
+
+	LRESULT OnTextChanging(UINT, WPARAM, LPARAM) {
+		if (m_stdf_conditioned_invalidation && m_stdf_conditioned_invalidation()) {
+			RedrawWindow(NULL, NULL, RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN);
+		}
+		SetMsgHandled(FALSE);
+		return 0;
 	}
 
 	CMyEditWithButtons() : CEditWithButtons(), m_stdf_call_history(nullptr)
@@ -109,6 +128,7 @@ public:
 protected:
 
 	std::function<bool(HWND, wchar_t* wstr)> m_stdf_call_history;
+	std::function<bool()> m_stdf_conditioned_invalidation;
 
 };
 

@@ -2568,7 +2568,7 @@ void CFindReleaseTree::context_menu(size_t param_mr, POINT screen_pos) {
 			if (buffer.get_length()) {
 
 				ClipboardHelper::OpenScope scope;
-				scope.Open(core_api::get_main_window(), true);
+				scope.Open(core_api::get_main_window());
 				ClipboardHelper::SetString(trim(buffer).get_ptr());
 				scope.Close();
 			}
@@ -2580,7 +2580,7 @@ void CFindReleaseTree::context_menu(size_t param_mr, POINT screen_pos) {
 			row_col_data rcd_out;
 			/*bool bres =*/ m_rt_cache.get_cached_find_release_node(myparam.lparam(), buffer, rcd_out);
 			ClipboardHelper::OpenScope scope;
-			scope.Open(core_api::get_main_window(), true);
+			scope.Open(core_api::get_main_window());
 			ClipboardHelper::SetString(trim(buffer).get_ptr());
 			scope.Close();
 
