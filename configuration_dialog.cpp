@@ -673,12 +673,12 @@ void CConfigurationDialog::init_caching_dialog(HWND wnd, bool subclass) {
 
 	//memory cache
 
-	original_parsing_merge_titles = conf.parse_hidden_merge_titles;
-	original_parsing_merge_subtracks = conf.cache_offline_cache_flag & ol::CacheFlags::MERGE_SUBTRACKS;
-	original_parsing_tracks_dotted_to_header = conf.cache_offline_cache_flag & ol::CacheFlags::MERGE_TRACKS_DOTTED_TO_HEADER;
+	ori_parsing_merge_titles = conf.parse_hidden_merge_titles;
+	ori_parsing_merge_subtracks = conf.cache_offline_cache_flag & ol::CacheFlags::MERGE_SUBTRACKS;
+	ori_parsing_tracks_dotted_to_header = conf.cache_offline_cache_flag & ol::CacheFlags::MERGE_TRACKS_DOTTED_TO_HEADER;
 
-	original_parsing = conf.parse_hidden_as_regular;
-	original_skip_video = conf.skip_video_tracks;
+	ori_parsing = conf.parse_hidden_as_regular;
+	ori_skip_video = conf.skip_video_tracks;
 
 	pfc::string8 num;
 	num << conf.cache_max_objects;
@@ -1110,11 +1110,11 @@ void CConfigurationDialog::save_caching_dialog(HWND wnd, bool dlgbind) {
 	auto expiration_enabled = uButton_GetCheck(wnd, IDC_CHK_CFG_CACHE_EXP_ENABLED);
 	conf_ptr->set_expiration_enabled(expiration_enabled);
 
-	if (original_parsing_merge_titles != conf_ptr->parse_hidden_merge_titles ||
-		original_parsing_merge_subtracks != (bool)(conf_ptr->cache_offline_cache_flag & ol::CacheFlags::MERGE_SUBTRACKS) ||
-		original_parsing_tracks_dotted_to_header != (bool)(conf_ptr->cache_offline_cache_flag & ol::CacheFlags::MERGE_TRACKS_DOTTED_TO_HEADER) ||
-		original_parsing != conf_ptr->parse_hidden_as_regular ||
-		original_skip_video != conf_ptr->skip_video_tracks) {
+	if (ori_parsing_merge_titles != conf_ptr->parse_hidden_merge_titles ||
+		ori_parsing_merge_subtracks != (bool)(conf_ptr->cache_offline_cache_flag & ol::CacheFlags::MERGE_SUBTRACKS) ||
+		ori_parsing_tracks_dotted_to_header != (bool)(conf_ptr->cache_offline_cache_flag & ol::CacheFlags::MERGE_TRACKS_DOTTED_TO_HEADER) ||
+		ori_parsing != conf_ptr->parse_hidden_as_regular ||
+		ori_skip_video != conf_ptr->skip_video_tracks) {
 		discogs_interface->reset_release_cache();
 		HWND wndCacheTab = g_hWndTabDialog[CONF_CACHING_TAB];
 		if (wndCacheTab) {
@@ -1810,7 +1810,7 @@ void CConfigurationDialog::on_load_search_formatting(HWND wnd) {
 
 	case CMD_4:
 		uid = IDC_EDIT_RELEASE_FORMATTING;
-		frm_string << "[\'[\'%RELEASE_SEARCH_ROLES%\']\' ]" << tmpcfg.search_release_format_string;,[%RELEASE_QUERY_MAJOR_FORMATS_QTY%:]%RELEASE_SEARCH_MAJOR_FORMATS%,%RELEASE_SEARCH_FORMATS%,%RELEASE_YEAR%,%RELEASE_SEARCH_CATNOS%, [%RELEASE_COUNTRY%]))";
+		frm_string << "[\'[\'%RELEASE_SEARCH_ROLES%\']\' ]" << tmpcfg.search_release_format_string;
 		break;
 	case CMD_5: {
 		uid = IDC_EDIT_MASTER_FORMATTING;

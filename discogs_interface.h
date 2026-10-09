@@ -73,8 +73,8 @@ private:
 			else if (out_alter_key) {
 				return cache_master_releases->get(out_alter_key);
 			}
-			return cache_master_releases->exists(lkey) ? cache_master_releases->get(lkey) : nullptr;
 		}
+		return cache_master_releases->exists(lkey) ? cache_master_releases->get(lkey) : nullptr;
 	}
 
 	inline Artist_ptr get_artist_from_cache(const pfc::string8 &artist_id) {

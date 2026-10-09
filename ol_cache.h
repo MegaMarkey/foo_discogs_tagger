@@ -24,7 +24,7 @@ namespace Offline {
 
 		MERGE_HIDDEN_TRACKS = 1 << 4, //todo
 		MERGE_SUBTRACKS = 1 << 5,
-		MERGE_TRACKS_TO_HEADER = 1 << 6,
+		MERGE_TRACKS_DOTTED_TO_HEADER = 1 << 6,
 	};
 
 	enum GetFrom {
@@ -486,13 +486,12 @@ namespace Offline {
 		if (!bfolder_ready && !ec.value()) {
 
 			try {
-
-			return bfolder_exists && !ec.value();
+				bfolder_ready = fs::create_directories(os_path, ec);
+			}
+			catch (...) {
+				return false;
+			}
 		}
-		catch (...) {
-			return false;
-		}
-	}
 
 		return bfolder_ready && !ec.value();
 	}

@@ -764,6 +764,7 @@ Image_ptr Discogs::parseImage(json_t *element) {
 }
 
 void Discogs::parseImages(json_t *array, pfc::array_t<Image_ptr> &images) {
+	const size_t param_image_count = images.get_size();
 	pfc::array_t<Image_ptr> sec_images;
 	if (json_is_array(array)) {
 		for (size_t i = 0; i < json_array_size(array); i++) {
@@ -1704,8 +1705,8 @@ bool parseAllTrackPositions(pfc::array_t<ReleaseTrack_ptr>& intermediate_tracks,
 			disc->disc_number = atoi(parse_nfo.vol_preffix);
 
 			track->disc_track_number = atoi(parse_nfo.trk_postfix);
-			track->disc_track_side = parse_nfo.bformat_incl_sideb;
-			track->disc_track_in_side = atoi(parse_nfo.side_trk_postfix);
+			track->disc_track_two_sided = parse_nfo.bformat_incl_sideb;
+			track->disc_track_side = atoi(parse_nfo.side_trk_postfix);
 
 				track->track_number = ctrack_number;
 
@@ -1716,8 +1717,8 @@ bool parseAllTrackPositions(pfc::array_t<ReleaseTrack_ptr>& intermediate_tracks,
 			else {
 
 			track->disc_track_number = cdisc_track_number;
-			track->disc_track_side = parse_nfo.bformat_incl_sideb;
-			track->disc_track_in_side = atoi(parse_nfo.side_trk_postfix);
+			track->disc_track_two_sided = parse_nfo.bformat_incl_sideb;
+			track->disc_track_side = atoi(parse_nfo.side_trk_postfix);
 
 				track->track_number = ctrack_number;
 			}
@@ -1787,7 +1788,6 @@ bool parseAllTrackPositions(pfc::array_t<ReleaseTrack_ptr>& intermediate_tracks,
 					cdisc_track_number++;
 					// +++
 
-					}
 				}
 				else {
 
@@ -1801,7 +1801,6 @@ bool parseAllTrackPositions(pfc::array_t<ReleaseTrack_ptr>& intermediate_tracks,
 						// +++
 					}
 				}
-			}
 		} // end new track precond 2
 		else {
 
