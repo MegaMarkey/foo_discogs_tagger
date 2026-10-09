@@ -11,7 +11,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform: [x64]  # TODO: re-add Win32 once x64 builds
+        platform: [Win32, x64]
     env:
       CONFIG: Release
       PLATFORM: ${{ matrix.platform }}
@@ -116,15 +116,27 @@ jobs:
           $PSNativeCommandUseErrorActionPreference = $false
           msbuild foo_discogger.vcxproj /m /nologo /v:minimal "/p:Configuration=$env:CONFIG" "/p:Platform=$env:PLATFORM" /p:PlatformToolset=v143 "/p:SolutionDir=$env:COMP_DIR\" "/flp:logfile=build.log;verbosity=minimal"
           $code = $LASTEXITCODE
-          $errs = Select-String -Path build.log -Pattern ': (fatal )?error ' | ForEach-Object { $_.Line -replace '^.*?\\foo_discogger\\', '' -replace '\s*\[[^\]]*\.vcxproj\]$', '' } | Sort-Object -Unique
+          $errs = Select-String -Path build.log -Pattern ': (fatal )?error ' | ForEach-Object { $_.Line.Replace("$env:COMP_DIR\", '') -replace '\s*\[[^\]]*\.vcxproj\]$', '' } | Sort-Object -Unique
           Write-Host "===== error summary ($($errs.Count) unique) ====="
           $errs | Select-Object -First 120 | ForEach-Object { Write-Host $_ }
           exit $code
 
+      - name: Package component
+        working-directory: sdk/foobar2000/foo_discogger
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          # .fb2k-component layout: 32-bit files at the archive root, 64-bit files in x64\
+          $stage = "$env:RUNNER_TEMP\stage"
+          $dir = if ($env:PLATFORM -eq 'x64') { "$stage\x64" } else { $stage }
+          New-Item -ItemType Directory -Force $dir | Out-Null
+          Copy-Item "$env:PLATFORM\$env:CONFIG\foo_discogger.dll", foo_discogger.dll.db, foo_discogs_help.html, titleformat_help.css $dir
+          New-Item -ItemType Directory -Force "$env:RUNNER_TEMP\pkg" | Out-Null
+          7z a -tzip "$env:RUNNER_TEMP\pkg\foo_discogger-$env:PLATFORM.fb2k-component" "$stage\*" | Out-Null
+          7z l "$env:RUNNER_TEMP\pkg\foo_discogger-$env:PLATFORM.fb2k-component"
+
       - name: Upload component
-        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: foo_discogger-${{ matrix.platform }}
-          path: |
-            sdk/foobar2000/foo_discogger/**/${{ env.CONFIG }}/foo_discogger.dll
+          path: ${{ runner.temp }}/pkg/foo_discogger-${{ matrix.platform }}.fb2k-component
