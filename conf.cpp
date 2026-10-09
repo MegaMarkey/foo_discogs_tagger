@@ -1567,6 +1567,14 @@ void CConf::save_preview_modal_tab_widths(int newwidths) {
 	}
 }
 
+// Auto-loading releases on artist selection needs the full offline cache
+// (readable and writable), as in Offline::full_cache(), but for this instance.
+bool CConf::auto_load_releases_on_select_ready() const {
+	return auto_rel_load_on_select
+		&& (cache_offline_cache_flag & Offline::CacheFlags::OC_READ)
+		&& (cache_offline_cache_flag & Offline::CacheFlags::OC_WRITE);
+}
+
 bool CConf::history_enabled() {
 	return HIWORD(history_enabled_max);
 }
