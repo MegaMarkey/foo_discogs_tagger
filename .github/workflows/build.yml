@@ -100,14 +100,16 @@ jobs:
       - name: Build sqlite
         shell: cmd
         run: |
+          rem vcvarsall overwrites PLATFORM (x86 for Win32), so keep the matrix value
+          set TARGET_PLATFORM=%PLATFORM%
           if "%PLATFORM%"=="Win32" (set VCARCH=x86) else (set VCARCH=x64)
           for /f "usebackq delims=" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath`) do set VSDIR=%%i
           call "%VSDIR%\VC\Auxiliary\Build\vcvarsall.bat" %VCARCH% || exit /b 1
           cd /d "%SQLITE_SRC%" || exit /b 1
           cl /nologo /c /O2 /MD /DSQLITE_THREADSAFE=1 /FI"%COMP_DIR%\sqlite3ren.h" sqlite3.c || exit /b 1
           for %%d in ("disgogger libs" "discogger libs") do (
-            mkdir "%GITHUB_WORKSPACE%\sdk\foobar2000\%%~d\sqlite-amal-336\%PLATFORM%\%CONFIG%" 2>nul
-            lib /nologo /OUT:"%GITHUB_WORKSPACE%\sdk\foobar2000\%%~d\sqlite-amal-336\%PLATFORM%\%CONFIG%\sqlite3.lib" sqlite3.obj || exit /b 1
+            mkdir "%GITHUB_WORKSPACE%\sdk\foobar2000\%%~d\sqlite-amal-336\%TARGET_PLATFORM%\%CONFIG%" 2>nul
+            lib /nologo /OUT:"%GITHUB_WORKSPACE%\sdk\foobar2000\%%~d\sqlite-amal-336\%TARGET_PLATFORM%\%CONFIG%\sqlite3.lib" sqlite3.obj || exit /b 1
           )
 
       - name: Build foo_discogger
