@@ -303,6 +303,7 @@
     <ClInclude Include="cache.h" />
     <ClInclude Include="conf_flag_mng.h" />
     <ClInclude Include="crc.h" />
+    <ClInclude Include="db_fetcher.h" />
     <ClInclude Include="find_artist_list.h" />
     <ClInclude Include="find_artist_list_ILO.h" />
     <ClInclude Include="find_release_dialog.h" />
