@@ -185,7 +185,7 @@ namespace search_query {
 				query_fld_val_sani = query_fld_val_sani.replace(" +", "+");
 
 				pfc::string8 no_apos = query_fld_val_sani;
-				if (no_apos.replace_string_ex(no_apos, "\'", "")) {
+				if (no_apos.replace_string("\'", "")) {
 					//..
 				}
 				pfc::string8 trot_scaped; trot_scaped.move(no_apos);
@@ -419,7 +419,7 @@ namespace search_query {
 		if(frm_album_artist.equals("various artist")) {
 			frm_artist = "various";
 		}
-		if (!frm_album_artist)
+		if (!frm_album_artist.get_length())
 		{
 			frm_album_artist = frm_artist;
 		}

@@ -169,7 +169,7 @@ public:
 	void show() override;
 	void hide() override;
 
-	size_t get_art_perm_selection(HWND hwndList, bool flagselected, const size_t max_items, pfc::array_t<t_uint8>& outmask, bit_array_bittable& are_albums);
+	size_t get_art_perm_selection(HWND hwndList, bool flagselected, const size_t max_items, pfc::array_t<size_t>& outmask, bit_array_bittable& are_albums);
 	void request_preview(size_t img_ndx, bool artist_art, bool onlycache, bool get_mibs = false);
 	void request_file_preview(size_t img_ndx, bool artist_art);
 
@@ -247,6 +247,8 @@ private:
 
 	size_t m_pending_previews = 0;
 	std::mutex m_mx_pending_previews_mod;
+	//manage artwork disabled on init (too many images or no artwork configured)
+	bool m_mng_artwork_allowed = true;
 	std::vector<preview_job> m_vpreview_jobs;
 	void add_pending_previews(size_t n);
 	TagWriter_ptr m_tag_writer;

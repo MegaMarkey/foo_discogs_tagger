@@ -58,9 +58,9 @@ void CArtworkList::RenderCellImage(size_t item, size_t subItem, CDCHandle dc, co
 		getimages_it imginfo;
 
 		size_t ndxpos = dlg->m_coord.Get_V_LvRow(lsmode::art, true, item, out);
+		if (ndxpos == pfc_infinite) return;
 		imginfo = std::get<2>(*out).second;
 
-		if (ndxpos == pfc_infinite) return;
 		hIcon = dlg->m_coord.GetDiscogsArtVIcons(ndxpos, rcIcon);
 	}
 	else {
@@ -69,9 +69,8 @@ void CArtworkList::RenderCellImage(size_t item, size_t subItem, CDCHandle dc, co
 		getimages_file_it imginfo;
 
 		size_t ndxpos = dlg->m_coord.Get_V_LvRow(lsmode::art, false, item, out);
-		imginfo = std::get<3>(*out).second;
-
 		if (ndxpos == pfc_infinite) return;
+		imginfo = std::get<3>(*out).second;
 
 		hIcon = dlg->m_coord.GetFileArtVIcons(ndxpos, rcIcon);
 	}

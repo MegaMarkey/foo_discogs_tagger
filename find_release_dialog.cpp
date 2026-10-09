@@ -25,9 +25,20 @@ void load_global_icons() {
 	auto dpiX = QueryScreenDPIEx(core_api::get_main_window()).cx;
 
 	bool bdark = fb2k::isDarkMode() || check_os_wine_dark_no_theme();
-	g_hIcon_quian = LoadDpiIconResource(!bdark ? Icon::Quian : Icon::Quian_Dark, dpiX);
-	g_hIcon_rec = LoadDpiBitmapResource(Icon::Record, bdark);
 
+	//load once (released in ~foo_discogs), reload quian icon on dark mode change
+	static bool s_quian_dark = false;
+	if (!g_hIcon_quian || s_quian_dark != bdark) {
+		if (g_hIcon_quian) {
+			DestroyIcon(g_hIcon_quian);
+		}
+		g_hIcon_quian = LoadDpiIconResource(!bdark ? Icon::Quian : Icon::Quian_Dark, dpiX);
+		s_quian_dark = bdark;
+	}
+	//shared with track matching and preview dialog buttons
+	if (!g_hIcon_rec) {
+		g_hIcon_rec = LoadDpiBitmapResource(Icon::Record, bdark);
+	}
 }
 
 // constructor
@@ -147,8 +158,8 @@ void CFindReleaseDialog::enable_alt(bool is_enabled) {
 
 	for (HWND walk = ::GetWindow(m_hWnd, GW_CHILD); walk != NULL; ) {
 		HWND next = ::GetWindow(walk, GW_HWNDNEXT);
-		if (is_enabled && next != h1 && next != h2 && next != h3 && next != h4 && next != h5) {
-			::uEnableWindow(next, !is_enabled);
+		if (is_enabled && walk != h1 && walk != h2 && walk != h3 && walk != h4 && walk != h5) {
+			::uEnableWindow(walk, !is_enabled);
 		}
 		else if (!is_enabled) {
 			//..
@@ -178,7 +189,7 @@ inline bool CFindReleaseDialog::build_current_cfg() {
 		bres |= true;
 	}
 
-	conf.find_release_dlg_flags &= ~FilterFlag::RoleMainAT;
+	conf.find_release_filter_flag &= ~FilterFlag::RoleMainAT;
 	if ((CONF.find_release_filter_flag & FilterFlag::Versions) != (conf.find_release_filter_flag & FilterFlag::Versions)) {
 		bres |= true;
 	}
@@ -345,8 +356,12 @@ void CFindReleaseDialog::SetSearchModeText(const pfc::string8 msg, bool mode_pre
 		buffer = msg;
 	}
 
-	fb2k::inMainThread([this, buffer] {
-		uSetWindowText(m_static_search_msg, buffer);
+	//dialog may be gone when this runs, do not capture this
+	HWND hwnd_search_msg = m_static_search_msg;
+	fb2k::inMainThread([hwnd_search_msg, buffer] {
+		if (::IsWindow(hwnd_search_msg)) {
+			uSetWindowText(hwnd_search_msg, buffer);
+		}
 		});
 }
 
@@ -629,6 +644,9 @@ LRESULT CFindReleaseDialog::OnInitDialog(UINT /*uMsg*/, WPARAM /*wParam*/, LPARA
 
 		if (bres) {
 
+			//debug toggle (upstream definition never committed)
+			const bool test_no_artists_artist_in_title = false;
+
 			if (b_is_various && !test_no_artists_artist_in_title && !cfg_on_init_query_custom_tf_enabled) {
 				if (m_qdm_search_query.at("artist=").first.size()) {
 
@@ -698,7 +716,7 @@ LRESULT CFindReleaseDialog::OnInitDialog(UINT /*uMsg*/, WPARAM /*wParam*/, LPARA
 				rel_id = id;
 			}
 			else {
-				id << m_tracer.release_id;
+				rel_id << m_tracer.release_id;
 			}
 		}
 		else
@@ -893,6 +911,24 @@ LRESULT CFindReleaseDialog::OnInitDialog(UINT /*uMsg*/, WPARAM /*wParam*/, LPARA
 	}
 
 	//prevent default control focus
+	return FALSE;
+}
+
+LRESULT CFindReleaseDialog::OnContextMenu(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled) {
+
+	HWND hwndCtrl = (HWND)wParam;
+	HWND hwndArtistList = GetDlgItem(IDC_ARTIST_LIST);
+	HWND hwndReleaseTree = GetDlgItem(IDC_RELEASE_TREE);
+
+	if (hwndCtrl != hwndArtistList && hwndCtrl != hwndReleaseTree) {
+		bHandled = TRUE;
+	}
+	else {
+		//artist list and release tree are chained
+		bHandled = FALSE;
+	}
+
+	//return value is meaningless
 	return FALSE;
 }
 
@@ -1159,8 +1195,11 @@ void CFindReleaseDialog::on_search_artist_done(const pfc::array_t<Artist_ptr>& p
 		std::lock_guard<std::mutex> guard(g_discogs->tree_locked_mutex);
 		m_dctree.EnableDispInfo(true);
 		//todo:
-		fb2k::inMainThread([this] {
-			::InvalidateRect(m_release_tree, {0}, TRUE);
+		HWND hwnd_tree = m_release_tree;
+		fb2k::inMainThread([hwnd_tree] {
+			if (::IsWindow(hwnd_tree)) {
+				::InvalidateRect(hwnd_tree, {0}, TRUE);
+			}
 			});
 	}
 
@@ -1174,7 +1213,7 @@ void CFindReleaseDialog::on_search_artist_done(const pfc::array_t<Artist_ptr>& p
 	//may spawn on list item selection
 
 	updRelSrc updrelsrc = updRelSrc::ArtistSearch;
-	debug_ok = false;
+	bool debug_ok = false;
 	if (debug_ok && m_query_mode & SearchMode::AT) {
 
 		updrelsrc = updRelSrc::ArtistSearchAT;
@@ -1193,8 +1232,11 @@ void CFindReleaseDialog::on_search_artist_done(const pfc::array_t<Artist_ptr>& p
 
 	std::lock_guard<std::mutex> guard(g_discogs->tree_locked_mutex);
 	m_dctree.EnableDispInfo(true);
-	fb2k::inMainThread([this] {
-		::InvalidateRect(m_release_tree, NULL, TRUE);
+	HWND hwnd_tree = m_release_tree;
+	fb2k::inMainThread([hwnd_tree] {
+		if (::IsWindow(hwnd_tree)) {
+			::InvalidateRect(hwnd_tree, NULL, TRUE);
+		}
 		});
 }
 

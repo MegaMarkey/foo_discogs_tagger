@@ -27,11 +27,13 @@ private:
 	pfc::array_t<pfc::string8> collection;
 
 	inline Release_ptr get_release_from_cache(const size_t lkey) {
-		return cache_releases->exists(lkey) ? cache_releases->get(lkey) : nullptr;
+		Release_ptr release;
+		return cache_releases->try_get(lkey, release) ? release : nullptr;
 	}
 
 	inline MasterRelease_ptr get_master_release_from_cache(const size_t lkey) {
-		return cache_master_releases->exists(lkey) ? cache_master_releases->get(lkey) : nullptr;
+		MasterRelease_ptr master;
+		return cache_master_releases->try_get(lkey, master) ? master : nullptr;
 	}
 
 	//recycle
@@ -44,16 +46,16 @@ private:
 			//any will do
 			auto exist_pair = cache_releases->exists_comp(lkey, out_alter_key);
 			if (exist_pair.first) {
-				return cache_releases->get(encode_mr(0, pdec.second));
+				return get_release_from_cache(encode_mr(0, pdec.second));
 			}
 			else if (exist_pair.second) {
-				return cache_releases->get(encode_mr(pdec.first, pdec.second));
+				return get_release_from_cache(encode_mr(pdec.first, pdec.second));
 			}
 			else if (out_alter_key) {
-				return cache_releases->get(out_alter_key);
+				return get_release_from_cache(out_alter_key);
 			}
 		}
-		return cache_releases->exists(lkey) ? cache_releases->get(lkey) : nullptr;
+		return get_release_from_cache(lkey);
 	}
 
 	//recycle
@@ -65,20 +67,21 @@ private:
 		if (!pdec.first) {
 			auto pres = cache_master_releases->exists_comp(lkey, out_alter_key);
 			if (pres.second) {
-				return cache_master_releases->get(lkey);
+				return get_master_release_from_cache(lkey);
 			}
 			else if (pres.first) {
-				return cache_master_releases->get(pdec.second);
+				return get_master_release_from_cache(pdec.second);
 			}
 			else if (out_alter_key) {
-				return cache_master_releases->get(out_alter_key);
+				return get_master_release_from_cache(out_alter_key);
 			}
 		}
-		return cache_master_releases->exists(lkey) ? cache_master_releases->get(lkey) : nullptr;
+		return get_master_release_from_cache(lkey);
 	}
 
 	inline Artist_ptr get_artist_from_cache(const pfc::string8 &artist_id) {
-		return cache_artists->exists(artist_id) ? cache_artists->get(artist_id) : nullptr;
+		Artist_ptr artist;
+		return cache_artists->try_get(artist_id, artist) ? artist : nullptr;
 	}
 
 	inline void add_release_to_cache(const size_t lkey, Release_ptr &release) {
@@ -242,6 +245,11 @@ public:
 
 	rppair_t search_amt_artist(const pfc::string8 &name, const QueryDefMap qdm_search_query, pfc::array_t<Artist_ptr> &exact_matches, pfc::array_t<Artist_ptr> &other_matches, threaded_process_status &p_status, abort_callback &p_abort);
 #endif
+	// cached release or nullptr, nothing is loaded or inserted
+	inline Release_ptr get_cached_release(const size_t lkey) {
+		return get_release_from_cache(lkey);
+	}
+
 	Release_ptr get_release(const size_t lkey, bool bypass_is_cache = true, bool bypass = false);
 	Release_ptr get_release(const size_t lkey, threaded_process_status& p_status, abort_callback& p_abort, bool bypass_cache = false, bool throw_all = false);
 	Release_ptr get_release(const size_t, const pfc::string8& offline_artist_id, threaded_process_status &p_status, abort_callback &p_abort, bool bypass_cache = false, bool throw_all = false);

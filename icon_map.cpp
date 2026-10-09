@@ -5,7 +5,7 @@
 
 HBITMAP LoadDpiBitmapResource(Icon icon, bool isDark) {
 
-	HBITMAP h_bitmap;
+	HBITMAP h_bitmap = nullptr;
 
 	CGdiPlusBitmapResource rec_image;
 
@@ -34,12 +34,13 @@ HBITMAP LoadDpiBitmapResource(Icon icon, bool isDark) {
 		match = std::prev(iconSizeMappins.end());
 	}
 
-	rec_image.Load(MAKEINTRESOURCE(match->second/*IDB_PNG_REC16*/), L"PNG", hInst);
+	if (!rec_image.Load(MAKEINTRESOURCE(match->second/*IDB_PNG_REC16*/), L"PNG", hInst)) {
+		return h_bitmap;
+	}
 
 	if (match->first == scaledIconWidth && match->first == scaledIconHeight)
 	{
 		Gdiplus::Status res_get = rec_image.m_pBitmap->GetHBITMAP(Gdiplus::Color(255, 255, 255)/*Color::Black*/, &h_bitmap);
-		DeleteObject(rec_image);
 	}
 	else {
 		auto scaledBitmap = std::make_unique<Gdiplus::Bitmap>(scaledIconWidth, scaledIconHeight);
@@ -51,7 +52,6 @@ HBITMAP LoadDpiBitmapResource(Icon icon, bool isDark) {
 		float scalingFactorY = static_cast<float>(scaledIconHeight) / static_cast<float>(match->first);
 		graphics.ScaleTransform(scalingFactorX, scalingFactorY);
 		graphics.DrawImage(rec_image.m_pBitmap, 0, 0);
-		DeleteObject(rec_image);
 		Gdiplus::Status res_get = scaledBitmap->GetHBITMAP(Gdiplus::Color(255, 255, 255), &h_bitmap);
 	}
 
@@ -90,7 +90,9 @@ HICON LoadDpiIconResource(Icon icon, bool isDark) {
 		match = std::prev(iconSizeMappins.end());
 	}
 
-	rec_image.Load(MAKEINTRESOURCE(match->second/*IDB_PNG_REC16*/), L"PNG", hInst);
+	if (!rec_image.Load(MAKEINTRESOURCE(match->second/*IDB_PNG_REC16*/), L"PNG", hInst)) {
+		return h_icon;
+	}
 
 	if (match->first == scaledIconWidth && match->first == scaledIconHeight)
 	{
@@ -106,7 +108,6 @@ HICON LoadDpiIconResource(Icon icon, bool isDark) {
 		float scalingFactorY = static_cast<float>(scaledIconHeight) / static_cast<float>(match->first);
 		graphics.ScaleTransform(scalingFactorX, scalingFactorY);
 		graphics.DrawImage(rec_image.m_pBitmap, 0, 0);
-		DeleteObject(rec_image);
 		Gdiplus::Status res_get = scaledBitmap->GetHICON(&h_icon);
 	}
 

@@ -90,9 +90,12 @@ public:
 	~presenter() {
 
 		for (auto hicon : m_vicons) {
-			DeleteObject(hicon.first);
-			DeleteObject(hicon.second);
+			if (hicon.first) DestroyIcon(hicon.first);
+			if (hicon.second) DestroyIcon(hicon.second);
 		}
+
+		if (m_lstimg.m_hImageList) m_lstimg.Destroy();
+		if (m_lstimg_small.m_hImageList) m_lstimg_small.Destroy();
 	}
 
 	std::vector<int> Woas() { return m_conf_col_woa; }
@@ -410,8 +413,8 @@ public:
 
 	~discogs_artwork_presenter() {
 		for (auto hicon : m_vicons) {
-			DeleteObject(hicon.first);
-			DeleteObject(hicon.second);
+			if (hicon.first) DestroyIcon(hicon.first);
+			if (hicon.second) DestroyIcon(hicon.second);
 		}
 		m_vicons.clear();
 	}
@@ -463,9 +466,9 @@ public:
 		return get_vimages_src_type_at_pos(list_position);
 	}
 
-	multi_uartwork SetUartwork(multi_uartwork multi_uart) { m_multi_uart = multi_uart; }
+	void SetUartwork(multi_uartwork multi_uart) { m_multi_uart = multi_uart; }
 	multi_uartwork* GetUartwork() { return &m_multi_uart; }
-	multi_uartwork SetUartwork_guids(uartwork_guids uart_guids) { m_uart_guids = uart_guids; }
+	void SetUartwork_guids(uartwork_guids uart_guids) { m_uart_guids = uart_guids; }
 	uartwork_guids* GetUartwork_guids() { return &m_uart_guids; }
 
 	void Reset() override {
@@ -473,6 +476,7 @@ public:
 		m_vimages.clear(); m_lvimages.clear();
 		m_multi_uart = multi_uartwork();
 		m_multi_uart.file_match = bmatch_file;
+		populated = false;
 	}
 protected:
 
@@ -513,8 +517,8 @@ public:
 	~files_artwork_presenter() {
 
 		for (auto hicon : m_vicons) {
-			DeleteObject(hicon.first);
-			DeleteObject(hicon.second);
+			if (hicon.first) DestroyIcon(hicon.first);
+			if (hicon.second) DestroyIcon(hicon.second);
 		}
 
 		m_vicons.clear();
@@ -570,7 +574,7 @@ public:
 		return std::distance(m_vimage_files.begin(), out);
 	}
 
-	void Reset() override { m_vimage_files.clear(); m_lvimage_files.clear(); }
+	void Reset() override { m_vimage_files.clear(); m_lvimage_files.clear(); populated = false; }
 	void ImageListReset(pfc::array_t<GUID> album_art_ids);
 
 	void GetExistingArtwork();

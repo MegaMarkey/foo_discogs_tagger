@@ -104,7 +104,8 @@ void CTagMappingDialog::UpdateAltMode(bool erase) {
 	copy_tag_mappings(m_ptag_map);
 
 	if (erase) {
-		m_tag_list.ReloadItems(bit_array_true());
+		//list replaced, reload count and selection
+		m_tag_list.ReloadData();
 	}
 }
 
@@ -229,7 +230,7 @@ void CTagMappingDialog::update_list_width() {
 	m_tag_list.ResizeColumn(2, c3, true);
 }
 
-void CTagMappingDialog::applymappings() {
+bool CTagMappingDialog::applymappings() {
 
 	bool only_save_conf = false;
 
@@ -258,17 +259,16 @@ void CTagMappingDialog::applymappings() {
 
 	if (only_save_conf) {
 		//
-		return;
+		return false;
 		//
 	}
 
 	if (g_discogs->preview_tags_dialog) {
 		CPreviewTagsDialog* dlg = g_discogs->preview_tags_dialog;
-		if (dlg->is_enabled()) {
-
-			dlg->spawn_generate_tag_mappings();
-		}
+		//mappings replaced, preview results still point to the old entries
+		dlg->spawn_generate_tag_mappings();
 	}
+	return true;
 }
 
 void CTagMappingDialog::add_new_tag(size_t pos, tag_mapping_entry entry) {
@@ -284,7 +284,9 @@ void CTagMappingDialog::add_new_tag(size_t pos, tag_mapping_entry entry) {
 		entry.freeze_write = false;
 	}
 
-	size_t index = m_ptag_map->add_item(*entry.clone());
+	tag_mapping_entry* pentry = entry.clone();
+	size_t index = m_ptag_map->add_item(*pentry);
+	delete pentry;
 
 	m_tag_list.OnItemsInserted(index, 1, true);
 	m_tag_list.EnsureItemVisible(index, true);
@@ -299,7 +301,11 @@ void CTagMappingDialog::showtitle() {
 }
 
 LRESULT CTagMappingDialog::OnOk(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/) {
-	applymappings();
+	if (!applymappings()) {
+		//keep the dialog (and the edited mappings) open
+		uMessageBox(m_hWnd, "Tag generation is busy, try applying the mapping later.", "foo_discogger: Tag Mapping", MB_APPLMODAL | MB_ICONASTERISK);
+		return TRUE;
+	}
 	destroy();
 	return TRUE;
 }
@@ -347,7 +353,8 @@ LRESULT CTagMappingDialog::OnDefaults(WORD /*wNotifyCode*/, WORD wID, HWND /*hWn
 			break;
 		}
 
-		m_tag_list.OnItemsInserted(0, m_ptag_map->get_count(), false);
+		//list replaced, reload count and selection
+		m_tag_list.ReloadData();
 		m_tag_list.EnsureItemVisible(0, false);
 
 		on_mapping_changed(check_mapping_changed());
@@ -376,8 +383,7 @@ LRESULT CTagMappingDialog::OnImport(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndC
 	abort_callback_impl p_abort;
 
 	try {
-		char fullpath[MAX_PATH] = "";
-		pfc::stringcvt::convert_wide_to_utf8(fullpath, MAX_PATH, wfilename.c_str(), MAX_PATH);
+		pfc::string8 fullpath = pfc::stringcvt::string_utf8_from_wide(wfilename.c_str()).get_ptr();
 
 		foobar2000_io::filesystem::g_open(f, fullpath, foobar2000_io::filesystem::open_mode_read, p_abort);
 
@@ -495,7 +501,8 @@ LRESULT CTagMappingDialog::OnImport(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndC
 
 	f.release();
 
-	m_tag_list.OnItemsInserted(0, m_ptag_map->get_count(), false);
+	//list replaced, reload count and selection
+	m_tag_list.ReloadData();
 	m_tag_list.EnsureItemVisible(0, false);
 	on_mapping_changed(check_mapping_changed());
 
@@ -576,8 +583,7 @@ bool CTagMappingDialog::ExportJSON(std::filesystem::path os_file) {
 
 	service_ptr_t<file> f;
 	abort_callback_impl p_abort;
-	char fullpath[MAX_PATH] = "";
-	pfc::stringcvt::convert_wide_to_utf8(fullpath, MAX_PATH, os_file.wstring().c_str(), MAX_PATH);
+	pfc::string8 fullpath = pfc::stringcvt::string_utf8_from_wide(os_file.wstring().c_str()).get_ptr();
 	foobar2000_io::filesystem::g_open(f, fullpath, foobar2000_io::filesystem::open_mode_write_new, p_abort);
 
 	try {
@@ -622,7 +628,8 @@ bool CTagMappingDialog::ExportJSON(std::filesystem::path os_file) {
 		json_t* arr_top = json_array();
 
 		for (auto wobj : vjson) {
-			auto res = json_array_append(arr_top, wobj);
+			//array steals the reference
+			json_array_append_new(arr_top, wobj);
 		}
 
 		// dump object array
@@ -632,15 +639,16 @@ bool CTagMappingDialog::ExportJSON(std::filesystem::path os_file) {
 		jf = _wopen(os_file.wstring().c_str(), _O_CREAT | _O_TRUNC | _O_RDWR | _O_TEXT, _S_IWRITE);
 
 		if (jf == -1) {
+			json_decref(arr_top);
 			foobar2000_io::exception_io e("Open failed on output file");
 			throw e;
 		}
 		auto res = json_dumpfd(arr_top, jf, JSON_INDENT(5));
 		_close(jf);
 
-		for (auto w : vjson) {
-			free(w);
-		}
+		//releases the array and its objects
+		json_decref(arr_top);
+
 		if (res == -1) {
 			log_msg(PFC_string_formatter() << "Could not write " << std::to_string(n_entries).c_str() << " tag mapping entries to file");
 			return false;;
@@ -674,8 +682,7 @@ bool CTagMappingDialog::ImportJSON(std::filesystem::path os_file, tag_mapping_li
 
 	service_ptr_t<file> f;
 	abort_callback_impl p_abort;
-	char fullpath[MAX_PATH] = "";
-	pfc::stringcvt::convert_wide_to_utf8(fullpath, MAX_PATH, os_file.wstring().c_str(), MAX_PATH);
+	pfc::string8 fullpath = pfc::stringcvt::string_utf8_from_wide(os_file.wstring().c_str()).get_ptr();
 
 	foobar2000_io::filesystem::g_open(f, fullpath, foobar2000_io::filesystem::open_mode_read, p_abort);
 
@@ -809,6 +816,7 @@ bool CTagMappingDialog::ImportJSON(std::filesystem::path os_file, tag_mapping_li
 				temp_data.push_back(elem);	//save to vector
 			}
 
+			json_decref(json);
 		}
 		catch (foobar2000_io::exception_io e) {
 			if (jf != -1) {

@@ -83,7 +83,8 @@ unsigned int JSONAttributeObjectAttributeInt(json_t *root, const char *object, c
 			return (unsigned int)json_integer_value(s);
 		}
 	}
-	return pfc::infinite_size;
+	//not found (UINT_MAX), callers must check
+	return (unsigned int)pfc::infinite_size;
 }
 
 pfc::string8 JSONAttributeObjectAttributeObjectAttributeString(json_t *root, const char *object, const char *object2, const char *attribute) {

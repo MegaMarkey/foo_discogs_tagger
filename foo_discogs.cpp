@@ -85,8 +85,10 @@ class initquit_discogs : public initquit
 		}
 
 		if (g_discogs) {
-			DeleteObject(g_discogs->icon);
+			//destroy icon after ~foo_discogs has closed the dialogs using it
+			HICON hicon = g_discogs->icon;
 			delete g_discogs; //(1)
+			DestroyIcon(hicon);
 		}
 		else {
 			log_msg("Warning: skipping default on_quit clearance.");
@@ -155,7 +157,7 @@ foo_discogs::~foo_discogs() {
 		delete ui_v2_cfg_callback;
 	}
 
-	DeleteObject(g_hIcon_quian);
+	DestroyIcon(g_hIcon_quian);
 	DeleteObject(g_hIcon_rec);
 	DeleteObject(g_hFont);
 	DeleteObject(g_hFontTabs);
@@ -286,14 +288,15 @@ void foo_discogs::save_album_art(Release_ptr& release, metadb_handle_ptr item,
 
 	pfc::string8 directory;
 	file_info_impl info;
+	item->get_info(info);
 	titleformat_hook_impl_multiformat hook(p_status, &release);
 
 	if (ada.write_it) {
 
 		CONF.album_art_directory_string->run_hook(item->get_location(), &info, &hook, directory, nullptr);
 
-		// hardcoded "nullptr" ?
-		if (!STR_EQUAL(directory, "nullptr")) {
+		// "null" (documented), "nullptr" (legacy) or empty: do not save
+		if (directory.get_length() && !(STR_EQUAL(directory, "null")) && !(STR_EQUAL(directory, "nullptr"))) {
 			if (directory[directory.get_length() - 1] != '\\') {
 				directory.add_char('\\');
 			}
@@ -333,7 +336,7 @@ void foo_discogs::save_album_art(Release_ptr& release, metadb_handle_ptr item,
 			vwrite_it.resize(cimage_batch);
 			voverwrite_it.resize(cimage_batch);
 			vembed_it.resize(cimage_batch);
-			vwrite_it[wib]		= CONF_MULTI_ARTWORK.getflag(af::alb_sd, wib /*+ offset*/);
+			vwrite_it[wib]		= ada.write_it && CONF_MULTI_ARTWORK.getflag(af::alb_sd, wib /*+ offset*/);
 			voverwrite_it[wib]	= CONF_MULTI_ARTWORK.getflag(af::alb_ovr, wib /*+ offset*/);
 			vembed_it[wib]		= CONF_MULTI_ARTWORK.getflag(af::alb_emb, wib /*+ offset*/);
 		}
@@ -342,6 +345,8 @@ void foo_discogs::save_album_art(Release_ptr& release, metadb_handle_ptr item,
 	std::vector<GUID> vembeded_guids;
 
 	for (size_t i = 0; i < cimage_batch; i++) {
+		p_abort.check();
+
 		pfc::string8 path = directory;
 		bool write_this = vwrite_it[i];
 		bool embed_req = true; //only embed first album/artist image on non custom jobs
@@ -400,7 +405,7 @@ void foo_discogs::save_album_art(Release_ptr& release, metadb_handle_ptr item,
 				CONF.album_art_filename_string->run_hook(item->get_location(), &info, &hook, file, nullptr);
 			}
 
-			if (STR_EQUAL(file, "nullptr") || STR_EQUAL(file, "")) {
+			if (STR_EQUAL(file, "null") || STR_EQUAL(file, "nullptr") || STR_EQUAL(file, "")) {
 				log_msg("empty file path... skipping album art writing or embedding");
 				if (ada.to_path_only) ada.vpaths.emplace_back("empty file path... skipping album art writing or embedding");
 				continue;
@@ -524,20 +529,31 @@ void foo_discogs::save_artist_art(Release_ptr &release, metadb_handle_ptr item,
 		artists_format_string->run_hook(item->get_location(), (file_info*)&info, &hook, str, nullptr);
 		if (STR_EQUAL(str, "?")) str = release->artists[0]->full_artist->id;
 		string_encoded_array result(str);
+		// skip empty/non-numeric and duplicated ids (artists must stay aligned with release->artists)
 		if (result.has_array()) {
 			for (size_t walk_res = 0; walk_res < result.get_width(); walk_res++) {
 				const pfc::string8 &n = result.get_citem(walk_res).get_pure_cvalue();
-				int num = std::stoi(n.get_ptr());
+				int num = atoi(n.get_ptr());
+				if (num <= 0) {
+					continue;
+				}
+				bool bduplicate = false;
 				for (size_t j = 0; j < ids.get_size(); j++) {
 					if (ids[j] == num) {
-						continue;
+						bduplicate = true;
+						break;
 					}
 				}
-				ids.append_single(num);
+				if (!bduplicate) {
+					ids.append_single(num);
+				}
 			}
 		}
 		else {
-			ids.append_single(std::stoi(result.get_pure_cvalue().get_ptr()));
+			int num = atoi(result.get_pure_cvalue().get_ptr());
+			if (num > 0) {
+				ids.append_single(num);
+			}
 		}
 
 		pfc::array_t<Artist_ptr>artists;
@@ -583,14 +599,15 @@ void foo_discogs::save_artist_art(pfc::array_t<Artist_ptr>& artists, Release_ptr
 
 	pfc::string8 directory;
 	file_info_impl info;
+	item->get_info(info);
 	titleformat_hook_impl_multiformat hook(p_status, &master, &release, &artists[0]);
 
 	if (ada.write_it) {
 
 		CONF.artist_art_directory_string->run_hook(item->get_location(), &info, &hook, directory, nullptr);
 
-		// hardcoded "nullptr" ?
-		if (STR_EQUAL(directory, "nullptr")) {
+		// "null" (documented), "nullptr" (legacy) or empty: do not save
+		if (!directory.get_length() || STR_EQUAL(directory, "null") || STR_EQUAL(directory, "nullptr")) {
 			ada.write_it = false;
 		}
 	}
@@ -624,7 +641,7 @@ void foo_discogs::save_artist_art(pfc::array_t<Artist_ptr>& artists, Release_ptr
 			vwrite_it.resize(cimage_batch);
 			voverwrite_it.resize(cimage_batch);
 			vembed_it.resize(cimage_batch);
-			vwrite_it[wib] = CONF_MULTI_ARTWORK.getflag(af::art_sd, wib /*+ offset*/);
+			vwrite_it[wib] = ada.write_it && CONF_MULTI_ARTWORK.getflag(af::art_sd, wib /*+ offset*/);
 			voverwrite_it[wib] = CONF_MULTI_ARTWORK.getflag(af::art_ovr, wib /*+ offset*/);
 			vembed_it[wib] = CONF_MULTI_ARTWORK.getflag(af::art_emb, wib /*+ offset*/);
 		}
@@ -638,14 +655,19 @@ void foo_discogs::save_artist_art(pfc::array_t<Artist_ptr>& artists, Release_ptr
 
 	for (size_t i = 0; i < cimage_batch; i++) {
 
+		p_abort.check();
+
 		Artist_ptr artist;
 		size_t artist_img_ndx = ~0;
-		discogs_interface->img_artists_ndx_to_artist(release, i, artist, artist_img_ndx);
+		if (!discogs_interface->img_artists_ndx_to_artist(release, i, artist, artist_img_ndx)) {
+			//no release artist image at this index
+			continue;
+		}
 
 		hook.set_artist(&artist);
 		CONF.artist_art_directory_string->run_hook(item->get_location(), &info, &hook, directory, nullptr);
 
-		if (vwrite_it[i] && !(STR_EQUAL(directory, "nullptr"))) {
+		if (vwrite_it[i] && directory.get_length() && !(STR_EQUAL(directory, "null")) && !(STR_EQUAL(directory, "nullptr"))) {
 			if (directory[directory.get_length() - 1] != '\\') {
 				directory.add_char('\\');
 			}
@@ -721,7 +743,7 @@ void foo_discogs::save_artist_art(pfc::array_t<Artist_ptr>& artists, Release_ptr
 				CONF.artist_art_filename_string->run_hook(item->get_location(), &info, &hook, file, nullptr);
 			}
 
-			if (STR_EQUAL(file, "nullptr") || STR_EQUAL(file, "")) {
+			if (STR_EQUAL(file, "null") || STR_EQUAL(file, "nullptr") || STR_EQUAL(file, "")) {
 				log_msg("empty file path... skipping artist art writing or embedding");
 				if (ada.to_path_only) ada.vpaths.emplace_back("empty file path... skipping artist art writing or embedding");
 				continue;

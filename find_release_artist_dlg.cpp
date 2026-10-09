@@ -10,8 +10,7 @@ static cfgDialogPosition cfg_dialog_position_find_release_artist_dlg(guid_cfg_di
 dialog_resize_helper::param CFindReleaseArtistDialog::m_resize_helper_table[] =
 {
 	{IDC_EDIT_FIND_ARTIST_PROFILE, dialog_resize_helper::XY_SIZE},
-	{IDC_STATIC_PROFILE_REALNAME, dialog_resize_helper::X_SIZE},
-	{IDC_STATIC_PROFILE_REALNAME, dialog_resize_helper::Y_MOVE},
+	{IDC_STATIC_PROFILE_REALNAME, dialog_resize_helper::X_SIZE | dialog_resize_helper::Y_MOVE},
 	{IDCANCEL,    dialog_resize_helper::XY_MOVE},
 };
 

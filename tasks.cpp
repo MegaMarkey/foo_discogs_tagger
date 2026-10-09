@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include <unordered_set>
+#include <iomanip>
 #include "discogs_interface.h"
 
 #include "tags.h"
@@ -8,6 +9,15 @@
 #include "configuration_dialog.h"
 #include "crc.h"
 #include "tasks.h"
+
+// dialogs can be closed (and deleted) while a task is running, check against the live globals
+static bool is_track_matching_dialog_alive(CTrackMatchingDialog* dlg) {
+	return dlg && dlg == g_discogs->track_matching_dialog && ::IsWindow(dlg->m_hWnd);
+}
+
+static bool is_preview_dialog_alive(CPreviewTagsDialog* dlg) {
+	return dlg && dlg == g_discogs->preview_tags_dialog && ::IsWindow(dlg->m_hWnd);
+}
 
 void foo_discogs_threaded_process_callback::run(threaded_process_status &p_status, abort_callback &p_abort) {
 	try {
@@ -106,7 +116,7 @@ void generate_tags_task::on_success(HWND p_wnd) {
 		return;
 	}
 
-	if (m_preview_dialog && m_preview_dialog->IsWindow()) {
+	if (is_preview_dialog_alive(m_preview_dialog)) {
 
 		m_preview_dialog->Enabled(true);
 
@@ -123,7 +133,11 @@ void generate_tags_task::on_success(HWND p_wnd) {
 
 		// preview exist generate list tags
 		CPreviewLeadingTagDialog* preview_modal_tag_dialog = g_discogs->preview_modal_tag_dialog;
-		if (preview_modal_tag_dialog && IsWindow(preview_modal_tag_dialog->m_hWnd)) {
+		if (preview_modal_tag_dialog && IsWindow(preview_modal_tag_dialog->m_hWnd) && !new_res_count) {
+			// no tag results left to show
+			preview_modal_tag_dialog->destroy();
+		}
+		else if (preview_modal_tag_dialog && IsWindow(preview_modal_tag_dialog->m_hWnd)) {
 
 			tag_result_ptr detailed_res;
 			size_t new_sel = 0;
@@ -142,10 +156,11 @@ void generate_tags_task::on_success(HWND p_wnd) {
 			}
 
 			if (bmovetoprev) {
-				if (curr_sel - 1 < new_res_count)
-					new_sel = curr_sel - 1 < 0 ? 0 : curr_sel - 1;
-				else
+				// previous result, bounded by the new result count (> 0)
+				new_sel = curr_sel ? curr_sel - 1 : 0;
+				if (new_sel >= new_res_count) {
 					new_sel = new_res_count - 1;
+				}
 			}
 			else {
 				new_sel = curr_sel;
@@ -172,7 +187,7 @@ void generate_tags_task::on_success(HWND p_wnd) {
 	else if (m_show_preview_dialog) {
 
 		// create/show preview and hide track matching dialog
-		if (m_track_matching_dialog && m_track_matching_dialog->IsWindow()) {
+		if (is_track_matching_dialog_alive(m_track_matching_dialog)) {
 			m_track_matching_dialog->enable(true);
 
 			fb2k::newDialog <CPreviewTagsDialog>(core_api::get_main_window(), m_tag_writer);
@@ -195,8 +210,9 @@ void generate_tags_task::on_success(HWND p_wnd) {
 	else {
 
 		//destroy track matching dialog and launch write tags process
+		//(only for tasks started from a track matching dialog that is still open)
 
-		if (g_discogs->track_matching_dialog && g_discogs->track_matching_dialog->IsWindow()) {
+		if (is_track_matching_dialog_alive(m_track_matching_dialog)) {
 
 			g_discogs->track_matching_dialog->destroy_all();
 
@@ -247,12 +263,12 @@ void generate_tags_task::on_error(HWND p_wnd) {
 	m_tag_writer->ResetMask();
 	//orphan $prompt modal dialog closed?
 	//todo: global mutexes form global dialogs
-	if (m_preview_dialog && m_preview_dialog->IsWindow()) {
+	if (is_preview_dialog_alive(m_preview_dialog)) {
 
 		m_preview_dialog->enable(true, true);
 	}
 	else {
-		if (m_track_matching_dialog && m_track_matching_dialog->IsWindow()) {
+		if (is_track_matching_dialog_alive(m_track_matching_dialog)) {
 			m_track_matching_dialog->enable(true);
 			m_track_matching_dialog->show();
 		}
@@ -426,6 +442,8 @@ void download_art_task::safe_run(threaded_process_status& p_status, abort_callba
 
 		for (size_t i = 0; i < items.get_count(); i++) {
 
+			p_abort.check();
+
 			bool bcall = false;
 			bool bfile_match = m_file_match;
 
@@ -468,6 +486,8 @@ void download_art_task::safe_run(threaded_process_status& p_status, abort_callba
 		bit_array_bittable dummy_saved_mask(release->images.get_count() + cartist_art);
 
 		for (size_t i = 0; i < items.get_count(); i++) {
+
+			p_abort.check();
 
 			bool bcall = false;
 			bool bfile_match = m_file_match;
@@ -570,6 +590,8 @@ void download_art_paths_task::safe_run(threaded_process_status& p_status, abort_
 
 		for (size_t i = 0; i < m_items.get_count(); i++) {
 
+			p_abort.check();
+
 			bool becall = false;
 			bool bfile_match = m_file_match;
 
@@ -609,6 +631,8 @@ void download_art_paths_task::safe_run(threaded_process_status& p_status, abort_
 		std::map<pfc::string8, MemoryBlock> done_fetches;
 
 		for (size_t i = 0; i < m_items.get_count(); i++) {
+
+			p_abort.check();
 
 			bool bcall = false;
 			bool bfile_match = m_file_match;
@@ -658,14 +682,14 @@ void download_art_paths_task::on_success(HWND p_wnd) {
 	}
 #endif
 
-	if (IsWindow(m_dialog->m_hWnd)) {
+	if (is_track_matching_dialog_alive(m_dialog)) {
 		m_dialog->process_download_art_paths_done(m_release_id, vpaths, m_album_art_ids);
 	}
 }
 
 
 find_deleted_releases_task::find_deleted_releases_task(metadb_handle_list items) : m_items(items), m_finfo_manager(items) {
-	m_finfo_manager.read_infos();
+	m_infos_loaded = m_finfo_manager.read_infos();
 }
 
 void find_deleted_releases_task::start() {
@@ -681,11 +705,18 @@ void find_deleted_releases_task::start() {
 }
 
 void find_deleted_releases_task::safe_run(threaded_process_status &p_status, abort_callback &p_abort) {
+	if (!m_infos_loaded) {
+		foo_discogs_exception ex;
+		ex << "Unable to read the tags of all selected files.";
+		throw ex;
+	}
+
 	const size_t item_count = m_finfo_manager.get_item_count();
 
 	pfc::string8 release_id;
 	pfc::array_t<pfc::string8> finished;
 	size_t finished_count = 0;
+	std::unordered_set<std::string> deleted_ids;
 
 	for (size_t i = 0; i < item_count && !p_abort.is_aborting(); i++) {
 		metadb_handle_ptr item = m_finfo_manager.get_item_handle(i);
@@ -709,6 +740,10 @@ void find_deleted_releases_task::safe_run(threaded_process_status &p_status, abo
 			}
 		}
 		if (duplicate) {
+			// add every track of an invalid release
+			if (deleted_ids.count(release_id.c_str())) {
+				m_deleted_items.add_item(item);
+			}
 			continue;
 		}
 
@@ -720,6 +755,7 @@ void find_deleted_releases_task::safe_run(threaded_process_status &p_status, abo
 			discogs_interface->get_release(lkey, p_status, p_abort, true, true);
 		}
 		catch (http_404_exception) {
+			deleted_ids.insert(release_id.c_str());
 			m_deleted_items.add_item(item);
 		}
 		catch (network_exception &e) {
@@ -760,7 +796,7 @@ void find_deleted_releases_task::finish() {
 
 
 find_releases_not_in_collection_task::find_releases_not_in_collection_task(metadb_handle_list items) : items(items), m_finfo_manager(items) {
-	m_finfo_manager.read_infos();
+	m_infos_loaded = m_finfo_manager.read_infos();
 }
 
 void find_releases_not_in_collection_task::start() {
@@ -776,6 +812,12 @@ void find_releases_not_in_collection_task::start() {
 }
 
 void find_releases_not_in_collection_task::safe_run(threaded_process_status &p_status, abort_callback &p_abort) {
+	if (!m_infos_loaded) {
+		foo_discogs_exception ex;
+		ex << "Unable to read the tags of all selected files.";
+		throw ex;
+	}
+
 	p_status.set_progress(0, 1);
 	
 	const pfc::array_t<pfc::string8> &collection = discogs_interface->get_collection(p_status, p_abort);
@@ -1005,6 +1047,8 @@ void get_multi_artists_process_callback::safe_run(threaded_process_status& p_sta
 
 	size_t count = 0;
 	for (auto artist_id : m_artist_ids) {
+
+		p_abort.check();
 
 		pfc::string8 status_title("Get multi-artists... ");
 		status_title << (PFC_string_formatter() << count + 1 << " of " << m_artist_ids.size()).c_str();
@@ -1241,7 +1285,7 @@ void tree_apply_filter_process_callback::start(HWND parent) {
 		threaded_process::flag_show_abort |
 		threaded_process::flag_show_delayed,
 		parent,
-		m_strFilter.get_length() ? "preparing tree view releases..." : "filtering tree view releases..."
+		m_strFilter.get_length() ? "filtering tree view releases..." : "preparing tree view releases..."
 	);
 }
 
@@ -1358,7 +1402,7 @@ process_release_callback::process_release_callback(CFindReleaseDialog *dialog, c
 		m_offline_artist_id(offline_artist_id), m_inno(inno), m_items(items)
 {
 	m_finfo_manager = std::make_shared<file_info_manager>(items);
-	m_finfo_manager->read_infos();
+	m_infos_loaded = m_finfo_manager->read_infos();
 }
 
 void process_release_callback::start(HWND parent) {
@@ -1371,6 +1415,13 @@ void process_release_callback::start(HWND parent) {
 }
 
 void process_release_callback::safe_run(threaded_process_status& p_status, abort_callback& p_abort) {
+
+	// never generate/write tags from file infos that could not be loaded
+	if (!m_infos_loaded) {
+		foo_discogs_exception ex;
+		ex << "Unable to read the tags of all selected files.";
+		throw ex;
+	}
 
 	pfc::string8 base_status = "fetching release information...";
 	p_status.set_item(base_status);
@@ -1753,15 +1804,21 @@ void process_artwork_preview_callback::safe_run(threaded_process_status& p_statu
 }
 
 void process_artwork_preview_callback::on_success(HWND p_wnd) {
-	m_dialog->process_artwork_preview_done(m_img_ndx, m_bartist, m_small_art, m_musicbrainz_mibs);
+	if (is_track_matching_dialog_alive(m_dialog)) {
+		m_dialog->process_artwork_preview_done(m_img_ndx, m_bartist, m_small_art, m_musicbrainz_mibs);
+	}
 }
 
 void process_artwork_preview_callback::on_abort(HWND p_wnd) {
-	m_dialog->pending_previews_done(1);
+	if (is_track_matching_dialog_alive(m_dialog)) {
+		m_dialog->pending_previews_done(1);
+	}
 }
 
 void process_artwork_preview_callback::on_error(HWND p_wnd) {
-	m_dialog->pending_previews_done(1);
+	if (is_track_matching_dialog_alive(m_dialog)) {
+		m_dialog->pending_previews_done(1);
+	}
 }
 
 
@@ -1781,17 +1838,17 @@ void process_file_artwork_preview_callback::start(HWND parent) {
 void process_file_artwork_preview_callback::safe_run(threaded_process_status& p_status, abort_callback& p_abort) {
 	p_status.set_item("Fetching local files artwork preview information...");
 
-	if (m_release) {
+	if (m_release && m_items.get_count()) {
 		p_status.set_item("Fetching local files artwork preview small album art...");
 		try {
-			bool bexists = true;
 			pfc::string8 directory;
 			file_info_impl info;
+			m_items[0]->get_info(info);
 			titleformat_hook_impl_multiformat hook(p_status, &m_release);
 			CONF.album_art_directory_string->run_hook(m_items[0]->get_location(), &info, &hook, directory, nullptr);
-			// hardcode "nullptr" as don't write anything.  ???
-			if (STR_EQUAL(directory, "nullptr")) {
-				bexists = false;
+			// "null" (documented) or "nullptr" (legacy) as don't write anything, nothing to preview
+			if (!directory.get_length() || STR_EQUAL(directory, "null") || STR_EQUAL(directory, "nullptr")) {
+				return;
 			}
 
 			pfc::string8 file_name = m_img_ndx < album_art_ids::num_types() ? album_art_ids::query_name(m_img_ndx) : "";
@@ -1813,8 +1870,6 @@ void process_file_artwork_preview_callback::safe_run(threaded_process_status& p_
 				return;
 			}
 
-			pfc::stringcvt::string_os_from_utf8 cvt_bitmap(full_path);
-			Gdiplus::Bitmap local_bitmap(cvt_bitmap.get_ptr(), false);
 			m_small_art = GenerateTmpBitmapsFromRealSize(m_release->id, m_img_ndx, full_path, m_temp_file_names);
 			return;
 		}
@@ -1829,21 +1884,46 @@ void process_file_artwork_preview_callback::safe_run(threaded_process_status& p_
 	}
 }
 
+// preview results not handed over to the track matching dialog
+static void release_file_artwork_preview(imgpairs& small_art, std::pair<pfc::string8, pfc::string8>& temp_file_names) {
+	if (small_art.first.first) DestroyIcon(small_art.first.first);
+	if (small_art.second.first) DestroyIcon(small_art.second.first);
+	if (small_art.first.second) DeleteObject(small_art.first.second);
+	if (small_art.second.second) DeleteObject(small_art.second.second);
+	small_art = {};
+	if (temp_file_names.first.get_length()) uDeleteFile(temp_file_names.first);
+	if (temp_file_names.second.get_length()) uDeleteFile(temp_file_names.second);
+	temp_file_names = {};
+}
+
 void process_file_artwork_preview_callback::on_success(HWND p_wnd) {
-	//not checking dlg (m_hWnd is the process HWND parent)
-	m_dialog->process_file_artwork_preview_done(m_img_ndx, m_bartist, m_small_art, m_temp_file_names);
-	BOOL bres = DeleteObject(m_small_art.first.first);
-	bres = DeleteObject(m_small_art.first.second);
-	bres = DeleteObject(m_small_art.second.first);
-	bres = DeleteObject(m_small_art.second.second);
+	//(m_hWnd is the process HWND parent)
+	if (is_track_matching_dialog_alive(m_dialog)) {
+		//icons are owned by the presenter from now on, bitmaps are released by its imagelist update
+		//(handed over: clear them first, on_error must not release them if this throws)
+		imgpairs small_art = m_small_art;
+		std::pair<pfc::string8, pfc::string8> temp_file_names = m_temp_file_names;
+		m_small_art = {};
+		m_temp_file_names = {};
+		m_dialog->process_file_artwork_preview_done(m_img_ndx, m_bartist, small_art, temp_file_names);
+	}
+	else {
+		release_file_artwork_preview(m_small_art, m_temp_file_names);
+	}
 }
 
 void process_file_artwork_preview_callback::on_abort(HWND p_wnd) {
-	m_dialog->pending_previews_done(1);
+	release_file_artwork_preview(m_small_art, m_temp_file_names);
+	if (is_track_matching_dialog_alive(m_dialog)) {
+		m_dialog->pending_previews_done(1);
+	}
 }
 
 void process_file_artwork_preview_callback::on_error(HWND p_wnd) {
-	m_dialog->pending_previews_done(1);
+	release_file_artwork_preview(m_small_art, m_temp_file_names);
+	if (is_track_matching_dialog_alive(m_dialog)) {
+		m_dialog->pending_previews_done(1);
+	}
 }
 
 
@@ -1867,16 +1947,22 @@ void test_oauth_process_callback::safe_run(threaded_process_status &p_status, ab
 }
 
 void test_oauth_process_callback::on_success(HWND p_wnd) {
-	//not checking dlg (m_hWnd is the process HWND parent)
+	//not checking dlg window (m_hWnd is the process HWND parent), dialog may be closed
 	CConfigurationDialog* dlg = g_discogs->configuration_dialog;
+	if (!dlg) {
+		return;
+	}
 	dlg->show_oauth_msg("OAuth is working!", false);
-	::SetFocus(g_discogs->configuration_dialog->m_hWnd);
+	::SetFocus(dlg->m_hWnd);
 }
 
 void test_oauth_process_callback::on_error(HWND p_wnd) {
 	CConfigurationDialog* dlg = g_discogs->configuration_dialog;
+	if (!dlg) {
+		return;
+	}
 	dlg->show_oauth_msg("OAuth failed.", true);
-	::SetFocus(g_discogs->configuration_dialog->m_hWnd);
+	::SetFocus(dlg->m_hWnd);
 }
 
 
@@ -1917,8 +2003,10 @@ void generate_oauth_process_callback::on_success(HWND p_wnd) {
 
 	CConfigurationDialog* dlg = g_discogs->configuration_dialog;
 	if (token) {
-		uSetWindowText(dlg->m_hwndTokenEdit, token->key().c_str());
-		uSetWindowText(dlg->m_hwndSecretEdit, token->secret().c_str());
+		if (dlg) {
+			uSetWindowText(dlg->m_hwndTokenEdit, token->key().c_str());
+			uSetWindowText(dlg->m_hwndSecretEdit, token->secret().c_str());
+		}
 		delete token;
 		token = nullptr;
 	}

@@ -276,7 +276,8 @@ LRESULT CPreviewTagsDialog::OnInitDialog(UINT /*uMsg*/, WPARAM /*wParam*/, LPARA
 	if (!cfg_listview.colmap.at(2).width) {
 			auto dpiX = QueryScreenDPIEx(m_hWnd).cx;
 			auto sbwitch = GetSystemMetrics(SM_CXVSCROLL);
-			int fw = MulDiv(sbwitch, dpiX, USER_DEFAULT_SCREEN_DPI);
+			//physical pixels to 96 dpi units (column widths are passed to AddColumnEx)
+			int fw = MulDiv(sbwitch, USER_DEFAULT_SCREEN_DPI, dpiX);
 
 			cfg_listview.colmap.at(2).width =
 				cfg_listview.colmap.at(3).width =
@@ -455,9 +456,10 @@ bool CPreviewTagsDialog::context_menu_show(HWND wnd, size_t isel, LPARAM lParamP
 	try {
 
 		HMENU menu = CreatePopupMenu();
-		HMENU _childmenuAlign = CreatePopupMenu();
 
 		bool b_result_list = wnd == uGetDlgItem(IDC_PREVIEW_LIST);
+		//write items follow the write button
+		bool bwrite_enabled = is_enabled() && check_write_tags_status();
 		// add menu options
 
 		uAppendMenu(menu, MF_STRING | (!is_enabled() ? MF_DISABLED | MF_GRAYED : 0), ID_PREVIEW_CMD_BACK, "&Back");
@@ -522,11 +524,11 @@ bool CPreviewTagsDialog::context_menu_show(HWND wnd, size_t isel, LPARAM lParamP
 			str_force_wu << "&Force Write && Update selected tag" << (csel > 1 ? "s" : "");
 
 			uAppendMenu(menu, MF_SEPARATOR, 0, 0);
-			uAppendMenu(menu, MF_STRING | (csel && is_enabled() ? 0 : MF_DISABLED | MF_GRAYED), ID_PREVIEW_CMD_WRITE_TAGS_MASK, str);
-			uAppendMenu(menu, MF_STRING | (csel && is_enabled() ? 0 : MF_DISABLED | MF_GRAYED), ID_PREVIEW_CMD_WRITE_TAGS_MASK_FORCE_WU, str_force_wu);
+			uAppendMenu(menu, MF_STRING | (csel && bwrite_enabled ? 0 : MF_DISABLED | MF_GRAYED), ID_PREVIEW_CMD_WRITE_TAGS_MASK, str);
+			uAppendMenu(menu, MF_STRING | (csel && bwrite_enabled ? 0 : MF_DISABLED | MF_GRAYED), ID_PREVIEW_CMD_WRITE_TAGS_MASK_FORCE_WU, str_force_wu);
 		}
 		uAppendMenu(menu, MF_SEPARATOR, 0, 0);
-		uAppendMenu(menu, MF_STRING | (!is_enabled() ? MF_DISABLED | MF_GRAYED : 0), ID_PREVIEW_CMD_WRITE_TAGS, "&Write all tags");
+		uAppendMenu(menu, MF_STRING | (!bwrite_enabled ? MF_DISABLED | MF_GRAYED : 0), ID_PREVIEW_CMD_WRITE_TAGS, "&Write all tags");
 
 		int cmd = TrackPopupMenu(menu, TPM_RIGHTBUTTON | TPM_NONOTIFY | TPM_RETURNCMD, point.x, point.y, 0, wnd, 0);
 		DestroyMenu(menu);
@@ -751,7 +753,8 @@ bool CPreviewTagsDialog::init_other_controls_and_results() {
 
 void CPreviewTagsDialog::replace_tag_result(size_t item, tag_result_ptr result) {
 
-	if (STR_EQUAL(m_tag_writer->tag_results[item]->tag_entry->tag_name, result->tag_entry->tag_name)) {
+	if (item < m_tag_writer->tag_results.get_count() &&
+		STR_EQUAL(m_tag_writer->tag_results[item]->tag_entry->tag_name, result->tag_entry->tag_name)) {
 		m_tag_writer->tag_results[item]->value = result->value;
 	}
 }
@@ -823,7 +826,7 @@ LRESULT CPreviewTagsDialog::OnButtonEditTagMappings(WORD /*wNotifyCode*/, WORD w
 	else
 	{
 		::SetFocus(g_discogs->tag_mappings_dialog->m_hWnd);
-		::uPostMessage(g_discogs->tag_mappings_dialog->m_hWnd, WM_NEXTDLGCTL, (WPARAM)(HWND)GetDlgItem(IDC_APPLY), TRUE);
+		::uPostMessage(g_discogs->tag_mappings_dialog->m_hWnd, WM_NEXTDLGCTL, (WPARAM)::GetDlgItem(g_discogs->tag_mappings_dialog->m_hWnd, IDC_APPLY), TRUE);
 	}
 	return FALSE;
 }
@@ -1215,16 +1218,16 @@ LRESULT CPreviewTagsDialog::OnCustomDraw(int idCtrl, LPNMHDR lParam, BOOL& bHand
 
 void CPreviewTagsDialog::enable(bool is_enabled, bool change_focus) {
 
+	m_enabled = is_enabled;
+
 	HWND hwndWriteTags = GetDlgItem(IDC_BTN_WRITE_TAGS);
 	::uEnableWindow(hwndWriteTags, is_enabled && check_write_tags_status());
 	HWND hwndANV = GetDlgItem(IDC_CHK_REPLACE_ANV);
 	::uEnableWindow(hwndANV, is_enabled && m_tag_writer && m_tag_writer->tag_results.size() && m_tag_writer->GetRelease()->has_anv());
 
-	for (HWND walk = ::GetWindow(m_hWnd, GW_CHILD); walk != NULL; ) {
-		HWND next = ::GetWindow(walk, GW_HWNDNEXT);
-		if (next != hwndWriteTags && next != hwndANV)
-			::uEnableWindow(next, is_enabled);
-		walk = next;
+	for (HWND walk = ::GetWindow(m_hWnd, GW_CHILD); walk != NULL; walk = ::GetWindow(walk, GW_HWNDNEXT)) {
+		if (walk != hwndWriteTags && walk != hwndANV)
+			::uEnableWindow(walk, is_enabled);
 	}
 
 	if (g_discogs->preview_modal_tag_dialog) {
@@ -1234,7 +1237,8 @@ void CPreviewTagsDialog::enable(bool is_enabled, bool change_focus) {
 }
 
 bool CPreviewTagsDialog::is_enabled() {
-	return ::IsWindowEnabled(GetDlgItem(IDC_BTN_WRITE_TAGS));
+	//not the write button state, it is also disabled when there is nothing to write
+	return m_enabled;
 }
 
 void CPreviewTagsDialog::destroy_all() {
@@ -1307,7 +1311,8 @@ void CPreviewTagsDialog::reset_default_columns(bool breset, bool bshowstats) {
 			auto rcwidth = rc.Width();
 			rcwidth -= GetSystemMetrics(SM_CXVSCROLL);
 
-			int fw = MulDiv(rcwidth, dpiX, USER_DEFAULT_SCREEN_DPI);
+			//physical pixels to 96 dpi units (AddColumnEx)
+			int fw = MulDiv(rcwidth, USER_DEFAULT_SCREEN_DPI, dpiX);
 			int c0 =  fw / 3; int c1 = fw / 3 * 2;
 
 			if (walk_cfg.enabled) {
@@ -1324,20 +1329,21 @@ void CPreviewTagsDialog::reset_default_columns(bool breset, bool bshowstats) {
 					m_uilist.GetClientRect(&rc);
 					int sbwidth = GetSystemMetrics(SM_CXVSCROLL);
 
+					//physical pixels (ResizeColumn), def_fieldwidth is in 96 dpi units
+					int def_fieldwidth_px = MulDiv(def_fieldwidth, dpiX, USER_DEFAULT_SCREEN_DPI);
 					int delta = rc.Width() - (2 * sbwidth * COL_STAT_NCOLS) - sbwidth;
-					delta = MulDiv(delta, dpiX, USER_DEFAULT_SCREEN_DPI);
-					delta -= def_fieldwidth;
+					delta -= def_fieldwidth_px;
 
 					if (delta < 0) {
 
 						m_uilist.ResizeColumn(1, delta, 0);
-						m_uilist.ResizeColumn(0, def_fieldwidth, 0);
+						m_uilist.ResizeColumn(0, def_fieldwidth_px, 0);
 					}
 					else {
 						auto kk = m_uilist.GetColumnCount();
 						m_uilist.ResizeColumn(1, delta, 0);
 					}
-					walk_cfg.width = MulDiv(2 * sbwidth, dpiX, USER_DEFAULT_SCREEN_DPI);
+					walk_cfg.width = MulDiv(2 * sbwidth, USER_DEFAULT_SCREEN_DPI, dpiX);
 				}
 				auto kk = m_uilist.GetColumnCount();
 				m_uilist.AddColumnEx(walk_cfg.name, walk_cfg.width, LVCFMT_LEFT);

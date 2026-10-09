@@ -42,6 +42,8 @@ void CArtistList::on_get_artist_done(cupdRelSrc updsrc, const Artist_ptr artist)
 			dlg->print_root_stats(rpempty, false);
 
 			fb2k::inMainThread([dlg, rpempty] {
+				//dialog closed (or replaced) meanwhile
+				if (!g_discogs || g_discogs->find_release_dialog != dlg) return;
 				dlg->print_root_stats(rpempty, false);
 				});
 
@@ -49,9 +51,11 @@ void CArtistList::on_get_artist_done(cupdRelSrc updsrc, const Artist_ptr artist)
 
 		set_artists(true, false, artist, m_artist_exact_matches, m_artist_other_matches);
 
-		fb2k::inMainThread([this] {
+		//list may be gone when this runs, do not capture this
+		HWND hwnd_list = m_hWnd;
+		fb2k::inMainThread([hwnd_list] {
 			try {
-				::InvalidateRect(m_hWnd, NULL, TRUE);
+				if (::IsWindow(hwnd_list)) ::InvalidateRect(hwnd_list, NULL, TRUE);
 			}
 			catch(...) {}
 			});
@@ -96,9 +100,10 @@ void CArtistList::on_get_artist_done(cupdRelSrc updsrc, const Artist_ptr artist)
 				}
 			}
 
-			fb2k::inMainThread([this] {
+			HWND hwnd_list = m_hWnd;
+			fb2k::inMainThread([hwnd_list] {
 				try {
-				::InvalidateRect(m_hWnd, NULL, TRUE);
+				if (::IsWindow(hwnd_list)) ::InvalidateRect(hwnd_list, NULL, TRUE);
 				}
 				catch(...) {}
 				});
@@ -260,9 +265,11 @@ void CArtistList::switch_find_releases(size_t op, bool append) {
 		m_find_release_artists[i]->search_role_list_pos = get_next_role_pos();
 	}
 
-	fb2k::inMainThread([this] {
+	//list may be gone when this runs, do not capture this
+	HWND hwnd_list = m_hWnd;
+	fb2k::inMainThread([hwnd_list] {
     				try {
-    				::InvalidateRect(m_hWnd, NULL, TRUE);
+    				if (::IsWindow(hwnd_list)) ::InvalidateRect(hwnd_list, NULL, TRUE);
     				}
     				catch(...) {}
     				});
@@ -275,9 +282,9 @@ void CArtistList::switch_find_releases(size_t op, bool append) {
 		|| (CONF.auto_rel_load_on_open && op == 3)
 		|| (op == 0 && citems == 1 && append == false)))
 	{
-		fb2k::inMainThread([this] {
+		fb2k::inMainThread([hwnd_list] {
 			try {
-			::InvalidateRect(m_hWnd, NULL, TRUE);
+			if (::IsWindow(hwnd_list)) ::InvalidateRect(hwnd_list, NULL, TRUE);
 			}
 			catch(...) {}
 			});
@@ -402,7 +409,7 @@ LRESULT CArtistList::OnContextMenu(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL
 
 	if (lParam != -1) {
 
-		screen_position = CPoint(LOWORD(lParam), HIWORD(lParam));
+		screen_position = CPoint(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
 	}
 	else {
 		::GetCursorPos(&screen_position);
@@ -452,11 +459,18 @@ bool CArtistList::RenderCellImageTest(size_t item, size_t subItem) const {
 
 void CArtistList::RenderCellImage(size_t item, size_t subItem, CDCHandle dc, const CRect& rc) const  {
 
-	ICONINFO ii;
-	auto res = GetIconInfo(g_hIcon_quian, &ii);
-	BITMAP bm;
-	res = GetObject(ii.hbmMask, sizeof(bm), &bm) == sizeof(bm);
+	ICONINFO ii = {};
+	if (!GetIconInfo(g_hIcon_quian, &ii)) {
+		return;
+	}
+	BITMAP bm = {};
+	bool res = GetObject(ii.hbmMask, sizeof(bm), &bm) == sizeof(bm);
+	//GetIconInfo creates both bitmaps, the caller owns them
+	if (ii.hbmMask) DeleteObject(ii.hbmMask);
+	if (ii.hbmColor) DeleteObject(ii.hbmColor);
+	if (res) {
 		dc.DrawIconEx(CPoint(rc.TopLeft().x, rc.TopLeft().y), g_hIcon_quian, CSize(bm.bmWidth, bm.bmWidth));
+	}
 }
 
 // open artist profile panel

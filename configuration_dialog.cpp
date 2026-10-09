@@ -147,6 +147,9 @@ LRESULT CConfigurationDialog::OnInitDialog(UINT /*uMsg*/, WPARAM /*wParam*/, LPA
 	}
 
 	g_current_tab = conf.last_conf_tab;
+	if (g_current_tab >= tabsize(g_hWndTabDialog)) {
+		g_current_tab = 0;
+	}
 	uSendMessage(hWndTab, TCM_SETCURSEL, g_current_tab, 0);
 
 	g_hWndCurrentTab = g_hWndTabDialog[g_current_tab];
@@ -892,11 +895,11 @@ bool CConfigurationDialog::cfg_searching_has_changed() {
 
 	bres |= conf.release_enter_key_override != conf_edit.release_enter_key_override;
 
-	bcmp = pfc::strcmp_partial(conf.search_release_format_string, conf_edit.search_release_format_string);
+	bcmp = strcmp(conf.search_release_format_string, conf_edit.search_release_format_string) != 0;
 	bres |= bcmp;
-	bcmp = pfc::strcmp_partial(conf.search_master_format_string, conf_edit.search_master_format_string);
+	bcmp = strcmp(conf.search_master_format_string, conf_edit.search_master_format_string) != 0;
 	bres |= bcmp;
-	bcmp = pfc::strcmp_partial(conf.search_master_sub_format_string, conf_edit.search_master_sub_format_string);
+	bcmp = strcmp(conf.search_master_sub_format_string, conf_edit.search_master_sub_format_string) != 0;
 	bres |= bcmp;
 
 	bres |= conf.on_init_query_flags != conf_edit.on_init_query_flags;
@@ -1012,11 +1015,11 @@ bool CConfigurationDialog::cfg_matching_has_changed() {
 	bres |= conf.assume_tracks_sorted != conf_edit.assume_tracks_sorted;
 	bres |= conf.skip_mng_flag != conf_edit.skip_mng_flag;
 
-	bcmp = pfc::strcmp_partial(conf.release_discogs_format_string, conf_edit.release_discogs_format_string);
+	bcmp = strcmp(conf.release_discogs_format_string, conf_edit.release_discogs_format_string) != 0;
 	bres |= bcmp;
-	bcmp = pfc::strcmp_partial(conf.release_file_format_string, conf_edit.release_file_format_string);
+	bcmp = strcmp(conf.release_file_format_string, conf_edit.release_file_format_string) != 0;
 	bres |= bcmp;
-	bcmp = pfc::strcmp_partial(conf.release_status_bar_info_format_string, conf_edit.release_status_bar_info_format_string);
+	bcmp = strcmp(conf.release_status_bar_info_format_string, conf_edit.release_status_bar_info_format_string) != 0;
 	bres |= bcmp;
 	return bres;
 }
@@ -1071,9 +1074,9 @@ bool CConfigurationDialog::cfg_tagging_has_changed() {
 	bres |= conf.discard_numeric_suffix != conf_edit.discard_numeric_suffix;
 	bres |= conf.skip_mng_flag != conf_edit.skip_mng_flag;
 	bres |= conf.remove_other_tags != conf_edit.remove_other_tags;
-	bcmp = pfc::strcmp_partial(conf.raw_remove_exclude_tags, conf_edit.raw_remove_exclude_tags);
+	bcmp = strcmp(conf.raw_remove_exclude_tags, conf_edit.raw_remove_exclude_tags) != 0;
 	bres |= bcmp;
-	bcmp = pfc::strcmp_partial(conf.multivalue_fields, conf_edit.multivalue_fields);
+	bcmp = strcmp(conf.multivalue_fields, conf_edit.multivalue_fields) != 0;
 	bres |= bcmp;
 	bres |= conf.tag_save_flags != conf_edit.tag_save_flags;
 	return bres;
@@ -1210,24 +1213,24 @@ bool CConfigurationDialog::cfg_art_has_changed() {
 	bres |= conf.album_art_fetch_all != conf_edit.album_art_fetch_all;
 	bres |= conf.embed_album_art != conf_edit.embed_album_art;
 
-	bcmp = pfc::strcmp_partial(conf.album_art_directory_string, conf_edit.album_art_directory_string);
+	bcmp = strcmp(conf.album_art_directory_string, conf_edit.album_art_directory_string) != 0;
 	bres |= bcmp;
-	bcmp = pfc::strcmp_partial(conf.album_art_filename_string, conf_edit.album_art_filename_string);
+	bcmp = strcmp(conf.album_art_filename_string, conf_edit.album_art_filename_string) != 0;
 	bres |= bcmp;
 
 	bres |= conf.album_art_overwrite != conf_edit.album_art_overwrite;
 	bres |= conf.save_artist_art != conf_edit.save_artist_art;
 	bres |= conf.artist_art_fetch_all != conf_edit.artist_art_fetch_all;
 	//todo: remove not impl
-	bcmp = pfc::strcmp_partial(conf.artist_art_id_format_string, conf_edit.artist_art_id_format_string);
+	bcmp = strcmp(conf.artist_art_id_format_string, conf_edit.artist_art_id_format_string) != 0;
 	bres |= bcmp;
 
 	bres |= conf.embed_artist_art != conf_edit.embed_artist_art;
 
-	bcmp = pfc::strcmp_partial(conf.artist_art_directory_string, conf_edit.artist_art_directory_string);
+	bcmp = strcmp(conf.artist_art_directory_string, conf_edit.artist_art_directory_string) != 0;
 	bres |= bcmp;
 
-	bcmp = stricmp_utf8(conf.artist_art_filename_string, conf_edit.artist_art_filename_string);
+	bcmp = strcmp(conf.artist_art_filename_string, conf_edit.artist_art_filename_string) != 0;
 	bres |= bcmp;
 
 	bres |= conf.artist_art_overwrite != conf_edit.artist_art_overwrite;
@@ -1301,9 +1304,9 @@ bool CConfigurationDialog::cfg_oauth_has_changed() {
 	bool bres = false;
 	bool bcmp = false;
 
-	bcmp = pfc::strcmp_partial(conf.oauth_token, conf_edit.oauth_token);
+	bcmp = strcmp(conf.oauth_token, conf_edit.oauth_token) != 0;
 	bres |= bcmp;
-	bcmp = pfc::strcmp_partial(conf.oauth_token_secret, conf_edit.oauth_token_secret);
+	bcmp = strcmp(conf.oauth_token_secret, conf_edit.oauth_token_secret) != 0;
 	bres |= bcmp;
 
 	return bres;
@@ -1470,20 +1473,6 @@ INT_PTR WINAPI CConfigurationDialog::on_searching_dialog_message(HWND wnd, UINT 
 			int cmd = HIWORD(wp);
 
 			switch (idFrom) {
-			case IDC_COMBO_REL_INIT_QUERY_TYPE:
-				if (!setting_dlg) {
-					int cmd = HIWORD(wp);
-					if (cmd == CBN_SELCHANGE) {
-						int s = ::uSendDlgItemMessage(wnd, IDC_COMBO_REL_INIT_QUERY_TYPE, CB_GETCURSEL, 0, 0);
-						if (s != CB_ERR) {
-							int data = ::uSendDlgItemMessage(wnd, IDC_COMBO_REL_INIT_QUERY_TYPE, CB_GETITEMDATA, s, 0);
-							conf_edit.on_init_query_def = data;
-						}
-						OnChanged();
-						break;
-					}
-				}
-				break;
 			case (IDC_BTN_CONF_LOAD_FORMATTING):
 				on_load_search_formatting(wnd);
 				break;
@@ -1531,13 +1520,13 @@ INT_PTR WINAPI CConfigurationDialog::on_searching_adv_dialog_message(HWND wnd, U
 		case (IDC_BTN_CONF_LOAD_ADV_FORMATTING):
 			on_load_search_adv_formatting(wnd);
 			break;
-		case IDC_CMB_CONFIG_LIST_STYLE:
+		case IDC_COMBO_REL_INIT_QUERY_TYPE:
 			if (!setting_dlg) {
 				if (cmd == CBN_SELCHANGE) {
-					int s = ::uSendDlgItemMessage(wnd, IDC_CMB_CONFIG_LIST_STYLE, CB_GETCURSEL, 0, 0);
-					int data = ::uSendDlgItemMessage(wnd, IDC_CMB_CONFIG_LIST_STYLE, CB_GETITEMDATA, s, 0);
+					int s = ::uSendDlgItemMessage(wnd, IDC_COMBO_REL_INIT_QUERY_TYPE, CB_GETCURSEL, 0, 0);
 					if (s != CB_ERR) {
-						conf_edit.list_style = s;
+						int data = ::uSendDlgItemMessage(wnd, IDC_COMBO_REL_INIT_QUERY_TYPE, CB_GETITEMDATA, s, 0);
+						conf_edit.on_init_query_def = data;
 					}
 					OnChanged();
 					break;
@@ -1820,7 +1809,7 @@ void CConfigurationDialog::on_load_search_formatting(HWND wnd) {
 		break;
 	}
 
-	defualt:
+	default:
 		//quit
 		return;
 	}
@@ -1884,7 +1873,7 @@ void CConfigurationDialog::on_load_search_adv_formatting(HWND wnd) {
 		uid = ui_ids[2];
 		frm_string << cmd_3_repstr;
 		break;
-	defualt:
+	default:
 		//quit
 		return;
 	}
@@ -1914,9 +1903,6 @@ void CConfigurationDialog::on_load_match_formatting(HWND wnd) {
 	pfc::string8 cmd_1_dlgstr = uGetDlgItemText(wnd, ui_ids[i++]);
 	pfc::string8 cmd_2_dlgstr = uGetDlgItemText(wnd, ui_ids[i++]);
 	pfc::string8 cmd_3_dlgstr = uGetDlgItemText(wnd, ui_ids[i++]);
-	uSetDlgItemText(wnd, IDC_EDIT_DISCOGS_FORMATTING, conf.release_discogs_format_string);
-	uSetDlgItemText(wnd, IDC_EDIT_FILE_FORMATTING, conf.release_file_format_string);
-	uSetDlgItemText(wnd, IDC_EDIT_STATUS_BAR_FORMATTING, conf.release_status_bar_info_format_string);
 	pfc::string8 cmd_1_repstr = tmpcfg.release_discogs_format_string;
 	pfc::string8 cmd_2_repstr = tmpcfg.release_file_format_string;
 	pfc::string8 cmd_3_repstr = tmpcfg.release_status_bar_info_format_string;
@@ -1950,7 +1936,7 @@ void CConfigurationDialog::on_load_match_formatting(HWND wnd) {
 		uid = ui_ids[2];
 		frm_string << cmd_3_repstr;
 		break;
-	defualt:
+	default:
 		//quit
 		return;
 	}

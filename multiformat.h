@@ -12,33 +12,22 @@ using namespace Discogs;
 class persistent_store
 {
 private:
-	std::map<const char*, const char*, cmp_str> store;
+	std::map<std::string, std::string> store;
 
 public:
 	void put(const pfc::string8 &name, const pfc::string8 &value) {
-		char *n = new char[name.get_length() + 1];
-		char *v = new char[value.get_length() + 1];
-		strcpy(n, name.get_ptr());
-		strcpy(v, value.get_ptr());
-		store[n] = v;
+		store[name.get_ptr()] = value.get_ptr();
 	}
 
 	const char * get(const char *name) const {
 		auto it = store.find(name);
 		if (it != store.cend()) {
-			return it->second;
+			return it->second.c_str();
 		}
 		else {
 			foo_discogs_exception ex;
 			ex << "Invalid $pget, unknown: " << name;
 			throw ex;
-		}
-	}
-
-	~persistent_store() {
-		for (auto &it : store) {
-			delete it.first;
-			delete it.second;
 		}
 	}
 };
@@ -74,7 +63,7 @@ public:
 	titleformat_hook_impl_multiformat(threaded_process_status &p_status, const MasterRelease_ptr *master_release, const Release_ptr *release = nullptr,
 		const ReleaseDisc_ptr *release_disc = nullptr, const ReleaseTrack_ptr *release_track = nullptr,
 		const file_info *info = nullptr, persistent_store *pstore = nullptr, persistent_store *prompt_store = nullptr, CPromptDialog *pprompt_dlg = nullptr) :
-		p_status(p_status), release(release), release_disc(release_disc), release_track(release_track), master_release(master_release), artist(artist), finfo(info), store(pstore), prompt_store(prompt_store), pprompt_dlg(pprompt_dlg) {};
+		p_status(p_status), release(release), release_disc(release_disc), release_track(release_track), master_release(master_release), finfo(info), store(pstore), prompt_store(prompt_store), pprompt_dlg(pprompt_dlg) {};
 	titleformat_hook_impl_multiformat(const Release_ptr *release = nullptr, const ReleaseDisc_ptr *disc = nullptr, const ReleaseTrack_ptr *track = nullptr) :
 		release(release), release_disc(disc), release_track(track), p_status(f_status) {};
 

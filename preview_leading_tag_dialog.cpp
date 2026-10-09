@@ -28,7 +28,8 @@ void CPreviewLeadingTagDialog::init_results() {
 	if (m_isel >= m_tag_writer->tag_results.get_count())
 		m_isel = m_tag_writer->tag_results.get_count() - 1;
 
-	m_ptag_result = m_tag_writer->tag_results[m_isel];
+	//edit a copy, written back by push_updates (OK/Apply)
+	m_ptag_result = std::make_shared<tag_result>(*m_tag_writer->tag_results[m_isel]);
 	file_info_manager_ptr pfinfo_mng = m_tag_writer->m_finfo_manager;
 	track_mappings_list_type track_map = m_tag_writer->m_track_mappings;
 	m_vtracks_desc.clear();
@@ -52,10 +53,8 @@ void CPreviewLeadingTagDialog::init_tabs_defs() {
 }
 
 void CPreviewLeadingTagDialog::enable(bool is_enabled, bool change_focus) {
-	for (HWND walk = ::GetWindow(m_hWnd, GW_CHILD); walk != NULL; ) {
-		HWND next = ::GetWindow(walk, GW_HWNDNEXT);
-		::uEnableWindow(next, is_enabled);
-		walk = next;
+	for (HWND walk = ::GetWindow(m_hWnd, GW_CHILD); walk != NULL; walk = ::GetWindow(walk, GW_HWNDNEXT)) {
+		::uEnableWindow(walk, is_enabled);
 	}
 }
 
@@ -334,8 +333,9 @@ inline bool CPreviewLeadingTagDialog::build_current_cfg(int& out) {
 
 	bool bres = false;
 
-	int colwidth1 = m_ui_list.GetHeaderItemWidth(0);
-	int colwidth2 = m_ui_list.GetHeaderItemWidth(1);
+	//96 dpi units, as restored by load_column_layout
+	int colwidth1 = m_ui_list.GetColumnWidthF(0);
+	int colwidth2 = m_ui_list.GetColumnWidthF(1);
 
 	out = (int)MAKELPARAM(colwidth1, colwidth2);
 

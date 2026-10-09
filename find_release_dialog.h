@@ -44,7 +44,6 @@ public:
 
 		MSG_WM_TIMER(OnTypeFilterTimer)
 
-		NOTIFY_HANDLER(IDC_RELEASE_TREE, TVN_DELETEITEM, OnDeleteTreeItem)
 		MESSAGE_HANDLER(WM_INITDIALOG, OnInitDialog)
 		MESSAGE_HANDLER(WM_CONTEXTMENU, OnContextMenu)
 		MESSAGE_HANDLER(WM_DESTROY, OnDestroy)
@@ -292,6 +291,10 @@ private:
 		dwStart = dwEnd = 0;
 		SendMessage(m_edit_artist, EM_GETSEL, (WPARAM)&dwStart, (LPARAM)&dwEnd);
 
+		//EM_GETSEL returns UTF-16 offsets, convert to UTF-8 byte offsets (in, param_text)
+		dwStart = (DWORD)strlen(pfc::stringcvt::string_utf8_from_os(wstrt, dwStart).get_ptr());
+		dwEnd = (DWORD)strlen(pfc::stringcvt::string_utf8_from_os(wstrt, dwEnd).get_ptr());
+
 		bool bsel = dwStart != dwEnd;
 
 		const pfc::string8 in = pfc::stringcvt::string_utf8_from_os(wstrt).get_ptr();
@@ -376,6 +379,15 @@ private:
 				buffer = menu_cmd;
 				ins_pos = buffer.get_length();
 			}
+		}
+
+		//ins_pos is fed to EM_SETSEL, convert UTF-8 byte offset to UTF-16 offset
+		if (ins_pos != SIZE_MAX) {
+			pfc::string8 head(buffer);
+			if (ins_pos < head.get_length()) {
+				head.truncate(ins_pos);
+			}
+			ins_pos = wcslen(pfc::stringcvt::string_wide_from_utf8(head.get_ptr()).get_ptr());
 		}
 
 		return buffer;
@@ -691,7 +703,7 @@ static LRESULT CALLBACK EnterKeySubclassProc(
 
 				if (bwant_return) {
 					return DefSubclassProc(hwnd, uiMsg, wParam, lParam)
-						& ~VK_RETURN;
+						& ~DLGC_WANTALLKEYS;
 				}
 				break;
 			}

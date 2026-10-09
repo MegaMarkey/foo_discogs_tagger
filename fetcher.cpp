@@ -82,11 +82,14 @@ void Fetcher::fetch_url(const pfc::string8 &url, const pfc::string8 &params, pfc
 	}
 
 	if (params.get_length()) clean_url << "?" << params;
-	bool use_api = url.find_first("api") != ~0;
+	bool use_api = url.has_prefix("https://api.discogs.com");
 	use_oauth &= use_api;
 
 	bool isImageUrl = url.has_prefix("https://img.discogs.com");
 	isImageUrl |= url.has_prefix("https://i.discogs.com");
+	//note: always false (find() is npos or > 0), so the image throttling below never runs.
+	//the intended '== std::string::npos' would enable it and also slow down api calls
+	//after image downloads (shared rate limit state), left as released for now
 	isImageUrl &= !std::string(url.c_str()).find("h:150"); //ignore img previews
 
 	if (isImageUrl) {
@@ -109,9 +112,6 @@ void Fetcher::fetch_url(const pfc::string8 &url, const pfc::string8 &params, pfc
 			}
 			else if (Min != m_current_minute) {
 				m_ratelimit_remaining = m_ratelimit_max;
-			}
-			else if (m_ratelimit_remaining < 0) {
-				m_ratelimit_remaining = 0;
 			}
 		}
 		m_current_minute = Min;
@@ -173,8 +173,8 @@ void Fetcher::fetch_url(const pfc::string8 &url, const pfc::string8 &params, pfc
 			double sleep_base = m_ratelimit_remaining < (m_ratelimit_max / 6) ? 5000 : m_ratelimit_remaining < (m_ratelimit_max / 3) ? 2000 : 1000;
 			m_throttle_delta = (std::max)(sleep_base - (isImageUrl ? 0 : time_span_milli.count()), 0.0);
 
-			DWORD dw = static_cast<DWORD>((int)m_throttle_delta);
-			Sleep(dw);
+			//abortable wait (ms to s), throws exception_aborted
+			p_abort.sleep(m_throttle_delta / 1000.0);
 		}
 		else {
 			m_throttle_delta = 0;
@@ -230,7 +230,9 @@ void Fetcher::fetch_url(const pfc::string8 &url, const pfc::string8 &params, pfc
 
 				if (isImageUrl && !use_api) {
 					m_ratelimit_max = 20;
-					--m_ratelimit_remaining;
+					if (m_ratelimit_remaining) {
+						--m_ratelimit_remaining;
+					}
 					msg_ratelimits << "RL: " << m_ratelimit_max;
 					msg_ratelimits << " - Used: " << m_ratelimit_max - m_ratelimit_remaining;
 					msg_ratelimits << " - RMNG: " << m_ratelimit_remaining;
@@ -260,13 +262,23 @@ void Fetcher::fetch_url(const pfc::string8 &url, const pfc::string8 &params, pfc
 					pfc::string8 msg_status;
 					auto search_url = url.find_first("search");
 
-					if (search_url != SIZE_MAX) {
+					// "HTTP/1.1 404 Not Found", 0 if malformed
+					if (status.get_length() > 9) {
+						try {
+							error_code = std::stoi(substr(status, 9, 3).get_ptr());
+						}
+						catch (const std::exception&) {
+							error_code = 0;
+						}
+					}
+
+					// keep 429 (retry) and 5xx (server) for searches
+					if (search_url != SIZE_MAX && error_code != 429 && error_code < 500) {
 						msg_status << "Query syntax/Network error: " << status;
 						error_code = 4011; //todo
 					}
 					else {
 						msg_status << "HTTP error status: " << status;
-						error_code = std::stoi(substr(status, 9, 3).get_ptr());
 					}
 
 					log_msg(msg_status);
@@ -310,7 +322,12 @@ void Fetcher::fetch_url(const pfc::string8 &url, const pfc::string8 &params, pfc
 				// see if we must unzip buffer
 				if (out.get_size() >= 6 && out[0] == 0x1f && out[1] == 0x8b) {
 					pfc::array_t<t_uint8> unzipped;
-					unzipped.set_size(pfc::decode_little_endian<t_uint32>(out.get_ptr() + out.get_size() - 4));
+					t_uint32 isize = pfc::decode_little_endian<t_uint32>(out.get_ptr() + out.get_size() - 4);
+					// reject corrupt/truncated gzip trailer (> 256 MiB)
+					if (isize > (256u << 20)) {
+						throw network_exception("Error unzipping network response.");
+					}
+					unzipped.set_size(isize);
 					uLongf destLen = unzipped.get_size();
 					int state = myUncompress(unzipped.get_ptr(), &destLen, out.get_ptr(), out.get_size());
 					if (state != Z_OK) {
@@ -328,7 +345,7 @@ void Fetcher::fetch_url(const pfc::string8 &url, const pfc::string8 &params, pfc
 				pfc::string8 error_msg;
 				error_msg << "Rate-limited. Retrying: " << tries;
 				log_msg(error_msg);
-				Sleep(2000 * tries);
+				p_abort.sleep(2.0 * tries);
 			}
 			catch (foobar2000_io::exception_io &e) {
 
@@ -342,7 +359,7 @@ void Fetcher::fetch_url(const pfc::string8 &url, const pfc::string8 &params, pfc
 
 				log_msg(error_msg);
 
-				Sleep(2000 * (tries > 1 ? 2 : 1));
+				p_abort.sleep(2.0 * (tries > 1 ? 2 : 1));
 			}
 			tries++;
 		}
@@ -351,10 +368,12 @@ void Fetcher::fetch_url(const pfc::string8 &url, const pfc::string8 &params, pfc
 		throw;
 	}
 	catch (foo_discogs_exception &e) {
-		char decoded[MAX_PATH];
-		urldecode2(decoded, clean_url);
+		// decoded length <= encoded length
+		pfc::array_t<char> decoded;
+		decoded.set_size(clean_url.get_length() + 1);
+		urldecode2(decoded.get_ptr(), clean_url);
 
-		e << "url: " << decoded;
+		e << "url: " << decoded.get_ptr();
 		pfc::string8 error_msg;
 		error_msg << "Exception handling: " << clean_url;
 		log_msg(error_msg);
@@ -370,7 +389,14 @@ void Fetcher::fetch_url(const pfc::string8 &url, const pfc::string8 &params, pfc
 		throw ex;
 	}
 	catch (const std::exception& e) {
-		log_msg(e.what());
+		//ej. std::bad_alloc, do not return raw/garbage data
+		out.set_size(0);
+		network_exception ex("Network exception: ");
+		ex << e.what() << " (url: " << clean_url << ")";
+		pfc::string8 error_msg;
+		error_msg << "Exception fetching url: " << clean_url;
+		log_msg(error_msg);
+		throw ex;
 	}
 	catch (...) {
 		out.set_size(0);
@@ -487,7 +513,7 @@ void Fetcher::fetch_html_simple_log(const pfc::string8& url, const pfc::string8&
 					error_msg << ": " << e.what();
 				error_msg << ". Retrying: " << tries;
 				log_msg(error_msg);
-				Sleep(2000 * (tries > 1 ? 2 : 1));
+				p_abort.sleep(2.0 * (tries > 1 ? 2 : 1));
 			}
 			tries++;
 		}

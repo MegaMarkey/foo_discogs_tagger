@@ -26,6 +26,21 @@ public:
 		_mstream = nullptr;
 	}
 
+	foo_discogs_exception& operator=(const foo_discogs_exception &that) {
+		if (this != &that) {
+			//copy the message, the stream is owned
+			if (that._mstream != nullptr) {
+				_mwhat = that._mstream->str();
+			}
+			else {
+				_mwhat = that._mwhat;
+			}
+			delete _mstream;
+			_mstream = nullptr;
+		}
+		return *this;
+	}
+
 	~foo_discogs_exception() {
 		if (_mstream != nullptr) {
 			delete _mstream;
@@ -33,9 +48,13 @@ public:
 	}
 
 	virtual const char *what() const override {
-		if (_mstream != nullptr && _mstream->str().size()) {
-			_mwhat = _mstream->str();
-			_mstream->str("");
+		if (_mstream != nullptr) {
+			//keep the stream content, copies and later << read it
+			//assign only on change, keeps pointers returned by earlier what() calls valid
+			std::string s = _mstream->str();
+			if (s != _mwhat) {
+				_mwhat = s;
+			}
 		}
 		return _mwhat.c_str();
 	}

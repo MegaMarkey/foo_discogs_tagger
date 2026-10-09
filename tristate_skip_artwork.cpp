@@ -23,7 +23,8 @@ UINT  CTristate::GetState() {
 	//BST_CHECKED        0x0001
 	//BST_INDETERMINATE  0x0002
 
-	auto checkstate = SendDlgItemMessage(parent->m_hWnd, IDC, BM_GETSTATE, (WPARAM)0, (LPARAM)0);
+	//(BM_GETSTATE would add focus/hot/pushed bits)
+	auto checkstate = SendDlgItemMessage(parent->m_hWnd, IDC, BM_GETCHECK, (WPARAM)0, (LPARAM)0);
 	return checkstate;
 }
 

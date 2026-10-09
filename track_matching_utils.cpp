@@ -14,26 +14,26 @@ inline bool GdipErrorMsg(int code, const pfc::string8 path, pfc::string8& outmsg
 	bool bret = 0;
 	outmsg << " | ";
 	switch (code) {
-	case Gdiplus::Ok:                         outmsg << "Ok";                           bret = 1;
-	case Gdiplus::GenericError:               outmsg << "Generic Error";                bret = 0;
-	case Gdiplus::InvalidParameter:           outmsg << "Invalid Parameter";            bret = 0;
-	case Gdiplus::OutOfMemory:                outmsg << "Out Of Memory";                bret = 0;
-	case Gdiplus::ObjectBusy:                 outmsg << "Object Busy";                  bret = 0;
-	case Gdiplus::InsufficientBuffer:         outmsg << "Insufficient Buffer";          bret = 0;
-	case Gdiplus::NotImplemented:             outmsg << "Not Implemented";              bret = 0;
-	case Gdiplus::Win32Error:                 outmsg << "Win32 Error";                  bret = 0;
-	case Gdiplus::Aborted:                    outmsg << "Aborted";                      bret = 0;
-	case Gdiplus::FileNotFound:               outmsg << "File Not Found";               bret = 0;
-	case Gdiplus::ValueOverflow:              outmsg << "Value Overflow";               bret = 0;
-	case Gdiplus::AccessDenied:               outmsg << "Access Denied";                bret = 0;
-	case Gdiplus::UnknownImageFormat:         outmsg << "Unknown Image Format";         bret = 0;
-	case Gdiplus::FontFamilyNotFound:         outmsg << "Font Family Not Found";        bret = 0;
-	case Gdiplus::FontStyleNotFound:          outmsg << "Font Style Not Found";         bret = 0;
-	case Gdiplus::NotTrueTypeFont:            outmsg << "Not TruType Font";             bret = 0;
-	case Gdiplus::UnsupportedGdiplusVersion:  outmsg << "Unsupported Gdiplus Version";  bret = 0;
-	case Gdiplus::GdiplusNotInitialized:      outmsg << "Gdiplus Not Initialized";      bret = 0;
-	case Gdiplus::PropertyNotFound:           outmsg << "Property Not Found";           bret = 0;
-	case Gdiplus::PropertyNotSupported:       outmsg << "Property Not Supported";       bret = 0;
+	case Gdiplus::Ok:                         outmsg << "Ok";                           bret = 1; break;
+	case Gdiplus::GenericError:               outmsg << "Generic Error";                bret = 0; break;
+	case Gdiplus::InvalidParameter:           outmsg << "Invalid Parameter";            bret = 0; break;
+	case Gdiplus::OutOfMemory:                outmsg << "Out Of Memory";                bret = 0; break;
+	case Gdiplus::ObjectBusy:                 outmsg << "Object Busy";                  bret = 0; break;
+	case Gdiplus::InsufficientBuffer:         outmsg << "Insufficient Buffer";          bret = 0; break;
+	case Gdiplus::NotImplemented:             outmsg << "Not Implemented";              bret = 0; break;
+	case Gdiplus::Win32Error:                 outmsg << "Win32 Error";                  bret = 0; break;
+	case Gdiplus::Aborted:                    outmsg << "Aborted";                      bret = 0; break;
+	case Gdiplus::FileNotFound:               outmsg << "File Not Found";               bret = 0; break;
+	case Gdiplus::ValueOverflow:              outmsg << "Value Overflow";               bret = 0; break;
+	case Gdiplus::AccessDenied:               outmsg << "Access Denied";                bret = 0; break;
+	case Gdiplus::UnknownImageFormat:         outmsg << "Unknown Image Format";         bret = 0; break;
+	case Gdiplus::FontFamilyNotFound:         outmsg << "Font Family Not Found";        bret = 0; break;
+	case Gdiplus::FontStyleNotFound:          outmsg << "Font Style Not Found";         bret = 0; break;
+	case Gdiplus::NotTrueTypeFont:            outmsg << "Not TruType Font";             bret = 0; break;
+	case Gdiplus::UnsupportedGdiplusVersion:  outmsg << "Unsupported Gdiplus Version";  bret = 0; break;
+	case Gdiplus::GdiplusNotInitialized:      outmsg << "Gdiplus Not Initialized";      bret = 0; break;
+	case Gdiplus::PropertyNotFound:           outmsg << "Property Not Found";           bret = 0; break;
+	case Gdiplus::PropertyNotSupported:       outmsg << "Property Not Supported";       bret = 0; break;
 	default:                                  outmsg << "Unknown Error";                bret = 0;
 	}
 
@@ -269,11 +269,13 @@ imgpairs MemoryBlockToTmpBitmap(std::pair<pfc::string8, pfc::string8> n8_cache_p
 
 	Bitmap bmSmall(os_file_small.wstring().c_str());
 
-	HBITMAP hBmSmall, hBmMini;
-	HICON hIconSmall, hIconMini;
+	HBITMAP hBmSmall = NULL, hBmMini = NULL;
+	HICON hIconSmall = NULL, hIconMini = NULL;
 
 	//Get hBmSmall (150x150 aprox)
 	if (bmSmall.GetHBITMAP(Color(255, 255, 255)/*Color::Black*/, &hBmSmall) == Gdiplus::Ok) {
+		//(only checks the bitmap can be converted)
+		DeleteObject(hBmSmall);
 		bmSmall.GetHICON(&hIconSmall);
 
 		Gdiplus::Graphics gmini(/*(Image*)*/&bmSmall);
@@ -314,6 +316,7 @@ imgpairs MemoryBlockToTmpBitmap(std::pair<pfc::string8, pfc::string8> n8_cache_p
 			pfc::string8 msg("can't open ");
 			msg << temp_file_mini;
 			log_msg(msg);
+			if (hIconSmall) DestroyIcon(hIconSmall);
 			return imgpairs{ {nullptr, nullptr}, {nullptr, nullptr } };
 		}
 		else {
@@ -330,6 +333,7 @@ imgpairs MemoryBlockToTmpBitmap(std::pair<pfc::string8, pfc::string8> n8_cache_p
 			pfc::string8 err = "Error saving small preview tmp bitmap: ";
 			GdipErrorMsg(hres, os_file_mini.u8string().c_str(), err);
 			log_msg(err);
+			if (hIconSmall) DestroyIcon(hIconSmall);
 			return imgpairs{ {nullptr, nullptr}, {nullptr, nullptr } };
 		}
 
@@ -341,14 +345,13 @@ imgpairs MemoryBlockToTmpBitmap(std::pair<pfc::string8, pfc::string8> n8_cache_p
 			pfc::string8 err = "GdiPlus error (GetHBITMAP Small preview 48x48)";
 			GdipErrorMsg(hres, os_file_mini.u8string().c_str(), err);
 			log_msg(err);
+			if (hIconSmall) DestroyIcon(hIconSmall);
 			return imgpairs{ {nullptr, nullptr}, {nullptr, nullptr } };
 		}
 		else {
 			bmMini.GetHICON(&hIconMini);
 			DeleteObject(hBmMini);
 		}
-
-		DeleteObject(hBmSmall);
 	}
 	else {
 		log_msg("GdiPlus error (GetHBITMAP Small preview)");
@@ -403,6 +406,8 @@ imgpairs GenerateTmpBitmapsFromRealSize(pfc::string8 release_id, size_t pos,
 
 	uGetTempPath(temp_path);
 	uGetTempFileName(temp_path, "fb2k", 0, temp_file_name_small);
+	//caller deletes the temp files
+	temp_file_names.first = temp_file_name_small;
 
 	std::filesystem::path os_tmp = std::filesystem::u8path(temp_file_name_small.c_str());
 
@@ -420,7 +425,7 @@ imgpairs GenerateTmpBitmapsFromRealSize(pfc::string8 release_id, size_t pos,
 	//save small
 	hres = imgSmall.Save(os_tmp.wstring().c_str(), &pngClsid, NULL);
 
-	if (!SUCCEEDED(hres)) {
+	if (hres != Gdiplus::Ok) {
 		pfc::string8 err = "Error saving temp small png icon";
 		GdipErrorMsg(hres, os_tmp.u8string().c_str(), err);
 		log_msg(err);
@@ -437,10 +442,12 @@ imgpairs GenerateTmpBitmapsFromRealSize(pfc::string8 release_id, size_t pos,
 		return imgpairs{ {nullptr, nullptr}, {nullptr, nullptr } };
 	}
 
-	HBITMAP hBmSmall, hBmMini;
-	HICON hIconSmall, hIconMini;
+	HBITMAP hBmSmall = NULL, hBmMini = NULL;
+	HICON hIconSmall = NULL, hIconMini = NULL;
 
 	if (bmSmall.GetHBITMAP(Color(255, 255, 255)/*Color::Black*/, &hBmSmall) == Gdiplus::Ok) {
+		//(only checks the bitmap can be converted)
+		DeleteObject(hBmSmall);
 
 		Gdiplus::Graphics gmini(/*(Image*)*/&bmSmall);
 		Gdiplus::Status gdi_res = gmini.DrawImage(/*(Gdiplus::Image*)*/ &bmSmall, 0, 0);
@@ -484,6 +491,7 @@ imgpairs GenerateTmpBitmapsFromRealSize(pfc::string8 release_id, size_t pos,
 
 		uGetTempPath(temp_path);
 		uGetTempFileName(temp_path, "fb2k", 0, temp_file_name_mini);
+		temp_file_names.second = temp_file_name_mini;
 
 		std::filesystem::path tmp_file_min = std::filesystem::u8path(temp_file_name_mini.c_str());
 
@@ -498,7 +506,7 @@ imgpairs GenerateTmpBitmapsFromRealSize(pfc::string8 release_id, size_t pos,
 
 		//save mini
 		hres = imgMini.Save(os_tmp_mini.wstring().c_str(), &pngClsid, NULL);
-		if (!SUCCEEDED(hres)) {
+		if (hres != Gdiplus::Ok) {
 			pfc::string8 err = "Error saving minimal png icon";
 			GdipErrorMsg(hres, os_tmp_mini.u8string().c_str(), err);
 			log_msg(err);
@@ -516,7 +524,7 @@ imgpairs GenerateTmpBitmapsFromRealSize(pfc::string8 release_id, size_t pos,
 		}
 
 		hres = bmMini.GetHBITMAP(Color(255, 255, 255)/*Color::Black*/, &hBmMini);
-		if (!SUCCEEDED(hres)) {
+		if (hres != Gdiplus::Ok) {
 			pfc::string8 err = "GdiPlus error (GetHBITMAP 48x48 tmp artwork)";
 			GdipErrorMsg(hres, os_tmp_mini.u8string().c_str(), err);
 			log_msg(err);
@@ -526,7 +534,6 @@ imgpairs GenerateTmpBitmapsFromRealSize(pfc::string8 release_id, size_t pos,
 			bmMini.GetHICON(&hIconMini);
 			DeleteObject(hBmMini);
 		}
-		DeleteObject(hBmSmall);
 	}
 	else {
 		log_msg("GdiPlus error (GetHBITMAP 150x150 tmp artwork)");
@@ -555,11 +562,11 @@ MemoryBlock MemoryBlockToPngIcon(MemoryBlock buffer) {
 		ScalingFactor = (float)newHeight / (float)bmFetch.GetHeight();
 
 	HRESULT hr = S_FALSE;
-	IStream* poutStream;
+	IStream* poutStream = nullptr;
 	hr = CreateStreamOnHGlobal(NULL, true, &poutStream);
 	if (!SUCCEEDED(hr)) {
 		log_msg("Bad global stream allocation for PNG Icon");
-		poutStream->Release();
+		if (poutStream) poutStream->Release();
 		pStream->Release();
 		return {};
 	}
@@ -578,7 +585,7 @@ MemoryBlock MemoryBlockToPngIcon(MemoryBlock buffer) {
 	status = bmIcon.Save(poutStream, &ClsidPNG, NULL);
 	if (status != Gdiplus::Status::Ok) {
 		pfc::string8 err = "Bad result saving to PNG Icon stream";
-		GdipErrorMsg(hres, "memory", err);
+		GdipErrorMsg(status, "memory", err);
 		log_msg(err);
 
 		poutStream->Release();
@@ -606,6 +613,7 @@ MemoryBlock MemoryBlockToPngIcon(MemoryBlock buffer) {
 	else {
 		log_msg("Bad result reading from PNG Icon stream");
 	}
+	delete[] out_stream_bytes;
 	poutStream->Release();
 	pStream->Release();
 

@@ -61,6 +61,29 @@ public:
 	}
 };
 
+// Reconstructed: removed upstream in 0acb368, but write_tags_task still derives from it.
+class foo_discogs_write_tag_locked_threaded_process_callback : public foo_discogs_threaded_process_callback
+{
+public:
+	foo_discogs_write_tag_locked_threaded_process_callback() {
+		std::lock_guard<std::mutex> guard(g_discogs->write_tag_locked_operation_rw_mutex);
+		if (g_discogs->write_tag_locked_operation) {
+			locked_task_exception e("Write tag operation locked");
+			throw e;
+		}
+		g_discogs->write_tag_locked_operation++;
+	}
+
+	~foo_discogs_write_tag_locked_threaded_process_callback() {
+		std::lock_guard<std::mutex> guard(g_discogs->write_tag_locked_operation_rw_mutex);
+		g_discogs->write_tag_locked_operation--;
+	}
+};
+
+// Reconstructed: never committed upstream. No locking: its subclasses are created
+// from other tasks' on_success and from call sites without try/catch, so it must not throw.
+class foo_discogs_threaded_locked_process_callback : public foo_discogs_threaded_process_callback {};
+
 class generate_tags_task : public foo_discogs_threaded_process_callback
 {
 public:
@@ -150,6 +173,7 @@ public:
 
 private:
 	file_info_manager m_finfo_manager;
+	bool m_infos_loaded = false;
 	metadb_handle_list m_items;
 	metadb_handle_list m_deleted_items;
 
@@ -170,6 +194,7 @@ public:
 
 private:
 	file_info_manager m_finfo_manager;
+	bool m_infos_loaded = false;
 	metadb_handle_list items;
 	metadb_handle_list missing_items;
 
@@ -223,7 +248,8 @@ public:
 	void start(HWND parent);
 
 private:
-	const std::vector<size_t> & m_artist_ids;
+	// copy: the caller's vector may change while the task runs on the worker thread
+	const std::vector<size_t> m_artist_ids;
 	std::vector<pfc::string8> m_checked_in_artist_ids;
 	pfc::array_t<Artist_ptr> m_artists;
 	Release_ptr m_release;
@@ -368,6 +394,7 @@ public:
 private:
 	TagWriter_ptr m_tag_writer;
 	file_info_manager_ptr m_finfo_manager;
+	bool m_infos_loaded = false;
 	metadb_handle_list m_items;
 
 	CFindReleaseDialog *m_dialog;
@@ -439,8 +466,9 @@ public:
 	void start(HWND parent);
 
 private:
-	const pfc::string8 &test_token;
-	const pfc::string8 &test_token_secret;
+	// by value: the task runs modeless, the caller's strings go out of scope
+	pfc::string8 test_token;
+	pfc::string8 test_token_secret;
 
 	void safe_run(threaded_process_status &p_status, abort_callback &p_abort) override;
 	void on_success(HWND p_wnd) override;

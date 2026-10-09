@@ -192,6 +192,9 @@ private:
 	std::vector<std::pair<int, int>> m_vcol_data_subitems;
 	bool m_cfg_bshow_stats = false;
 
+	//state set by enable(), (tag generation task can disable from its worker thread)
+	std::atomic<bool> m_enabled = true;
+
 	TagWriter_ptr m_tag_writer;
 	size_t m_tw_index = 0;
 	size_t m_tw_skip = 0;

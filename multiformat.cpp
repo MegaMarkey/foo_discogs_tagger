@@ -677,7 +677,7 @@ bool titleformat_hook_impl_multiformat::process_function(titleformat_text_out * 
 			}
 		}
 
-		else if (pfc::strcmp_ex(p_name, p_name_length, "prompt", pfc::infinite_size) == 0) {
+		else if (prompt_store != nullptr && pfc::strcmp_ex(p_name, p_name_length, "prompt", pfc::infinite_size) == 0) {
 			if (param_count == 1 ) {
 				try {
 					params[0].set_value(prompt_store->get(params[0].get_cvalue()));

@@ -58,7 +58,7 @@ public:
 	}
 
 	inline void assert_is_array(const char *key) {
-		::assert_is_object(json_object_get(root, key));
+		::assert_is_array(json_object_get(root, key));
 	}
 
 	JSONParser_ptr get(const char *key) {

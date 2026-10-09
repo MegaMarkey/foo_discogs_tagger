@@ -12,12 +12,12 @@ public:
 
 	~CArtistList() {
 
-		DeleteObject(m_hImageList);
+		if (m_hImageList.m_hImageList) m_hImageList.Destroy();
 	}
 
 	// serves dlg->expand_master_release, convey
 	const Artist_ptr Get_Artist() { return m_find_release_artist; }
-	pfc::array_t<Artist_ptr> Get_Artists() const { return m_find_release_artists; }
+	const pfc::array_t<Artist_ptr>& Get_Artists() const { return m_find_release_artists; }
 	const pfc::string8 Get_Selected_Id () { auto p = get_selected_artist(); return p ? p->id : ""; }
 
 	// serves dlg

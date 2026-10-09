@@ -7,7 +7,8 @@ public:
 	CPreviewList(IListControlOwnerDataSource* ilo);
 
 	~CPreviewList() {
-		DeleteObject(m_hImageList);
+		//(not a GDI object)
+		if (m_hImageList.m_hImageList) m_hImageList.Destroy();
 	}
 	void Inititalize() {
 

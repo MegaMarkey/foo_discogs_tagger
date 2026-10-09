@@ -49,11 +49,11 @@ static const char *const NAMED_ENTITIES[][2] = {
 	{"Otilde;", "Õ"},
 	{"Ouml;", "Ö"},
 	{"Phi;", "Φ"},
-	{"Pi;", "� "},
+	{"Pi;", "\xCE\xA0"},
 	{"Prime;", "″"},
 	{"Psi;", "Ψ"},
 	{"Rho;", "Ρ"},
-	{"Scaron;", "� "},
+	{"Scaron;", "\xC5\xA0"},
 	{"Sigma;", "Σ"},
 	{"THORN;", "Þ"},
 	{"Tau;", "Τ"},
@@ -71,12 +71,12 @@ static const char *const NAMED_ENTITIES[][2] = {
 	{"acirc;", "â"},
 	{"acute;", "´"},
 	{"aelig;", "æ"},
-	{"agrave;", "� "},
+	{"agrave;", "\xC3\xA0"},
 	{"alefsym;", "ℵ"},
 	{"alpha;", "α"},
 	{"amp;", "&"},
 	{"and;", "∧"},
-	{"ang;", "� "},
+	{"ang;", "\xE2\x88\xA0"},
 	{"apos;", "'"},
 	{"aring;", "å"},
 	{"asymp;", "≈"},
@@ -99,7 +99,7 @@ static const char *const NAMED_ENTITIES[][2] = {
 	{"cup;", "∪"},
 	{"curren;", "¤"},
 	{"dArr;", "⇓"},
-	{"dagger;", "� "},
+	{"dagger;", "\xE2\x80\xA0"},
 	{"darr;", "↓"},
 	{"deg;", "°"},
 	{"delta;", "δ"},
@@ -165,9 +165,9 @@ static const char *const NAMED_ENTITIES[][2] = {
 	{"minus;", "−"},
 	{"mu;", "μ"},
 	{"nabla;", "∇"},
-	{"nbsp;", "� "},
+	{"nbsp;", "\xC2\xA0"},
 	{"ndash;", "–"},
-	{"ne;", "� "},
+	{"ne;", "\xE2\x89\xA0"},
 	{"ni;", "∋"},
 	{"not;", "¬"},
 	{"notin;", "∉"},
@@ -225,14 +225,14 @@ static const char *const NAMED_ENTITIES[][2] = {
 	{"sigma;", "σ"},
 	{"sigmaf;", "ς"},
 	{"sim;", "∼"},
-	{"spades;", "� "},
+	{"spades;", "\xE2\x99\xA0"},
 	{"sub;", "⊂"},
 	{"sube;", "⊆"},
 	{"sum;", "∑"},
-	{"sup;", "⊃"},
 	{"sup1;", "¹"},
 	{"sup2;", "²"},
 	{"sup3;", "³"},
+	{"sup;", "⊃"},
 	{"supe;", "⊇"},
 	{"szlig;", "ß"},
 	{"tau;", "τ"},
@@ -324,7 +324,8 @@ static bool parse_entity(
 		unsigned long cp = strtoul(
 			current + (hex ? 3 : 2), &tail, hex ? 16 : 10);
 
-		bool fail = errno || tail != end || cp > UNICODE_MAX;
+		//cp 0 (also no digits: "&#;") would end the decoded string
+		bool fail = errno || tail != end || !cp || cp > UNICODE_MAX;
 		errno = errno_save;
 		if (fail) {
 			return 0;

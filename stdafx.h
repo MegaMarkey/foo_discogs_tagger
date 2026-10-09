@@ -59,6 +59,9 @@
 #include "libPPUI/InPlaceEditTable.h"
 #include "liboauthcpp/liboauthcpp.h"
 
+#pragma clang diagnostic pop
+#pragma warning(pop)
+
 #include "version.h"
 
 #include "wtl_helpers.h"

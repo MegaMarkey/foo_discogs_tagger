@@ -35,6 +35,8 @@ public:
 		g_discogs->preview_modal_tag_dialog = this;
 		static_api_ptr_t<titleformat_compiler>()->compile_force(m_track_desc_script, "[[%album artist%]] - [[%discnumber% .]%tracknumber% -] [%track artist% -] %title% ");
 		init_results();
+		//list source edits the dialog copy
+		PullDlgResult();
 	}
 
 	~CPreviewLeadingTagDialog();

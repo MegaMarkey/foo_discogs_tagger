@@ -17,7 +17,8 @@ void ILOD_preview::SetResults(const std::weak_ptr<void>& ptag_writer, PreView pr
 	m_v_stats = m_vstats;
 
 	CPreviewList* uilist = (CPreviewList*)ilo_get_uilist();
-	ListView_SetItemCountEx(uilist->m_hWnd, m_tag_writer->tag_results.get_count(), 0);
+	//libPPUI list, (no LVM_SETITEMCOUNT) reload item count and selection
+	ilo_get_uilist()->ReloadData();
 	uilist->Invalidate();
 }
 
@@ -295,9 +296,9 @@ void ILOD_preview::listSetEditField(ctx_t ctx, size_t item, size_t subItem, cons
 	}
 	auto c = m_tag_writer->tag_results[item]->value.get_count();
 	string_encoded_array sea_val;
-	string_encoded_array* value = &(m_tag_writer->tag_results[item]->value[0]);
+	bool value_has_array = c && m_tag_writer->tag_results[item]->value[0].has_array();
 
-	if (value->has_array()) {
+	if (value_has_array) {
 
 		std::vector<pfc::string8>vsplit;
 		split(val, ";", 0, vsplit);
@@ -344,10 +345,10 @@ void ILOD_preview::listSubItemClicked(ctx_t ctx, size_t item, size_t subItem) {
 	}
 }
 bool ILOD_preview::is_result_editable(size_t item) {
-	if (item == ~0) {
+	if (item == ~0 || !m_tag_writer || item >= m_tag_writer->tag_results.get_count()) {
 		return false;
 	}
-	bool bres = item < m_tag_writer->tag_results.get_count();
+	bool bres = true;
 	bres &= m_preview_mode == PreView::Normal;
 	bres &= !g_discogs->preview_modal_tag_dialog;
 	bres &= !m_tag_writer->tag_results[item]->tag_entry->freeze_tag_name;

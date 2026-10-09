@@ -174,6 +174,13 @@ bool string_encoded_array::limit_depth(size_t depth) {
 	if (m_depth > depth) {
 		bool changed = false;
 		if (depth == 0) {
+			// join() only joins depth 1, squash nested sub-arrays first
+			if (has_array() && m_depth > 1) {
+				for (size_t i = 0; i < sub_array.get_size(); i++) {
+					sub_array[i].limit_depth(0);
+				}
+				m_depth = 1;
+			}
 			join();
 			sub_array.force_reset();
 			dirty = false;
@@ -199,6 +206,10 @@ bool string_encoded_array::expand_depth(size_t depth) {
 		bool changed = false;
 		if (get_width() == 0) {
 			string_encoded_array x("");
+			if (m_depth == 0) {
+				// wrap scalar, keeping its value
+				x.set_value(value);
+			}
 			sub_array.append_single(x);
 			changed = true;
 			m_depth = 1;
@@ -224,6 +235,8 @@ void string_encoded_array::split(const pfc::string8 &delim) {
 	for (size_t i = 0; i < tokens.get_size(); i++) {
 		if (i == 0) {
 			set_value(tokens[i]);
+			// keep first token as array item (single token was lost)
+			force_array();
 		}
 		else {
 			append_item(tokens[i]);
@@ -337,7 +350,7 @@ bool string_encoded_array::branch_execute(bool(string_encoded_array::*func)(cons
 			array_param_too_shallow(2, other1.m_depth, other_depth);
 		}
 		if (other_depth > other2.m_depth) {
-			array_param_too_shallow(3, other1.m_depth, other_depth);
+			array_param_too_shallow(3, other2.m_depth, other_depth);
 		}
 		if (array1 && other1.m_depth > other_depth && other1.get_width() != count) {
 			array_param_wrong_width(2, other1.m_depth, other1.get_width(), count);
@@ -463,8 +476,8 @@ bool string_encoded_array::_join(const string_encoded_array &delim) {
 			continue;
 		}
 		if (!first) {
-			if (delim.has_array()) {
-				pd = &delim.get_citem(delim.get_width() % i);
+			if (delim.has_array() && delim.get_width()) {
+				pd = &delim.get_citem((i - 1) % delim.get_width());
 			}
 			value.add_string(pd->value);
 		}
@@ -491,12 +504,8 @@ bool string_encoded_array::_joinnames(const string_encoded_array &delim) {
 			continue;
 		}
 		if (!first) {
-			if (delim.has_array()) {
-				size_t j = i - 1;
-				if (j >= delim.get_width()) {
-					j = j - delim.get_width();
-				}
-				pd = &delim.get_citem(j);
+			if (delim.has_array() && delim.get_width()) {
+				pd = &delim.get_citem((i - 1) % delim.get_width());
 			}
 			if (!STR_EQUAL(pd->value, ",")) {
 				value.add_char(' ');
@@ -1065,7 +1074,13 @@ bool string_encoded_array::_multi_div(const string_encoded_array& other) {
 	int me_num = get_numeric_value();
 	int other_num = other.get_numeric_value();
 	value.reset();
-	value << (value, me_num / other_num);
+	if (other_num == 0) {
+		// division by zero, keep dividend (as _multi_divd)
+		value << me_num;
+	}
+	else {
+		value << (me_num / other_num);
+	}
 	return true;
 }
 

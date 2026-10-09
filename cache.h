@@ -17,23 +17,16 @@ public:
 
 	bool remove(const key_t& key) {
 
-		//note c++ std::list & std::map: only those iterators, or refs pointing to
-		//the element which will be erased, are affected
+		std::lock_guard<std::mutex> ul(modify_mutex);
 
-		auto it = _cache_items_map.find(key);
-		if (it != _cache_items_map.end()) {
-			_cache_items_list.erase(it->second);
-			_cache_items_map.erase(it);
-			return true;
-		}
-		return false;
+		return remove_unlocked(key);
 	}
 
 	void put(const key_t& key, const value_t& value) {
 
 		std::lock_guard<std::mutex> ul(modify_mutex);
 
-		remove(key);
+		remove_unlocked(key);
 
 		_cache_items_list.push_front(key_value_pair_t(key, value));
 		_cache_items_map[key] = _cache_items_list.begin();
@@ -58,6 +51,20 @@ public:
 			_cache_items_list.splice(_cache_items_list.begin(), _cache_items_list, it->second);
 			return it->second->second;
 		}
+	}
+
+	// find and copy under lock (exists() + get() is not atomic)
+	bool try_get(const key_t& key, value_t& out) {
+
+		std::lock_guard<std::mutex> ul(modify_mutex);
+
+		auto it = _cache_items_map.find(key);
+		if (it == _cache_items_map.end()) {
+			return false;
+		}
+		_cache_items_list.splice(_cache_items_list.begin(), _cache_items_list, it->second);
+		out = it->second->second;
+		return true;
 	}
 
 	bool exists(const key_t& key) /*const*/ {
@@ -124,6 +131,21 @@ public:
 	}
 
 private:
+
+	// caller must hold modify_mutex
+	bool remove_unlocked(const key_t& key) {
+
+		//note c++ std::list & std::map: only those iterators, or refs pointing to
+		//the element which will be erased, are affected
+
+		auto it = _cache_items_map.find(key);
+		if (it != _cache_items_map.end()) {
+			_cache_items_list.erase(it->second);
+			_cache_items_map.erase(it);
+			return true;
+		}
+		return false;
+	}
 
 	std::list<key_value_pair_t> _cache_items_list;
 	std::unordered_map<key_t, list_iterator_t> _cache_items_map;

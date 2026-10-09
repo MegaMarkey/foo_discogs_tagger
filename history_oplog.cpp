@@ -27,9 +27,9 @@ bool history_oplog::init(bool enabled, size_t max_items) {
 		{oplog_type::filter, &m_vres_filter_history}
 	};
 
-	size_t inc = db.recharge_history(kcmdHistoryWashup, max_items, out_history);
+	bool bres = db.recharge_history(kcmdHistoryWashup, max_items, out_history);
 
-	return inc != pfc_infinite;
+	return bres;
 }
 
 //serves config dialog
@@ -56,10 +56,14 @@ bool history_oplog::add_history_row(oplog_type optype, rppair row) {
 	if (!vh.size() || fit == vh.end()) {
 
 		vh.insert(vh.begin(), row);
+		if (m_enabled && vh.size() > m_max_items) {
+			vh.erase(vh.begin() + m_max_items, vh.end());
+		}
 		return true;
 	}
 	else {
-		std::iter_swap(vh.begin(), fit);
+		//move to front, keep mru order
+		std::rotate(vh.begin(), fit, fit + 1);
 	}
 	return false;
 }
@@ -259,7 +263,8 @@ bool history_oplog::do_history_menu(oplog_type optype, HWND hwndCtrl/*, HMENU hM
 	pt.x = clientRect.right;
 	pt.y = clientRect.bottom;
 
-	enum { SUBMENU_FIELDS = 1, SUBMENU_TMPL_QUERIES = 2, SUBMENU_TMPL_SUGG = 3, MENU_FIRST_ITEM = 4, MENU_WEB = 1000 };
+	//history item ids start above submenu (100..399), web (1000..1001) and separator (MF_SEPARATOR) ids
+	enum { SUBMENU_FIELDS = 1, SUBMENU_TMPL_QUERIES = 2, SUBMENU_TMPL_SUGG = 3, MENU_WEB = 1000, MENU_FIRST_ITEM = 4096 };
 
 	HMENU hMenu = CreatePopupMenu();
 
@@ -281,7 +286,7 @@ bool history_oplog::do_history_menu(oplog_type optype, HWND hwndCtrl/*, HMENU hM
 
 		for (auto walk_it = vophistory.begin(); walk_it != vophistory.end(); ++walk_it) {
 
-			const pfc::string8 label = get_menu_label(optype, walk_it._Ptr);
+			const pfc::string8 label = get_menu_label(optype, &*walk_it);
 			const pfc::stringcvt::string_os_from_utf8 os_str(label);
 			size_t item_id = MENU_FIRST_ITEM + std::distance(vophistory.begin(), walk_it);
 			AppendMenu(hMenu, MF_STRING, item_id, os_str);
@@ -304,7 +309,7 @@ bool history_oplog::do_history_menu(oplog_type optype, HWND hwndCtrl/*, HMENU hM
 
 	int cmd = TrackPopupMenu(hMenu, TPM_RIGHTALIGN | TPM_TOPALIGN | TPM_RETURNCMD, pt.x, pt.y, 0, hwndCtrl, NULL);
 
-	TCHAR buffer[MAX_PATH];
+	TCHAR buffer[MAX_PATH] = {};
 	if (optype == oplog_type::query) {
 		::GetMenuString(hMenu, cmd, buffer, MAX_PATH, 0);
 	}
@@ -333,7 +338,7 @@ bool history_oplog::do_history_menu(oplog_type optype, HWND hwndCtrl/*, HMENU hM
 
 				return out.get_length();;
 			}
-			else if (cmd >= MENU_SUB_C && cmd < MENU_SUB_D) {
+			else if (optype == oplog_type::query && cmd >= MENU_SUB_C && cmd < MENU_SUB_D) {
 				//suggestions
 				const pfc::stringcvt::string_utf8_from_wide cvt(buffer);
 				out = cvt;
@@ -353,7 +358,7 @@ bool history_oplog::do_history_menu(oplog_type optype, HWND hwndCtrl/*, HMENU hM
 				return out.get_length();;
 			}
 			else {
-				if (cmd - MENU_FIRST_ITEM < vophistory.size()) {
+				if (cmd >= MENU_FIRST_ITEM && static_cast<size_t>(cmd - MENU_FIRST_ITEM) < vophistory.size()) {
 					rppair row_h = vophistory.at(cmd - MENU_FIRST_ITEM);
 					out = get_row_val(optype, row_h);
 				}

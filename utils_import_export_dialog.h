@@ -21,8 +21,7 @@ inline BOOL OpenExportDlg(HWND hWndparent, const TCHAR * filter, std::wstring& o
 			return FALSE;
 		}
 
-		char fullpath[MAX_PATH] = "";
-		pfc::stringcvt::convert_wide_to_utf8(fullpath, MAX_PATH, wfilename.c_str(), MAX_PATH);
+		pfc::string8 fullpath = pfc::stringcvt::string_utf8_from_wide(wfilename.c_str()).get_ptr();
 
 		pfc::string8 filename(pfc::string_filename(fullpath));
 
@@ -45,7 +44,6 @@ inline BOOL OpenExportDlg(HWND hWndparent, const TCHAR * filter, std::wstring& o
 		if ((ofn.nFilterIndex == 1) && (stricmp_utf8(dotext, ".tm"))) {
 			out.append(filterExt);
 		}
-		out = wfilename.c_str();
 		return TRUE;
 	}
 	return FALSE;

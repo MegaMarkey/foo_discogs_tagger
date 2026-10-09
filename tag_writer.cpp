@@ -51,7 +51,8 @@ bool TagWriter::Staging_Results() {
 		}
 	}
 	for (const tag_result_ptr wr : tag_results) {
-		bool usr_app = wr->r_usr_approved.find_first(true, 0, wr->r_usr_approved.size() < wr->r_usr_approved.size());
+		const size_t usr_size = wr->r_usr_approved.size();
+		bool usr_app = wr->r_usr_approved.find_first(true, 0, usr_size) < usr_size;
 		if (usr_app) {
 			return true;
 		}
@@ -396,6 +397,12 @@ void TagWriter::generate_tags(tag_mapping_list_type* alt_mappings, threaded_proc
 
 	for (size_t wtags = 0; wtags < ptags->get_size(); wtags++) {
 
+		//abort: release results generated so far (as on errors), then throw
+		if (p_abort.is_aborting()) {
+			atm_tag_results_ready = true;
+			p_abort.check();
+		}
+
 		const tag_mapping_entry& entry = ptags->get_item_ref(wtags);
 
 		if ((entry.enable_write) || (entry.enable_update)) {
@@ -431,6 +438,12 @@ void TagWriter::generate_tags(tag_mapping_list_type* alt_mappings, threaded_proc
 			bool multiple_old_results = false;
 
 			for (size_t wtracks = 0; wtracks < m_track_mappings.get_count(); wtracks++) {
+
+				if (p_abort.is_aborting()) {
+					atm_tag_results_ready = true;
+					p_abort.check();
+				}
+
 				const track_mapping& mapping = m_track_mappings[wtracks];
 
 				bool token_added = false;

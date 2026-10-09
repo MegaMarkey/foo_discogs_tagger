@@ -113,7 +113,7 @@ public:
 
 	~CFindReleaseTree() {
 
-		DeleteObject(m_hImageList);
+		if (m_hImageList.m_hImageList) m_hImageList.Destroy();
 
 	}
 
@@ -171,7 +171,7 @@ public:
 	void ExpandHit() {
 
 		if (m_hit != NULL) {
-			TreeView_Expand(m_hwndTreeView, m_hit, TVM_EXPAND);
+			TreeView_Expand(m_hwndTreeView, m_hit, TVE_EXPAND);
 			m_hit = nullptr;
 		}
 	}
@@ -270,6 +270,9 @@ private:
 
 	bool m_filter_disabled_title_mismatch = false;
 
+	//tree items deleted but not completely rebuilt (aborted/failed filter)
+	bool m_tree_dirty = false;
+
 	pfc::string8 m_results_filter;
 	pfc::string8 m_init_master_title;
 	pfc::string8 m_init_release_title;
@@ -285,7 +288,7 @@ private:
 	metadb_handle_list m_items;
 
 	playable_location_impl m_location;
-	file_info_impl* m_info_p;
+	file_info_impl m_info;
 	titleformat_hook_impl_multiformat_ptr m_hook;
 
 	friend class release_tree_cache;

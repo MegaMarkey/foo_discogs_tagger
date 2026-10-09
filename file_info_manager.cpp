@@ -4,9 +4,8 @@
 
 bool file_info_manager::read_infos() {
 	static_api_ptr_t<metadb_io> api;
-	if (api->load_info_multi(items, metadb_io::load_info_default, core_api::get_main_window(), 0) != metadb_io::load_info_success) {
-		return false;
-	}
+	// get infos even if loading failed (never leave them unread), callers check the result
+	bool bloaded = api->load_info_multi(items, metadb_io::load_info_default, core_api::get_main_window(), 0) == metadb_io::load_info_success;
 	const size_t m = items.get_count();
 	size_t loaded_count = 0;
 	for (size_t n = 0; n < m; n++) {
@@ -16,7 +15,7 @@ bool file_info_manager::read_infos() {
 		}
 		info_wrappers[n]->mask = val;
 	}
-	return loaded_count == m;
+	return bloaded && loaded_count == m;
 }
 
 void file_info_manager::read_infos_new() {

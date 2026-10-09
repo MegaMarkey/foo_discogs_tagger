@@ -143,6 +143,8 @@ bool CConf::load() {
 
 	// vspec vnnn { spec vector, # bools, # ints, # strings };
 	bool bres = true;
+	// load() runs again after dialogs apply changes, do not append the specs twice
+	vec_specs.clear();
 	vspec v000{ &vec_specs, 0, 0, 0 };
 	vspec v204{ &vec_specs, 28, 42, 14 }; // 1.0.4
 	vspec v205{ &vec_specs, 24, 39, 15 }; // 1.0.6 + sqlite db
@@ -158,6 +160,30 @@ bool CConf::load() {
 	vspec v215{ &vec_specs, 27, 55, 20 }; // 1.0.22RC3
 
 	vspec* vlast = &vec_specs.at(vec_specs.size() - 1);
+
+	// self-heal: 1.0.22 save() did not write CFG_DISK_CACHE_EXP (v210), its configs would be
+	// misdetected (downgrade path) and the cache expiration could never be saved.
+	// Also drop the CFG_QUERY_MAX duplicated by that downgrade path, then add the missing entry
+	bool bhas_disk_cache_exp = false;
+	bool bhas_init_query_flags = false;
+	for (t_size i = 0; i < cfg_int_entries.get_count(); i++) {
+		if (cfg_int_entries[i].id == CFG_DISK_CACHE_EXP) bhas_disk_cache_exp = true;
+		if (cfg_int_entries[i].id == CFG_ON_INIT_QUERY_FLAGS) bhas_init_query_flags = true;
+	}
+	if (bhas_init_query_flags && !bhas_disk_cache_exp) {
+		bool bquery_max_found = false;
+		for (t_size i = 0; i < cfg_int_entries.get_count(); i++) {
+			if (cfg_int_entries[i].id == CFG_QUERY_MAX) {
+				if (bquery_max_found) {
+					cfg_int_entries.remove_by_idx(i);
+					i--;
+				}
+				bquery_max_found = true;
+			}
+		}
+		cfg_int_entries.add_item(make_conf_entry(CFG_DISK_CACHE_EXP, disk_cache_exp));
+		log_msg("Repaired config file (missing disk cache expiration)");
+	}
 
 	vspec vLoad = {
 		nullptr,
@@ -221,11 +247,13 @@ bool CConf::load() {
 
 	// ignore bres while upgrading (loading depricated values will fail)
 	for (unsigned int i = 0; i < cfg_bool_entries.get_count(); i++) {
-		if (i < vlast->boolvals) {
+		// v204 has one more bool than vlast, its depricated entries are removed below
+		if (i < vlast->boolvals || vLoad == v204) {
 			bool_load(cfg_bool_entries[i]);
 		}
 		else {
-			cfg_bool_entries.remove_by_idx(cfg_bool_entries[i].id);
+			cfg_bool_entries.remove_by_idx(i);
+			i--;
 		}
 	}
 
@@ -333,11 +361,11 @@ bool CConf::load() {
 			DEPRI_CFG_EDIT_TAGS_DIALOG_POSITION };
 
 		for (auto walk_delete : vdel) {
-			for (unsigned int i = 0; i < cfg_int_entries.get_count(); i++) {
-				const conf_int_entry& item = cfg_int_entries[i];
+			// remove by index, all occurrences (v204 saved DEPRI_CFG_EDIT_TAGS_DIALOG_POSITION twice)
+			for (t_size i = cfg_int_entries.get_count(); i > 0; i--) {
+				const conf_int_entry& item = cfg_int_entries[i - 1];
 				if (item.id == walk_delete) {
-					cfg_int_entries.remove_by_idx(item.id);
-					break;
+					cfg_int_entries.remove_by_idx(i - 1);
 				}
 			}
 		}
@@ -347,27 +375,30 @@ bool CConf::load() {
 		conf_bool_entry entry = {}, entry2 = {};
 
 		entry.id = DEPRI_CFG_FIND_RELEASE_DIALOG_SHOW_ID;
-		auto found = cfg_bool_entries.bsearch_t(compare_id, entry, dummy);
-		entry2 = cfg_bool_entries.get_item(dummy);
-		cfg_bool_entries.remove_item(entry2);
+		if (cfg_bool_entries.bsearch_t(compare_id, entry, dummy)) {
+			cfg_bool_entries.remove_by_idx(dummy);
+		}
 
 		entry.id = DEPRI_CFG_SKIP_RELEASE_DLG_IF_MATCHED;
-		found = cfg_bool_entries.bsearch_t(compare_id, entry, dummy);
-		entry2 = cfg_bool_entries.get_item(dummy);
-		skip_mng_flag |= entry2.value ? 1 << 0 : 0;
-		cfg_bool_entries.remove_item(entry2);
+		if (cfg_bool_entries.bsearch_t(compare_id, entry, dummy)) {
+			entry2 = cfg_bool_entries.get_item(dummy);
+			skip_mng_flag |= entry2.value ? 1 << 0 : 0;
+			cfg_bool_entries.remove_by_idx(dummy);
+		}
 
 		entry.id = DEPRI_CFG_SKIP_FIND_RELEASE_DLG_IF_IDED;
-		found = cfg_bool_entries.bsearch_t(compare_id, entry, dummy);
-		entry2 = cfg_bool_entries.get_item(dummy);
-		skip_mng_flag |= entry2.value ? 1 << 1 : 0;
-		cfg_bool_entries.remove_item(entry2);
+		if (cfg_bool_entries.bsearch_t(compare_id, entry, dummy)) {
+			entry2 = cfg_bool_entries.get_item(dummy);
+			skip_mng_flag |= entry2.value ? 1 << 1 : 0;
+			cfg_bool_entries.remove_by_idx(dummy);
+		}
 
 		entry.id = DEPRI_CFG_SKIP_PREVIEW_DIALOG;
-		found = cfg_bool_entries.bsearch_t(compare_id, entry, dummy);
-		entry2 = cfg_bool_entries.get_item(dummy);
-		skip_mng_flag |= entry2.value ? 1 << 2 : 0;
-		cfg_bool_entries.remove_item(entry2);
+		if (cfg_bool_entries.bsearch_t(compare_id, entry, dummy)) {
+			entry2 = cfg_bool_entries.get_item(dummy);
+			skip_mng_flag |= entry2.value ? 1 << 2 : 0;
+			cfg_bool_entries.remove_by_idx(dummy);
+		}
 		cfg_int_entries.add_item(make_conf_entry(CFG_DC_DB_FLAG, 0));
 		cfg_int_entries.add_item(make_conf_entry(CFG_FIND_RELEASE_FILTER_FLAG, find_release_filter_flag));
 		cfg_int_entries.add_item(make_conf_entry(CFG_SKIP_MNG_FLAG, skip_mng_flag));
@@ -1250,6 +1281,15 @@ bool CConf::id_to_val_str(int id, const CConf& in_conf, pfc::string8& out, bool 
 	return true;
 }
 
+// CFG_PREVIEW_MODE (int) and CFG_SEARCH_MASTER_SUB_FORMAT_STRING (string) share the persisted id 51,
+// the int entry belongs to the PREVIEW filter and the string entry to the CONF filter
+static bool filter_entry_type_ok(CConf::cfgFilter cfgfilter, int id, bool bstring) {
+	if (id != CFG_PREVIEW_MODE) {
+		return true;
+	}
+	return bstring ? cfgfilter == CConf::cfgFilter::CONF : cfgfilter == CConf::cfgFilter::PREVIEW;
+}
+
 void CConf::save(cfgFilter cfgfilter, const CConf& in_conf) {
 
 
@@ -1271,8 +1311,9 @@ void CConf::save(cfgFilter cfgfilter, const CConf& in_conf) {
 
 		if (filterok != std::end(idarray)) {
 			bool val;
-			/*bool bres = */id_to_val_bool(id, in_conf, val);
-			cfg_bool_entries.replace_item(i, make_conf_entry(id, val));
+			if (id_to_val_bool(id, in_conf, val)) {
+				cfg_bool_entries.replace_item(i, make_conf_entry(id, val));
+			}
 		}
 	}
 
@@ -1289,10 +1330,11 @@ void CConf::save(cfgFilter cfgfilter, const CConf& in_conf) {
 			return e.first == asi(cfgfilter) && e.second == id;
 				});
 
-		if (filterok != std::end(idarray)) {
+		if (filterok != std::end(idarray) && filter_entry_type_ok(cfgfilter, id, false)) {
 			int val;
-			/*bool bres = */id_to_val_int(id, in_conf, val);
-			cfg_int_entries.replace_item(i, make_conf_entry(id, val));
+			if (id_to_val_int(id, in_conf, val)) {
+				cfg_int_entries.replace_item(i, make_conf_entry(id, val));
+			}
 		}
 	}
 
@@ -1309,10 +1351,11 @@ void CConf::save(cfgFilter cfgfilter, const CConf& in_conf) {
 			return e.first == asi(cfgfilter) && e.second == id;
 				});
 
-		if (filterok != std::end(idarray)) {
+		if (filterok != std::end(idarray) && filter_entry_type_ok(cfgfilter, id, true)) {
 			pfc::string8 str;
-			/*bool bres = */id_to_val_str(id, in_conf, str);
-			cfg_string_entries.replace_item(i, make_conf_entry(id, str));
+			if (id_to_val_str(id, in_conf, str)) {
+				cfg_string_entries.replace_item(i, make_conf_entry(id, str));
+			}
 		}
 	}
 }
@@ -1334,27 +1377,30 @@ void CConf::save(cfgFilter cfgfilter, const CConf& in_conf, int id) {
 		const conf_bool_entry& item = cfg_bool_entries[i];
 		if (item.id == id) {
 			bool val;
-			bool bres = id_to_val_bool(id, in_conf, val);
-			cfg_bool_entries.replace_item(i, make_conf_entry(id, val));
+			if (id_to_val_bool(id, in_conf, val)) {
+				cfg_bool_entries.replace_item(i, make_conf_entry(id, val));
+			}
 			return;
 		}
 	}
 
 	for (unsigned int i = 0; i < cfg_int_entries.get_count(); i++) {
 		const conf_int_entry& item = cfg_int_entries[i];
-		if (item.id == id) {
+		if (item.id == id && filter_entry_type_ok(cfgfilter, id, false)) {
 			int val;
-			bool bres = id_to_val_int(id, in_conf, val);
-			cfg_int_entries.replace_item(i, make_conf_entry(id, val));
+			if (id_to_val_int(id, in_conf, val)) {
+				cfg_int_entries.replace_item(i, make_conf_entry(id, val));
+			}
 			return;
 		}
 	}
 	for (unsigned int i = 0; i < cfg_string_entries.get_count(); i++) {
 		const conf_string_entry& item = cfg_string_entries[i];
-		if (item.id == id) {
+		if (item.id == id && filter_entry_type_ok(cfgfilter, id, true)) {
 			pfc::string8 str;
-			bool res = id_to_val_str(id, in_conf, str);
-			cfg_string_entries.replace_item(i, make_conf_entry(id, str));
+			if (id_to_val_str(id, in_conf, str)) {
+				cfg_string_entries.replace_item(i, make_conf_entry(id, str));
+			}
 			return;
 		}
 	}
@@ -1456,6 +1502,8 @@ void CConf::save() {
 	cfg_int_entries.add_item(make_conf_entry(CFG_CUSTOM_FONT, custom_font));
 	//v209 (1.0.16.1)
 	cfg_int_entries.add_item(make_conf_entry(CFG_ALT_WRITE_FLAGS, alt_write_flags));
+	//v210 (1.0.21)
+	cfg_int_entries.add_item(make_conf_entry(CFG_DISK_CACHE_EXP, disk_cache_exp));
 	//v212 (1.0.22 beta 6)
 	cfg_int_entries.add_item(make_conf_entry(CFG_ON_INIT_QUERY_FLAGS, on_init_query_flags));
 	cfg_int_entries.add_item(make_conf_entry(CFG_ON_INIT_QUERY_DEF, on_init_query_def));

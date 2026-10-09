@@ -307,7 +307,9 @@ const struct multi_uartwork {
 	}
 
 	bool getbitflag(af an_af, size_t pos) {
-		auto pbp = get_block(pos);
+		//read only, missing blocks are unset
+		auto pbp = std::pair(pos / kBlockSize, pos % (kBlockSize));
+		if (pbp.first >= vuart.size()) return false;
 		return vuart.at(pbp.first).getbitflag(an_af, pbp.second);
 	}
 
@@ -330,7 +332,9 @@ const struct multi_uartwork {
 	}
 
 	bool getflag(af fl, size_t pos) {
-		auto pbp = get_block(pos);
+		//read only, missing blocks are unset
+		auto pbp = std::pair(pos / kBlockSize, pos % (kBlockSize));
+		if (pbp.first >= vuart.size()) return false;
 		return vuart.at(pbp.first).getflag(fl, pbp.second);
 	}
 
@@ -362,15 +366,18 @@ const struct multi_uartwork {
 
 		if (file_match != rhs.file_match) return false;
 
-		if (vuart.size() != rhs.vuart.size()) return false;
-		if (!vuart.size()) {
-			return !rhs.vuart.size();
-		}
+		//missing blocks are unset blocks
+		const size_t cblocks = (std::max)(vuart.size(), rhs.vuart.size());
 
-		for (auto uart = vuart.begin(); uart != vuart.end(); uart++) {
-			size_t ndx = std::distance(vuart.begin(), uart);
-			bool eq = ( * uart == rhs.vuart.at(ndx));
-			if (!eq) return false;
+		for (size_t ndx = 0; ndx < cblocks; ndx++) {
+			if (ndx < vuart.size() && ndx < rhs.vuart.size()) {
+				bool eq = (vuart.at(ndx) == rhs.vuart.at(ndx));
+				if (!eq) return false;
+			}
+			else {
+				uartwork uart = ndx < vuart.size() ? vuart.at(ndx) : rhs.vuart.at(ndx);
+				if (!uart.isEmpty()) return false;
+			}
 		}
 		return true;
 	}

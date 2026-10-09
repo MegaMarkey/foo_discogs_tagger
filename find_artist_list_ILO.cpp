@@ -18,7 +18,7 @@ size_t ILOD_artist_list::listGetItemCount(ctx_t ctx) {
 
 pfc::string8 ILOD_artist_list::listGetSubItemText(ctx_t ctx, size_t item, size_t subItem) {
 
-	auto artists = get_uilist()->Get_Artists();
+	const auto& artists = get_uilist()->Get_Artists();
 	if (item < artists.get_count()) {
 		return artists[item]->name;
 	}

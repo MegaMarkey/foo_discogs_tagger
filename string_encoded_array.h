@@ -181,13 +181,17 @@ public:
 	}
 
 	inline int get_numeric_value() const {
-		if (!has_array()) {
-			if (!value.get_length()) {
-				return 0;
+		try {
+			if (!has_array()) {
+				if (!value.get_length()) {
+					return 0;
+				}
+				else if (pfc::string_is_numeric(value)) {
+					return std::stoi(value.get_ptr());
+				}
 			}
-			else if (pfc::string_is_numeric(value)) {
-				return std::stoi(value.get_ptr());
-			}
+		}
+		catch (const std::out_of_range&) {
 		}
 		string_encoding_exception ex;
 		ex << "Invalid integer parameter: " << value;
@@ -206,6 +210,8 @@ public:
 			}
 		}
 		catch (const std::invalid_argument&) {
+		}
+		catch (const std::out_of_range&) {
 		}
 		string_encoding_exception ex;
 		ex << "Invalid numeric parameter: " << value;

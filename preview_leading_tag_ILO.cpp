@@ -8,19 +8,8 @@ const int kDataCol = 2;
 
 void ILOD_preview_leading::CopyFromOriginal() {
 
-	pfc::array_t<string_encoded_array>* arr_sea_val = &m_ptag_result->value;
-	pfc::array_t<string_encoded_array>* cmp_old_sea_val =  &m_ptag_result->old_value;
-
-	bool oldvalarray = m_ptag_result->old_value[0].has_array();
-	bool valarray = m_ptag_result->value[0].has_array();
-
-	for (size_t w = 0; w < cmp_old_sea_val->get_count(); w++) {
-		arr_sea_val[w] = cmp_old_sea_val[w];
-		bool oldvalarray = cmp_old_sea_val[w].get_ptr()->has_array();
-		bool valarray = arr_sea_val[w].get_ptr()->has_array();
-		bool tavalarray = m_ptag_result->value[0].has_array();
-		valarray = valarray;
-
+	if (m_ptag_result->old_value.get_count()) {
+		m_ptag_result->value = m_ptag_result->old_value;
 	}
 	ilo_get_uilist()->UpdateItemsAll();
 }
@@ -76,12 +65,14 @@ pfc::string8 ILOD_preview_leading::listGetSubItemText(ctx_t ctx, size_t item, si
 		pfc::string8 buffer;
 		pfc::string8 cmp_old_buffer;
 
-		buffer = (*arr_sea_val)[moditem].print();
+		if (moditem < arr_sea_val->get_count()) {
+			buffer = (*arr_sea_val)[moditem].print();
+		}
 
 
 		if (get_mode() == PreView::Diff) {
 
-			if (cmp_old_sea_val) {
+			if (cmp_old_sea_val && cmp_old_sea_val->get_count()) {
 				size_t moditem_cmp = item >= cmp_old_sea_val->get_count() ? 0 : item;
 				cmp_old_buffer = (*cmp_old_sea_val)[moditem_cmp].print();
 
@@ -146,9 +137,9 @@ pfc::string8 ILOD_preview_leading::listGetEditField(ctx_t ctx, size_t item, size
 void ILOD_preview_leading::listSetEditField(ctx_t ctx, size_t item, size_t subItem, const char* val) {
 
 	string_encoded_array sea_val;
-	string_encoded_array* value = &(m_ptag_result->value[0]);
+	bool value_has_array = m_ptag_result->value.get_count() && m_ptag_result->value[0].has_array();
 
-	if (value->has_array()) {
+	if (value_has_array) {
 
 		std::vector<pfc::string8>vsplit;
 		split(val, ";", 0, vsplit);
@@ -179,8 +170,10 @@ void ILOD_preview_leading::listSetEditField(ctx_t ctx, size_t item, size_t subIt
 			}
 		}
 	}
-	m_ptag_result->value[item] = sea_val;
-
+	//unchanged common value is not expanded
+	if (item < m_ptag_result->value.get_count()) {
+		m_ptag_result->value[item] = sea_val;
+	}
 }
 
 // column editable

@@ -54,8 +54,9 @@ int db_fetcher_component::insert_history(sqldb* db, oplog_type optype, std::stri
 			query << "\'" << db_dblq_apos(artist_name) << "\'";
 			query << ");";
 
-			char* err;
-			ret = sqlite3_exec(pDb, query, int_type_sqlite3_exec_callback, &inc_insert, &err);
+			char* err = nullptr;
+			ret = sqlite3_exec(pDb, query, size_t_type_sqlite3_exec_callback, &inc_insert, &err);
+			sqlite3_free(err);
 
 			//
 			if (!db->debug_sql_return(ret, cmd, "add history details", "", 0, err_msg)) break;
@@ -213,6 +214,9 @@ bool db_fetcher_component::recharge_history(sqldb* db, std::string delete_cmd, s
 				int top_rows = cmd_param;
 
 				ret = sqlite3_prepare_v2(db->db_handle(), walk_flush.second.c_str(), -1, &stmt_lk, NULL);
+				//
+				if (!db->debug_sql_return(ret, "prepare", "foo_discogger - flush history", "", 0, err_msg)) break;
+				//
 				int param_ndx;
 				std::string cmd_label;
 
@@ -325,7 +329,12 @@ bool db_fetcher_component::recharge_history(sqldb* db, std::string delete_cmd, s
 		} while (false);
 
 		sqlite3_finalize(stmt_lk);
+		stmt_lk = nullptr;
 		sqlite3_finalize(stmt_read);
+		stmt_read = nullptr;
+
+		//stop on first error, next debug_sql_return would clear err_msg
+		if (err_msg.get_length()) break;
 
 	} // end optype loop
 

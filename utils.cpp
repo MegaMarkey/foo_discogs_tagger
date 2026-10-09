@@ -60,7 +60,7 @@ bool enable_multiline_list_input(HWND wnd, CFontHandle font, const float col_wid
 	SelectObjectScope fontScope(dc, font);
 	SIZE sz = {};
 	const auto wout = pfc::wideFromUTF8(str);
-	WIN32_OP_D(dc.GetTextExtent(wout, str.get_length(), &sz));
+	WIN32_OP_D(dc.GetTextExtent(wout, (int)wcslen(wout), &sz));
 	unsigned fixedWidth = MulDiv(sz.cx, 3, 2);
 
 	return !(sz.cx < (col_width - 10));
@@ -139,7 +139,9 @@ pfc::string8 sanitize_track_semi_media(const pfc::string8& tracks) {
 			if (v_voltoken.size() == 2) {
 				volnum = is_number(v_voltoken.at(1).c_str()) ? volnum = atoi(v_voltoken.at(1)) : pfc_infinite;
 			}
-			volspec = v_voltoken.at(0);
+			if (v_voltoken.size()) {
+				volspec = v_voltoken.at(0);
+			}
 			walk_vol = "";
 
 			//..
@@ -154,7 +156,7 @@ pfc::string8 sanitize_track_semi_media(const pfc::string8& tracks) {
 				//dont really need a loop here
 				for (auto walk_trackto : v_trackto) {
 					if (trk.get_length())
-						walk_vol << " to ";
+						trk << " to ";
 
 					if (volnum != ~0) {
 						trk << volnum;
@@ -192,7 +194,7 @@ pfc::string8 sanitize_track_commas(const pfc::string8& tracks, std::regex& regex
 		res_no_extra_comma_spc = std::regex_replace(res_no_extra_comma_spc.c_str(), regex_v, ", ");
 	}
 	catch (std::regex_error e) {
-		return false;
+		return tracks;
 	}
 
 	pfc::string8 tracks_semied = sanitize_track_semi_media(res_no_extra_comma_spc.c_str());
@@ -233,9 +235,7 @@ pfc::string8 sanitize_track_commas(const pfc::string8& tracks, std::regex& regex
 
 pfc::string8 sanitize_track_to(const pfc::string8& tracks) {
 
-	std::regex regex_v;
-
-	regex_v = std::regex("[A - Za - z1 - 9 - ][^, ]{1,8} to [A - Za - z1 - 9 - ][^, ]{1,8}");
+	static const std::regex regex_v("[A-Za-z0-9-][^, ]{1,8} to [A-Za-z0-9-][^, ]{1,8}");
 
 	std::string res_no_extra_comma_spc(tracks.c_str());
 	std::sregex_iterator begin = std::sregex_iterator(res_no_extra_comma_spc.begin(), res_no_extra_comma_spc.end(), regex_v);
@@ -338,7 +338,8 @@ bool replace_last_alpha_by_dot(std::string& s) {
 size_t split(pfc::string8 str, pfc::string8 token, size_t index, std::vector<pfc::string8>& out) {
 	size_t last_index = index;
 
-	index = str.find_first(token, index);
+	//empty token: whole source as one token
+	index = token.get_length() ? str.find_first(token, index) : pfc::infinite_size;
 	if (index != pfc_infinite) {
 		out.push_back(pfc::string_part(str + last_index, index - last_index));
 		//recursion
@@ -401,11 +402,15 @@ extern bool remove_parenthesized(pfc::string8& src) {
 
 	bool bdone = false;
 	size_t bb = src.find_first("(");
-	if (bb < src.get_length()) {
+	//keep it when nothing but the parenthesized text would be left
+	if (bb > 0 && bb < src.get_length()) {
 		size_t be = src.find_last(")");
 		if (be < src.get_length() && (be > bb)) {
-			bdone = true;
-			src = substr(src, 0, bb);
+			pfc::string8 trimmed = trim(substr(src, 0, bb));
+			if (trimmed.get_length()) {
+				bdone = true;
+				src = trimmed;
+			}
 		}
 	}
 
@@ -459,7 +464,8 @@ int tokenize(const pfc::string8 &src, const pfc::string8 &delim, pfc::array_t<pf
 	size_t pos;
 	pfc::string8 tmp = src;
 	size_t dlength = delim.get_length();
-	while ((pos = tmp.find_first(delim)) != pfc::infinite_size) {
+	//empty delimiter: whole source as one token
+	while (dlength && (pos = tmp.find_first(delim)) != pfc::infinite_size) {
 		pfc::string8 token = substr(tmp, 0, pos);
 		if (remove_blanks) {
 			token = trim(token);
@@ -522,7 +528,8 @@ int tokenize_non_bracketed(const pfc::string8& src, const pfc::string8& delim, p
 	pfc::string8 tmp = tmp_src;
 	size_t dlength = delim.get_length();
 
-	while ((pos = tmp.find_first(delim)) != pfc::infinite_size) {
+	//empty delimiter: whole source as one token
+	while (dlength && (pos = tmp.find_first(delim)) != pfc::infinite_size) {
 		pfc::string8 token = substr(tmp, 0, pos);
 		if (remove_blanks) {
 			token = trim(token);
@@ -791,7 +798,7 @@ bool validation_of_roman_number(std::string str)
 	}
 }
 
-std::unordered_map<char, int> kmRomanToNumber = { {'I', 1},
+const std::unordered_map<char, int> kmRomanToNumber = { {'I', 1},
 																									{'V', 5},
 																									{'X', 10},
 																									{'L', 50},
@@ -801,13 +808,19 @@ std::unordered_map<char, int> kmRomanToNumber = { {'I', 1},
 
 int RomanToDecimal(const pfc::string8& s) {
 
+	//read only lookup (operator[] would insert, called from worker threads)
+	auto roman_value = [](char c) {
+		auto it = kmRomanToNumber.find(c);
+		return it != kmRomanToNumber.end() ? it->second : 0;
+	};
+
 	int res = 0;
 	for (int i = 0; i < s.length(); i++) {
 
 		// if the current value is less than the next value, 
 		// subtract current from next and add to res
-		if (i + 1 < s.length() && kmRomanToNumber[s[i]] < kmRomanToNumber[s[i + 1]]) {
-			res += kmRomanToNumber[s[i + 1]] - kmRomanToNumber[s[i]];
+		if (i + 1 < s.length() && roman_value(s[i]) < roman_value(s[i + 1])) {
+			res += roman_value(s[i + 1]) - roman_value(s[i]);
 
 			// skip the next symbol
 			i++;
@@ -815,7 +828,7 @@ int RomanToDecimal(const pfc::string8& s) {
 		else {
 
 			// otherwise, add the current value to res
-			res += kmRomanToNumber[s[i]];
+			res += roman_value(s[i]);
 		}
 	}
 
@@ -970,6 +983,13 @@ pfc::string8 extract_musicbrainz_mib(const pfc::string8& s) {
 	return "";
 }
 
+static void reset_dll_procs() {
+	dllinflateInit2 = NULL;
+	dllinflate = NULL;
+	dllinflateEnd = NULL;
+	dlladler32 = NULL;
+}
+
 void load_dlls()
 {
 	hGetProcIDDLL = LoadLibrary(L"zlib1.dll");
@@ -981,10 +1001,19 @@ void load_dlls()
 	dllinflate = (dll_inflate)GetProcAddress(hGetProcIDDLL, "inflate");
 	dllinflateEnd = (dll_inflateEnd)GetProcAddress(hGetProcIDDLL, "inflateEnd");
 	dlladler32 = (dll_adler32)GetProcAddress(hGetProcIDDLL, "adler32");
+
+	if (!dllinflateInit2 || !dllinflate || !dllinflateEnd || !dlladler32) {
+		//incomplete zlib1.dll, fall back to identity encoding
+		console::print("Error loading zlib1.dll functions");
+		reset_dll_procs();
+		FreeLibrary(hGetProcIDDLL);
+		hGetProcIDDLL = NULL;
+	}
 }
 
 void unload_dlls()
 {
+	reset_dll_procs();
 	if (hGetProcIDDLL) {
 		FreeLibrary(hGetProcIDDLL);
 	}
@@ -996,6 +1025,10 @@ void unload_dlls()
 int myUncompress(Bytef *dest, uLongf *destLen, const Bytef *source, uLong sourceLen) {
 	z_stream stream;
 	int err;
+
+	if (!dllinflateInit2 || !dllinflate || !dllinflateEnd) {
+		return Z_STREAM_ERROR;
+	}
 
 	stream.next_in = (Bytef*)source;
 	stream.avail_in = (uInt)sourceLen;
@@ -1320,13 +1353,27 @@ void CustomFont(HWND hwndParent, size_t flag, bool check_font, bool apply) {
 	else if (flag & (1 << 0)) {
 		//expanded
 		if (check_font) {
-			LOGFONTW lf;
-			CWindowDC dc(core_api::get_main_window());
-			CTheme wtheme;
-			HTHEME theme = wtheme.OpenThemeData(core_api::get_main_window(), L"TEXTSTYLE");
-			GetThemeFont(theme, dc, TEXT_EXPANDED, 0, TMT_FONT, &lf);
-			g_hFont = CreateFontIndirectW(&lf);
-			g_hFontTabs = CreateFontIndirectW(&lf);
+			//created once and reused (dialogs already open keep using them)
+			static HFONT hfont_expanded = nullptr;
+			static HFONT hfont_expanded_tabs = nullptr;
+			if (!hfont_expanded) {
+				LOGFONTW lf = {};
+				CWindowDC dc(core_api::get_main_window());
+				CTheme wtheme;
+				HTHEME theme = wtheme.OpenThemeData(core_api::get_main_window(), L"TEXTSTYLE");
+				if (theme && SUCCEEDED(GetThemeFont(theme, dc, TEXT_EXPANDED, 0, TMT_FONT, &lf))) {
+					hfont_expanded = CreateFontIndirectW(&lf);
+					hfont_expanded_tabs = CreateFontIndirectW(&lf);
+				}
+			}
+			if (hfont_expanded) {
+				g_hFont = hfont_expanded;
+				g_hFontTabs = hfont_expanded_tabs;
+			}
+			else {
+				g_hFont = (HFONT)::GetStockObject(DEFAULT_GUI_FONT);
+				g_hFontTabs = (HFONT)::GetStockObject(DEFAULT_GUI_FONT);
+			}
 		}
 	}
 	else if (flag & (1 << 1)) {
@@ -1353,12 +1400,10 @@ void CustomFont(HWND hwndParent, size_t flag, bool check_font, bool apply) {
 			HWND next = ::GetWindow(walk, GW_HWNDNEXT);
 			if (next && ::IsWindow(next)) {
 				if (g_hFont && (((_wcsnicmp(cls, L"libPPUI:", 8) == 0) || (_wcsnicmp(cls, L"SysTreeV", 8) == 0)))) {
-					CWindow* cwnd = &CWindow(walk);
-					cwnd->SetFont(g_hFont);
+					CWindow(walk).SetFont(g_hFont);
 				}
 				else if (g_hFontTabs && (_wcsnicmp(cls, L"SysTabControl32", 15) == 0)) {
-					CWindow* cwnd = &CWindow(walk);
-					cwnd->SetFont(g_hFontTabs);
+					CWindow(walk).SetFont(g_hFontTabs);
 				}
 			}
 			walk = next;

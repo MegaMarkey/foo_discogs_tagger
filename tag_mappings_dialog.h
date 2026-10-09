@@ -46,9 +46,6 @@ public:
 		Gdiplus::Graphics gr(p_dc);
 		Gdiplus::Pen pen(freeze? gdiROColor : gdiHLColor, static_cast<Gdiplus::REAL>(rc->bottom - rc->top));
 		gr.DrawLine(&pen, rc->left, rc->top + ((rc->bottom - rc->top) / 2), rc->right, rc->top + ((rc->bottom - rc->top) / 2));
-
-		DeleteObject(&pen);
-		DeleteObject(&gr);
 	}
 
 	void RenderItemBackground(CDCHandle p_dc, const CRect& p_itemRect, size_t item, uint32_t bkColor) override {
@@ -225,7 +222,7 @@ private:
 	bool update_tag(int pos, const tag_mapping_entry* entry);
 	bool update_freezer(int pos, bool enable_write, bool enable_update);
 
-	void applymappings();
+	bool applymappings();
 
 	void load_column_layout();
 	bool build_current_cfg();
@@ -304,8 +301,10 @@ private:
 		//remove not freezed masked
 
 		size_t deleted = 0;
+		bool skipped = false;
 		size_t walk = -1;
 		size_t max = m_ptag_map->get_count();
+		pfc::bit_array_bittable deleted_mask(bit_array_false(), max);
 
 		while ((walk = mask.find_next(true, walk, max)) < max) {
 
@@ -313,12 +312,22 @@ private:
 
 			if (!entry.freeze_tag_name) {
 				m_ptag_map->remove_by_idx(walk - deleted);
+				deleted_mask.set(walk, true);
 				++deleted;
+			}
+			else {
+				skipped = true;
 			}
 		}
 
 		if (deleted) {
 			on_mapping_changed(check_mapping_changed());
+		}
+
+		//frozen rows were kept, notify the list with the rows actually removed
+		if (deleted && skipped) {
+			m_tag_list.OnItemsRemoved(deleted_mask, max);
+			return false;
 		}
 		return deleted;
 	}
@@ -375,6 +384,7 @@ private:
 
 		if (subItem == 0) {
 			entry.tag_name = val;
+			entry.is_multival_meta = is_multivalue_meta(entry.tag_name);
 		}
 		else if (subItem == 1) {
 			entry.formatting_script = val;
@@ -393,7 +403,7 @@ private:
 
 	void listFocusChanged(ctx_t) {
 		auto ifocus = m_tag_list.GetFocusItem();
-		if (ifocus != ~0 && (*m_ptag_map)[ifocus].freeze_tag_name) {
+		if (ifocus != ~0 && ifocus < m_ptag_map->get_count() && (*m_ptag_map)[ifocus].freeze_tag_name) {
 			uSetDlgItemText(m_hWnd, IDC_STATIC_TAG_TIP, "Tip: Shift + Right click");
 			::ShowWindow(uGetDlgItem(IDC_STATIC_TAG_TIP), SW_SHOW);
 		}

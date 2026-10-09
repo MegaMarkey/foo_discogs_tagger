@@ -16,6 +16,8 @@
 #define SKIP_RELEASE_DLG_MATCHED               1 << 0
 #define SKIP_RELEASE_DLG_IDED                  1 << 1
 #define SKIP_PREVIEW_DLG                       1 << 2
+//value from the released v1.0.22.3 binary (config dialog tests/sets 0x8 for IDC_CHK_SKIP_RELEASE_DLG_VA_AUTO_LOAD)
+#define SKIP_RELEASE_DLG_VA_AUTO_LOAD          1 << 3
 #define SKIP_BRAINZ_ID_FETCH                   1 << 5
 
 //CFG_ON_INIT_QUERY_FLAG/on_init_query

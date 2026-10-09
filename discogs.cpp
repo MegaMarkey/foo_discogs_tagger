@@ -313,22 +313,14 @@ pfc::string8 Discogs::remove_number_suffix(const pfc::string8& src) {
 
 	pfc::string8 dst = src;
 	unsigned src_size = src.get_length();
-	std::regex regex_v;
 	try {
-		regex_v = std::regex("\\(\\d+?\\)");
-	}
-	catch (std::regex_error e) {
-		dst.set_string(e.what());
-		return false;
-	}
-	try {
+		static const std::regex regex_v("\\(\\d+?\\)");
 		dst.set_string(std::regex_replace(dst.get_ptr(), regex_v, "").c_str());
 		while (dst.length() > 0 && dst.endsWith(' '))
 			dst.truncate(dst.length() - 1);
 	}
-	catch (std::regex_error e) {
-		dst.set_string(e.what());
-		return false;
+	catch (std::regex_error&) {
+		return src;
 	}
 	return dst;
 }
@@ -372,7 +364,7 @@ pfc::string8 Discogs::strip_artist_name(const pfc::string8 str) {
 			result = substr(result, 0, result.length() - 5);
 			result = rtrim(result);
 		}
-		if (result.length() > 4 && STR_EQUAL(substr(result, result.length() - 4, 4), "the ")) {
+		if (result.length() > 4 && STR_EQUAL(substr(result, 0, 4), "the ")) {
 			result = substr(result, 4);
 			result = rtrim(result);
 		}
@@ -434,7 +426,8 @@ void Discogs::parseReleaseCredits(json_t* element, pfc::array_t<ReleaseCredit_pt
 		ReleaseArtist_ptr artist = parseReleaseArtist(j);
 		const pfc::string8 &tracks = JSONAttributeString(j, "tracks");
 
-		if (tracks.get_length() && !tracks.equals("All")) {
+		//track level credits (release == nullptr) can not be distributed
+		if (release && tracks.get_length() && !tracks.equals("All")) {
 
 			ReleaseCredit_ptr credit(new ReleaseCredit());
 			credit->raw_roles = artist->raw_roles;
@@ -543,7 +536,7 @@ size_t get_last_num(pfc::string8 str, size_t minlength, size_t minpos, pfc::stri
 	if (pfc::string_is_numeric(str)) return ~0;
 
 	if (str.get_length() >= minlength) {
-		std::regex regex_v("[\\d]+");
+		static const std::regex regex_v("[\\d]+");
 		std::string str_reg(str.c_str());
 		std::sregex_iterator begin = std::sregex_iterator(str_reg.begin(), str_reg.end(), regex_v);
 		for (std::sregex_iterator i = begin; i != std::sregex_iterator(); i++) {
@@ -574,10 +567,13 @@ void Discogs::DistReleaseTrackCredits(const pfc::array_t<pfc::string8>& arrTrack
 
 	// check credit movement
 
-	pfc::string8 mov_credit_pos;
+	//set while distributing movement ranges, they are final (no endless recursion)
+	static thread_local bool bdist_mov_ranges = false;
+
+	std::vector<pfc::string8> vmov_credit_pos;
 	pfc::string8 dc_credit_big_pos;
 	get_last_num(dc_credit_pos, 3, 0, dc_credit_big_pos);
-	if (release->indexes.get_count() && dc_credit_big_pos.get_length() > 2) {
+	if (!bdist_mov_ranges && release->indexes.get_count() && dc_credit_big_pos.get_length() > 2) {
 
 		std::vector<pfc::string8> vindex_mov_nums;
 		for each (ReleaseIndexes_ptr var in release->indexes) {
@@ -604,13 +600,15 @@ void Discogs::DistReleaseTrackCredits(const pfc::array_t<pfc::string8>& arrTrack
 						});
 					if (found_it != mylist.end()) {
 						if (var->title.contains(wmovement)) {
-							if (mov_credit_pos.get_length()) {
-								mov_credit_pos << ",";
-							}
-							mov_credit_pos = var->dc_track_first;
+							pfc::string8 mov_credit_pos = var->dc_track_first;
 
 							if (!var->dc_track_first.equals(var->dc_track_last)) {
 								mov_credit_pos << " to " << var->dc_track_last;
+							}
+							//one range per movement, skip duplicates
+							if (mov_credit_pos.get_length() &&
+								std::find(vmov_credit_pos.begin(), vmov_credit_pos.end(), mov_credit_pos.c_str()) == vmov_credit_pos.end()) {
+								vmov_credit_pos.emplace_back(mov_credit_pos);
 							}
 							break;
 						}
@@ -620,7 +618,25 @@ void Discogs::DistReleaseTrackCredits(const pfc::array_t<pfc::string8>& arrTrack
 		}
 
 	}
-	dc_credit_pos = mov_credit_pos.get_length() ? mov_credit_pos : dc_credit_pos;
+	if (vmov_credit_pos.size()) {
+		dc_credit_pos = vmov_credit_pos[0];
+		if (vmov_credit_pos.size() > 1) {
+			//distribute remaining movement ranges ('x to y' each)
+			pfc::array_t<pfc::string8> arrMovTracks;
+			for (size_t w = 1; w < vmov_credit_pos.size(); w++) {
+				arrMovTracks.append_single(vmov_credit_pos[w]);
+			}
+			bdist_mov_ranges = true;
+			try {
+				DistReleaseTrackCredits(arrMovTracks, credit, release);
+			}
+			catch (...) {
+				bdist_mov_ranges = false;
+				throw;
+			}
+			bdist_mov_ranges = false;
+		}
+	}
 	//.. end check credit movement
 
 	pfc::array_t<pfc::string8> inner_parts;
@@ -787,9 +803,10 @@ void Discogs::parseImages(json_t *array, pfc::array_t<Image_ptr> &images) {
 		//todo: rev
 		images.append(sec_images);
 	}
-	if (images.size() - param_image_count != json_array_size(array)) {
-		pfc::string8 msg("Error parsing ");
-		msg << PFC_string_formatter() << (json_array_size(array) - sec_images.size());
+	const size_t parsed_image_count = images.get_size() - param_image_count;
+	if (parsed_image_count != json_array_size(array)) {
+		pfc::string8 msg("Error parsing images, parsed ");
+		msg << PFC_string_formatter() << parsed_image_count;
 		msg << PFC_string_formatter() << " out of " << json_array_size(array) << " images";
 		log_msg(msg);
 	}
@@ -879,7 +896,7 @@ std::pair<ReleaseFormat_ptr, LPARAM> get_format_name(pfc::array_t<ReleaseFormat_
 
 	std::pair<ReleaseFormat_ptr, size_t> no_res(NULL, NULL);
 
-	if (clay_pos == ~0) return no_res;
+	if (clay_pos == ~0 || !formats->get_count()) return no_res;
 
 	//todo: sec boxes
 	const ReleaseFormat* wf = (*formats)[0].get();
@@ -1026,7 +1043,7 @@ bool get_format_info(const pfc::string8 dc_track, const std::pair<ReleaseFormat_
 
 ReleaseFormat_ptr get_matching_format_info(const pfc::array_t<ReleaseFormat_ptr>* formats, pfc::string8 dc_track, ptp_nfo& ptpos, pfc::string8& chop) {
 
-	if (is_number(dc_track.c_str())) return nullptr;
+	if (is_number(dc_track.c_str()) || !formats->get_count()) return nullptr;
 
 	const ReleaseFormat* wf = (*formats)[0].get();
 
@@ -1232,7 +1249,11 @@ void parseTrackPosition(ReleaseTrack_ptr& track, const pfc::array_t<ReleaseForma
 					return !std::isdigit(c);
 				}, '.');
 			mod_dc_tn = s.c_str();
+			subdotpos = mod_dc_tn.find_last('.');
 		}
+	}
+	//disc.track notation (needs a '.' with a char after it; otherwise fall through to the generic parse)
+	if (ptpos.bmod_subtrack_track_is_disc && !bminuspos && subdotpos < mod_dc_tn.get_length() - 1) {
 		ptpos.subtrk_postfix = substr(mod_dc_tn, subdotpos + 1);
 		ptpos.trk_postfix = substr(mod_dc_tn, 0, subdotpos);
 
@@ -1481,7 +1502,7 @@ void parseTrackPosition(ReleaseTrack_ptr& track, const pfc::array_t<ReleaseForma
 				std::string lastnum;
 				std::string str_mod = mytrack.c_str();
 
-				std::regex regex_v("[\\d]+");
+				static const std::regex regex_v("[\\d]+");
 				std::sregex_iterator begin = std::sregex_iterator(str_mod.begin(), str_mod.end(), regex_v);
 				for (std::sregex_iterator i = begin; i != std::sregex_iterator(); i++) {
 					lastnum = i->str();
@@ -1577,6 +1598,10 @@ bool parseAllTrackPositions(pfc::array_t<ReleaseTrack_ptr>& intermediate_tracks,
 		format_nfo_current = get_format_name(formats, (std::min)(release->discogs_total_discs, (int)current_disc));
 		if (format_nfo_current.first) {
 			format_nfo_next = get_format_name(formats, (std::min)(release->discogs_total_discs, (int)HIWORD(format_nfo_current.second) + 1));
+		}
+		else {
+			//no stale next format (get_format_info dereferences current when next is set)
+			format_nfo_next = std::pair<ReleaseFormat_ptr, LPARAM>(nullptr, 0);
 		}
 
 		ReleaseTrack_ptr& track = intermediate_tracks[i];
@@ -1728,7 +1753,8 @@ bool parseAllTrackPositions(pfc::array_t<ReleaseTrack_ptr>& intermediate_tracks,
 
 		bool bdisc_empty = !(bool)disc->tracks.get_size();
 
-		bool skip_first_alpha_hidden = (bhidden && last_trk_postfix == parse_nfo.trk_postfix) && bmerge_hidden;
+		//nothing to merge into on an empty (new) disc
+		bool skip_first_alpha_hidden = (bhidden && last_trk_postfix == parse_nfo.trk_postfix) && bmerge_hidden && !bdisc_empty;
 
 		if (!skip_first_alpha_hidden && (bdisc_empty || !bhidden || !last_hidden || (bhidden && !bmerge_hidden) || last_trk_postfix != parse_nfo.trk_postfix)) {
 
@@ -1747,7 +1773,7 @@ bool parseAllTrackPositions(pfc::array_t<ReleaseTrack_ptr>& intermediate_tracks,
 
 				// ADD NEW TRACK
 
-				disc->tracks.append_single(std::move(track));
+				disc->tracks.append_single(track);
 
 				ctrack_number++;
 
@@ -1849,7 +1875,7 @@ bool parseAllTrackPositions(pfc::array_t<ReleaseTrack_ptr>& intermediate_tracks,
 				//ignore silence, otherwise move to track's hiddens
 				if (!track->title.equals("(silence)")) {
 
-					disc->tracks[disc->tracks.get_size() - 1]->hidden_tracks.append_single(std::move(track));
+					disc->tracks[disc->tracks.get_size() - 1]->hidden_tracks.append_single(track);
 
 					merging_track = track->discogs_track_number;
 
@@ -2058,6 +2084,15 @@ void Discogs::parseAllReleaseTracks(json_t* jsTracklist, bool isRelease, const p
 	has_tracklist->discogs_tracklist_count = intermediate_tracks.get_count()/*discogs_ori_track_count*/;
 	has_tracklist->discs.force_reset();
 
+	// remove parenthesized text (before roman/alpha scan)
+
+	bool removed_parenthesized = false;
+
+	for (size_t i = 0; i < intermediate_tracks.get_size(); i++) {
+		ReleaseTrack_ptr& track = intermediate_tracks[i];
+		removed_parenthesized |= remove_parenthesized(track->discogs_track_number);
+	}
+
 	// roman, english notation preprocessor
 
 	std::vector<std::string>vbk_romans_alphas; vbk_romans_alphas.resize(intermediate_tracks.get_count());
@@ -2118,14 +2153,6 @@ void Discogs::parseAllReleaseTracks(json_t* jsTracklist, bool isRelease, const p
 		++it_wi;
 	}
 
-	bool removed_parenthesized = false;
-
-	for (size_t i = 0; i < intermediate_tracks.get_size(); i++) {
-		ReleaseTrack_ptr& track = intermediate_tracks[i];
-		removed_parenthesized |= remove_parenthesized(track->discogs_track_number);
-	}
-
-
 	// check all english
 	bool all_subenglish = vbk_romans_alphas.size();
 	it_wi = 0;
@@ -2182,7 +2209,7 @@ void Discogs::parseAllReleaseTracks(json_t* jsTracklist, bool isRelease, const p
 				//check roman = CD, DVD
 				for (ReleaseFormat_ptr wrf : formats) {
 					if (wrf->get_name().get_cvalue().equals(wi->discogs_track_number.trim('.').toUpper().c_str())) {
-						all_subroman = false;
+						allroman = false;
 						break;
 					}
 				}
@@ -2704,6 +2731,8 @@ void Discogs::parseArtistReleases(json_t* root, Artist* artist, int query_mode, 
 
 						//..
 						Release_ptr release = discogs_interface->get_release(lkey, true, query_mode & SearchMode::AT);
+						//keep previous role (cached release is overwritten below)
+						const pfc::string8 prev_search_role = release->search_role;
 						parse_release_search_fields(rel, release);
 						//..
 
@@ -2761,9 +2790,9 @@ void Discogs::parseArtistReleases(json_t* root, Artist* artist, int query_mode, 
 
 						for (Release_ptr walk_release : artist->releases) {
 							if (release->id == walk_release.get()->id) {
-								if (!walk_release->id.equals("Main")) {
-									release->search_role = JSONAttributeString(rel, "role");
-								}
+								//do not overwrite a 'Main' role (walk_release may be this same cached release)
+								const pfc::string8 old_role = (walk_release.get() == release.get()) ? prev_search_role : walk_release->search_role;
+								walk_release->search_role = old_role.equals("Main") ? old_role : JSONAttributeString(rel, "role");
 								release->search_roles.add_item(JSONAttributeString(rel, "role"));
 
 								duplicate = true;
@@ -2829,7 +2858,7 @@ void Discogs::parseMasterVersions(json_t *root, MasterRelease *master_release, i
 							continue;
 						}
 						else {
-							lkey = encode_mr(0, atol(master_release->sub_releases[i]->id));
+							lkey = encode_mr(0, atol(master_release->sub_releases[found_i]->id));
 							release = discogs_interface->get_release(lkey);
 						}
 					}

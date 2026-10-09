@@ -347,7 +347,8 @@ namespace Offline {
 					}
 #endif
 					int w = _write(jf, fcontent.get_ptr(), fcontent.get_length());
-					bok = ((w || !fcontent.get_length()) && !_close(jf));
+					bool bclosed = !_close(jf);
+					bok = (w > 0 || (!w && !fcontent.get_length())) && bclosed;
 					return bok;
 				}
 			}
@@ -546,11 +547,10 @@ namespace Offline {
 
 			}
 
-			json_t* root = json_array();
+			json_t* root = nullptr;
 
 			if (srclen > 0) {
 
-				errno = 0;
 				json_error_t json_error = { 0 };
 
 				int jf = -1;
@@ -560,8 +560,12 @@ namespace Offline {
 					root = json_loadfd(jf, JSON_DECODE_ANY, &json_error);
 					_close(jf);
 				}
+				else {
+					log_msg(PFC_string_formatter() << "can't open " << path);
+				}
 
-				if (errno || strlen(json_error.text) || !root) {
+				// only remove on parse failure (not on open failure)
+				if (jf != -1 && !root) {
 
 					pfc::string8 err_msg = "removing non-valid offline cache file: ";
 					err_msg << path;

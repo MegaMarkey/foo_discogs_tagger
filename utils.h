@@ -3,6 +3,7 @@
 #include "../../pfc/pfc.h"
 #include <map>
 #include <regex>
+#include <mutex>
 
 extern "C" {
 	#include "zlib.h"
@@ -108,7 +109,10 @@ struct nota_info {
 };
 
 inline std::map<pfc::string, std::regex> vregex_utils;
+//guards vregex_utils (also used by parsing worker threads)
+inline std::mutex vregex_utils_mutex;
 inline bool vregex_util_get(const pfc::string8& expr, std::regex& regex_v, bool create = false) {
+	std::lock_guard<std::mutex> guard(vregex_utils_mutex);
 	bool found;
 	auto it = vregex_utils.find(expr);
 	if (found = it != vregex_utils.end()) {
@@ -200,7 +204,7 @@ void erase(pfc::array_t<T> &ar, unsigned int index) {
 	const size_t count = ar.get_count();
 	PFC_ASSERT(index < count);
 	for (size_t i = index + 1; i < count; i++) {
-		ar[i - i] = ar[i];
+		ar[i - 1] = ar[i];
 	}
 	ar.set_size_discard(count - 1);
 }

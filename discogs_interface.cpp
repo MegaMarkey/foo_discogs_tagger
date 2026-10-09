@@ -281,11 +281,11 @@ void DiscogsInterface::process_amt_parsed_fake_artist(Artist_ptr fakeArtist, par
 				++va_done_cap.first; // not counting E500, E404...
 
 			}
-			catch (foo_discogs_exception ex) {
+			catch (foo_discogs_exception& ex) {
 
 				bool b500, b404;
 				if (b500 = (pfc::string8(ex.what()).find_first("500") == ~0) && (b404 = pfc::string8(ex.what()).find_first("404") == ~0)) {
-					throw ex;
+					throw;
 				}
 				else {
 					log_msg(PFC_string_formatter() << "E500/E404 Master: " << mr->title);
@@ -473,11 +473,11 @@ void DiscogsInterface::process_amt_parsed_fake_artist(Artist_ptr fakeArtist, par
 			}
 
 		}
-		catch (foo_discogs_exception ex) {
+		catch (foo_discogs_exception& ex) {
 			//titleformat in the tree won't be happy
 			bool b500, b404;
 			if (b500 = (pfc::string8(ex.what()).find_first("500") == ~0) && (b404 = pfc::string8(ex.what()).find_first("404") == ~0)) {
-				throw ex;
+				throw;
 			}
 			else {
 				log_msg(PFC_string_formatter() << "E500/E404 r: " << r->title);
@@ -756,7 +756,9 @@ pfc::array_t<JSONParser_ptr> DiscogsInterface::get_all_pages(pfc::string8 &url, 
 		JSONParser_ptr jp = pfc::rcnew_t<JSONParser>(json);
 		results.append_single(std::move(jp));
 		if (page == 1) {
-			last = jp->get_object_int("pagination", "pages");
+			unsigned int pages = jp->get_object_int("pagination", "pages");
+			//missing pagination, single page
+			last = pages != (unsigned int)pfc::infinite_size ? pages : 1;
 		}
 		page++;
 
@@ -799,13 +801,15 @@ pfc::array_t<JSONParser_ptr> DiscogsInterface::get_all_pages(pfc::string8 &url, 
 		results.append_single(std::move(jp));
 
 		if (page == 1) {
-			size_t items = jp->get_object_int("pagination", "items");
-			if (items > max_to_abort) {
+			unsigned int items = jp->get_object_int("pagination", "items");
+			if (items != (unsigned int)pfc::infinite_size && items > max_to_abort) {
 				results.force_reset();
 				max_to_abort = items;
 				return results;
 			}
-			last = jp->get_object_int("pagination", "pages");
+			unsigned int pages = jp->get_object_int("pagination", "pages");
+			//missing pagination, single page
+			last = pages != (unsigned int)pfc::infinite_size ? pages : 1;
 		}
 		page++;
 
@@ -831,37 +835,65 @@ pfc::array_t<JSONParser_ptr> DiscogsInterface::get_all_pages_offline_cache(ol::G
 		{
 			//alt search recursive and detect root.json files
 			std::filesystem::directory_iterator dirpos{ os_path_container };
-			size_t msg_pos = 0;
+
+			//sort page-n folders by number (directory order is page-0, page-1, page-10, page-2...)
+			std::vector<std::pair<size_t, fs::path>> page_dirs;
 			for (std::filesystem::directory_entry walk_dir : dirpos) {
 				if (walk_dir.is_directory()) {
-
-					if (p_abort.is_aborting()) break;
-
-					p_status.set_item(status_msg);
-					fs::path os_root = walk_dir;
-					os_root += "\\root.json";
-					json_t* json_obj = offline_cache.Read_JSON(os_root.u8string().c_str());
-
-					if (json_obj == nullptr) {
-						foo_discogs_exception ex(PFC_string_formatter() << "Invalid cache file:" << os_root.c_str());
-						throw ex;
-					}
-
-					pfc::string8 json(json_dumps(json_obj, 0));
-
-					JSONParser_ptr jp = pfc::rcnew_t<JSONParser>(json);
-					jparsers.append_single(std::move(jp));
-
-					status_msg = msg;
-					status_msg << PFC_string_formatter() << " page " << std::to_string(++msg_pos).c_str() << " (100 x page)";
+					std::string dir_name = walk_dir.path().filename().u8string();
+					size_t page_num = dir_name.compare(0, 5, "page-") ? SIZE_MAX : (size_t)atoi(dir_name.c_str() + 5);
+					page_dirs.emplace_back(page_num, walk_dir.path());
 				}
+			}
+			std::sort(page_dirs.begin(), page_dirs.end(), [](const std::pair<size_t, fs::path>& a, const std::pair<size_t, fs::path>& b) {
+				return a.first < b.first;
+				});
+
+			size_t msg_pos = 0;
+			for (const std::pair<size_t, fs::path>& page_dir : page_dirs) {
+
+				if (p_abort.is_aborting()) break;
+
+				p_status.set_item(status_msg);
+				fs::path os_root = page_dir.second;
+				os_root += "\\root.json";
+				json_t* json_obj = offline_cache.Read_JSON(os_root.u8string().c_str());
+
+				if (json_obj == nullptr) {
+					foo_discogs_exception ex(PFC_string_formatter() << "Invalid cache file:" << os_root.u8string().c_str());
+					throw ex;
+				}
+
+				char* json_dump = json_dumps(json_obj, 0);
+				json_decref(json_obj);
+				pfc::string8 json(json_dump ? json_dump : "");
+				free(json_dump);
+
+				JSONParser_ptr jp = pfc::rcnew_t<JSONParser>(json);
+				jparsers.append_single(std::move(jp));
+
+				status_msg = msg;
+				status_msg << PFC_string_formatter() << " page " << std::to_string(++msg_pos).c_str() << " (100 x page)";
 			}
 		}
 		else {
 
 			//try transient
-			return get_all_pages(id, params, p_abort, msg, p_status);
+			pfc::string8 url;
+			if (getFrom == ol::GetFrom::Versions) {
+				url << "https://api.discogs.com/masters/" << secid << "/versions";
+			}
+			else {
+				url << "https://api.discogs.com/artists/" << id << "/releases";
+			}
+			return get_all_pages(url, params, p_abort, msg, p_status);
 		}
+	}
+	catch (exception_aborted) {
+		throw;
+	}
+	catch (foo_discogs_exception&) {
+		throw;
 	}
 	catch (const fs::filesystem_error& err)
 	{
@@ -902,8 +934,13 @@ void DiscogsInterface::get_entity_offline_cache(ol::GetFrom getfrom, pfc::string
 		size_t obj_size = json_object_size(js_obj);
 
 		if (obj_size > 0) {
-			html = pfc::string8(json_dumps(js_obj, 0));
+			char* json_dump = json_dumps(js_obj, 0);
+			if (json_dump) {
+				html = pfc::string8(json_dump);
+				free(json_dump);
+			}
 		}
+		json_decref(js_obj);
 	}
 }
 
@@ -953,6 +990,11 @@ pfc::array_t<pfc::string8> DiscogsInterface::get_collection(threaded_process_sta
 
 		pfc::array_t<pfc::string8> urls = jp.get_object_array_string("folders", "resource_url");
 
+		if (!urls.get_count()) {
+			foo_discogs_exception ex("No collection folders");
+			throw ex;
+		}
+
 		url = urls[0];
 		url << "/releases";
 		pfc::array_t<JSONParser_ptr> pages = get_all_pages(url, "", p_abort, "Loading collection...", p_status);
@@ -999,8 +1041,6 @@ bool DiscogsInterface::get_thumbnail_from_cache(Release_ptr release, bool isArti
 
 		img_artists_ndx_to_artist(release, img_ndx, this_artist, local_ndx);
 
-		id = this_artist->id;
-
 		if (!release->artists.get_size() || !this_artist.get() ||
 			!this_artist->images.get_size() || this_artist->images.get_count() < (local_ndx + 1) ||
 			!this_artist->images[local_ndx]->url150.get_length()) {
@@ -1012,6 +1052,7 @@ bool DiscogsInterface::get_thumbnail_from_cache(Release_ptr release, bool isArti
 			return false;
 		}
 		else {
+			id = this_artist->id;
 			images = &this_artist->images;
 		}
 	}
@@ -1060,11 +1101,11 @@ bool DiscogsInterface::get_thumbnail_from_cache(Release_ptr release, bool isArti
 				return false;
 			}
 		}
-		catch (foo_discogs_exception& e) {
+		catch (foo_discogs_exception&) {
 			if (jf != -1) {
 				_close(jf);
 			}
-			throw(e);
+			throw;
 			return false;
 		}
 		catch (...) {
@@ -1115,6 +1156,9 @@ bool DiscogsInterface::delete_artist_cache(const pfc::string8& artist_id, const 
 				delres &= cache_master_releases->remove(lkey);
 
 				//remove main releases
+				if (!artist->master_releases[walk]->main_release) {
+					continue;
+				}
 				lkey = encode_mr(artist->search_role_list_pos, artist->master_releases[walk]->main_release->id);
 				delres &= cache_releases->remove(lkey);
 

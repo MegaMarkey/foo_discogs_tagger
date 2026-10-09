@@ -240,14 +240,6 @@ size_t coord_presenters::ListUserCmdDELETE(HWND hwnd, lsmode mode, int cmd, bit_
 		pres = &bin->second;
 	else return nextfocus;
 
-	if (mode == lsmode::art) {
-		if (hwnd == bin->first.GetListView()) {
-			if (!are_albums.size()) {
-				((discogs_artwork_presenter*)pres)->GetAreAlbumMask(are_albums);
-			}
-		}
-	}
-
 	bool bcrop = cmdmod;
 	const size_t count = pres->GetDataLvSize();
 	const size_t cAlbumArt = m_tag_writer->GetArtCount(art_src::alb);
@@ -264,8 +256,11 @@ size_t coord_presenters::ListUserCmdDELETE(HWND hwnd, lsmode mode, int cmd, bit_
 				if (pres == &bin->first) {
 					multi_uartwork* multi_uart = m_discogs_art_presenter.GetUartwork();
 
+					//album images come first in the data vector
+					const bool is_album = ndx_deleted < cAlbumArt;
+
 					af att_save, att_emb;
-					if (are_albums.get(i)) {
+					if (is_album) {
 						att_save = af::alb_sd;
 						att_emb = af::alb_emb;
 					}
@@ -273,9 +268,9 @@ size_t coord_presenters::ListUserCmdDELETE(HWND hwnd, lsmode mode, int cmd, bit_
 						att_save = af::art_sd;
 						att_emb = af::art_emb;
 					}
-					ndx_deleted = are_albums.get(i) ? ndx_deleted : ndx_deleted - cAlbumArt;
-					multi_uart->setflag(att_save, ndx_deleted, false);
-					multi_uart->setflag(att_emb, ndx_deleted, false);
+					const size_t ndx_att = is_album ? ndx_deleted : ndx_deleted - cAlbumArt;
+					multi_uart->setflag(att_save, ndx_att, false);
+					multi_uart->setflag(att_emb, ndx_att, false);
 				}
 			}
 			if (ndx_deleted != pfc_infinite) nextfocus = i;
@@ -430,7 +425,25 @@ void coord_presenters::reorder_map_elements(HWND hwnd, size_t const* order, size
 
 void coord_presenters::PullConf(lsmode mode, bool tracks, foo_conf* out_conf) {
 
+	//keep the discogs artwork widths saved on tile/detail switch (SetTile), only the active mode is rebuilt
+	const foo_conf prev_conf(m_conf);
+
 	m_conf = CConf(*out_conf);
+
+	m_conf.match_discogs_artwork_ra_width = prev_conf.match_discogs_artwork_ra_width;
+	m_conf.match_discogs_artwork_type_width = prev_conf.match_discogs_artwork_type_width;
+	m_conf.match_discogs_artwork_dim_width = prev_conf.match_discogs_artwork_dim_width;
+	m_conf.match_discogs_artwork_save_width = prev_conf.match_discogs_artwork_save_width;
+	m_conf.match_discogs_artwork_ovr_width = prev_conf.match_discogs_artwork_ovr_width;
+	m_conf.match_discogs_artwork_embed_width = prev_conf.match_discogs_artwork_embed_width;
+	m_conf.match_discogs_artwork_index_width = prev_conf.match_discogs_artwork_index_width;
+	m_conf.match_discogs_artwork_tl_ra_width = prev_conf.match_discogs_artwork_tl_ra_width;
+	m_conf.match_discogs_artwork_tl_type_width = prev_conf.match_discogs_artwork_tl_type_width;
+	m_conf.match_discogs_artwork_tl_dim_width = prev_conf.match_discogs_artwork_tl_dim_width;
+	m_conf.match_discogs_artwork_tl_save_width = prev_conf.match_discogs_artwork_tl_save_width;
+	m_conf.match_discogs_artwork_tl_ovr_width = prev_conf.match_discogs_artwork_tl_ovr_width;
+	m_conf.match_discogs_artwork_tl_embed_width = prev_conf.match_discogs_artwork_tl_embed_width;
+	m_conf.match_discogs_artwork_tl_index_width = prev_conf.match_discogs_artwork_tl_index_width;
 
 	PFC_ASSERT(mode == lsmode::tracks_ui || mode == lsmode::art);
 
@@ -639,7 +652,7 @@ void presenter::update_imagelist(size_t img_ndx, size_t max_img, std::pair<HBITM
 	auto hInst = core_api::get_my_instance();
 
 	CGdiPlusBitmapResource gdip_image;
-	HBITMAP hBmDefaultSmall, hBmDefaultMini;
+	HBITMAP hBmDefaultSmall = NULL, hBmDefaultMini = NULL;
 
 	//default 150x150 and 48x48
 	gdip_image.Load(MAKEINTRESOURCE(get_icon_id(LVSIL_NORMAL)), L"PNG", hInst);
@@ -926,7 +939,8 @@ void discogs_artwork_presenter::SetUIList(CListControlOwnerData* ui_replace_list
 		vorder[walk] = LOWORD(woa) % 10;
 		col_align = LOWORD(woa) / 10;
 
-		if (col_align == 0 && walk > 1) col_align = HDF_CENTER;
+		//default to center only if nothing was saved (HDF_LEFT is 0)
+		if (col_align == 0 && walk > 1 && HIWORD(woa) == 0) col_align = HDF_CENTER;
 
 		auto dbg = HIWORD(woa);
 		//if tile expand walk 0 and minimize the rest
@@ -1040,7 +1054,20 @@ void files_artwork_presenter::AddRow(std::any imagefilerow) {
 	if (!m_vimage_files.size()) {
 		m_vimage_files.reserve(kMax_Artwork * 2);
 	}
+
+	//the iterators stored in m_lvimage_files are invalidated if push_back reallocates, keep their offsets
+	std::vector<size_t> vlv_offsets;
+	vlv_offsets.reserve(m_lvimage_files.size());
+	for (const V& lvrow : m_lvimage_files) {
+		vlv_offsets.push_back(std::distance(m_vimage_files.begin(), std::get<3>(lvrow).second));
+	}
+
 	m_vimage_files.push_back(ndximginfo);
+
+	for (size_t i = 0; i < m_lvimage_files.size(); i++) {
+		std::get<3>(m_lvimage_files[i]).second = m_vimage_files.begin() + vlv_offsets[i];
+	}
+
 	getimages_file_it g_it = --m_vimage_files.end();
 
 	m_lvimage_files.emplace(m_lvimage_files.end(), std::pair<size_t, getimages_file_it>(m_vimage_files.size()-1/*m_lvimage_files.size()*/, g_it) /*pp*/);
@@ -1262,6 +1289,9 @@ size_t files_artwork_presenter::AddFileArtwork(size_t img_ndx, art_src art_sourc
 		update_imagelist(list_param_ndx, album_art_ids::num_types(), param);
 
 		if (m_vicons.size() <= list_param_ndx) m_vicons.resize(list_param_ndx + 1);
+		//replacing, release the previous icons
+		if (m_vicons.at(list_param_ndx).first) DestroyIcon(m_vicons.at(list_param_ndx).first);
+		if (m_vicons.at(list_param_ndx).second) DestroyIcon(m_vicons.at(list_param_ndx).second);
 		m_vicons.at(list_param_ndx) = std::pair(callback_pair_memblock.first.first, callback_pair_memblock.second.first);
 
 		std::pair<pfc::string8, pfc::string8> prev_temp_file_names = m_vtemp_files[list_param_ndx];
@@ -1272,6 +1302,15 @@ size_t files_artwork_presenter::AddFileArtwork(size_t img_ndx, art_src art_sourc
 
 		m_vtemp_files[list_param_ndx] = std::pair(temp_file_names.first, temp_file_names.second);
 		update_img_defs(list_param_ndx, sz_res);
+	}
+	else {
+		//no row to show it, release what was handed over
+		if (callback_pair_memblock.first.first) DestroyIcon(callback_pair_memblock.first.first);
+		if (callback_pair_memblock.second.first) DestroyIcon(callback_pair_memblock.second.first);
+		if (param.first) DeleteObject(param.first);
+		if (param.second) DeleteObject(param.second);
+		if (temp_file_names.first.get_length()) uDeleteFile(temp_file_names.first);
+		if (temp_file_names.second.get_length()) uDeleteFile(temp_file_names.second);
 	}
 
 	return sz_res;
@@ -1588,15 +1627,25 @@ bool discogs_artwork_presenter::AddArtwork(size_t img_ndx, art_src artSrc, Memor
 			m_vicons.resize(m_tag_writer->GetArtCount());
 		}
 
+		//replacing, release the previous icons
+		if (m_vicons.at(list_param_ndx).first) DestroyIcon(m_vicons.at(list_param_ndx).first);
+		if (m_vicons.at(list_param_ndx).second) DestroyIcon(m_vicons.at(list_param_ndx).second);
 		m_vicons.at(list_param_ndx) = std::pair(hRES.first.first, hRES.second.first);
-		m_ui_list->ReloadItem(list_param_ndx);
+		m_ui_list->ReloadItem(list_pos);
+	}
+	else {
+		//no row to show it, release the icons
+		if (hRES.first.first) DestroyIcon(hRES.first.first);
+		if (hRES.second.first) DestroyIcon(hRES.second.first);
+		if (hRES.first.second) DeleteObject(hRES.first.second);
+		if (hRES.second.second) DeleteObject(hRES.second.second);
 	}
 	return true;
 }
 
 art_src discogs_artwork_presenter::get_vimages_src_type_at_pos(size_t list_position) {
 
-	if (list_position >= m_vimages.size()) {
+	if (list_position >= m_lvimages.size()) {
 		return art_src::unknown;
 	}
 	else {
@@ -1610,7 +1659,7 @@ art_src discogs_artwork_presenter::get_vimages_src_type_at_pos(size_t list_posit
 }
 
 size_t discogs_artwork_presenter::get_ndx_at_pos(size_t list_position) {
-	if (list_position >= m_vimages.size()) {
+	if (list_position >= m_lvimages.size()) {
 		return pfc_infinite;
 	}
 	else {
@@ -1791,11 +1840,12 @@ void coord_presenters::populate_artwork_mode(size_t select) {
 		return;
 	}
 
-	if (select == 0 || select == 1)
+	//only the side not populated yet (or reset)
+	if ((select == 0 || select == 1) && !m_discogs_art_presenter.GetPopulated())
 	{
 		m_discogs_art_presenter.Populate();
 	}
-	if (select == 0 || select == 2)
+	if ((select == 0 || select == 2) && !m_file_art_presenter.GetPopulated())
 	{
 		m_file_art_presenter.Populate();
 	}
