@@ -1,0 +1,122 @@
+name: build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-2022
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [x64, Win32]
+    env:
+      CONFIG: Release
+      PLATFORM: ${{ matrix.platform }}
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      # Layout expected by foo_discogger.vcxproj (see BUILDING.md):
+      #   <root>\WTL10_9163\Include
+      #   <root>\sdk\{pfc,libPPUI,foobar2000\{SDK,helpers,shared,...}}
+      #   <root>\sdk\foobar2000\foo_discogger              (this repository)
+      #   <root>\sdk\foobar2000\discogger libs\...         (sqlite)
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          path: sdk/foobar2000/foo_discogger
+
+      - uses: microsoft/setup-msbuild@v2
+
+      - name: Prepare dependencies
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = "$env:GITHUB_WORKSPACE"
+          $comp = "$root\sdk\foobar2000\foo_discogger"
+          $dl = "$root\_dl"
+          New-Item -ItemType Directory -Force $dl | Out-Null
+          $arch = if ($env:PLATFORM -eq 'Win32') { 'Win32' } else { 'x64' }
+
+          # foobar2000 SDK (latest from foobar2000.org)
+          $page = Invoke-WebRequest -UseBasicParsing https://www.foobar2000.org/SDK
+          $sdk = ($page.Links | Where-Object { $_.href -match 'SDK-[0-9-]+\.7z$' } | Select-Object -First 1).href
+          if (-not $sdk) { throw 'foobar2000 SDK link not found' }
+          if ($sdk -notmatch '^https?:') { $sdk = "https://www.foobar2000.org/$($sdk.TrimStart('/'))" }
+          Write-Host "SDK: $sdk"
+          Invoke-WebRequest -UseBasicParsing $sdk -OutFile "$dl\sdk.7z"
+          7z x "$dl\sdk.7z" "-o$root\sdk" -y | Out-Null
+
+          # WTL 10
+          nuget install wtl -Version 10.0.10320 -OutputDirectory "$dl\nuget" | Out-Null
+          New-Item -ItemType Directory -Force "$root\WTL10_9163" | Out-Null
+          Copy-Item -Recurse "$dl\nuget\wtl.10.0.10320\lib\native\include" "$root\WTL10_9163\Include"
+
+          # zlib headers (zlib1.dll is loaded at runtime)
+          Invoke-WebRequest -UseBasicParsing https://github.com/madler/zlib/archive/refs/tags/v1.3.1.zip -OutFile "$dl\zlib.zip"
+          7z x "$dl\zlib.zip" "-o$dl" -y | Out-Null
+          Copy-Item "$dl\zlib-1.3.1\zlib.h", "$dl\zlib-1.3.1\zconf.h" "$comp\zlib\"
+
+          # jansson 2.14, built with HAVE_UNISTD_H so json_loadfd works (see jansson\how to json_loadfd.txt)
+          Invoke-WebRequest -UseBasicParsing https://github.com/akheron/jansson/releases/download/v2.14/jansson-2.14.tar.gz -OutFile "$dl\jansson.tar.gz"
+          7z x "$dl\jansson.tar.gz" "-o$dl" -y | Out-Null
+          7z x "$dl\jansson.tar" "-o$dl" -y | Out-Null
+          New-Item -ItemType Directory -Force "$dl\unistd" | Out-Null
+          Set-Content "$dl\unistd\unistd.h" "#pragma once`n#include <io.h>"
+          cmake -S "$dl\jansson-2.14" -B "$dl\jansson-build" -A $arch -DJANSSON_BUILD_DOCS=OFF -DJANSSON_WITHOUT_TESTS=ON -DJANSSON_EXAMPLES=OFF -DJANSSON_BUILD_SHARED_LIBS=OFF "-DCMAKE_C_FLAGS=/DWIN32 /D_WINDOWS /DHAVE_UNISTD_H /I$($dl -replace '\\','/')/unistd"
+          cmake --build "$dl\jansson-build" --config $env:CONFIG
+          Copy-Item "$dl\jansson-2.14\src\jansson.h", "$dl\jansson-build\include\jansson_config.h" "$comp\jansson\"
+
+          # liboauthcpp
+          git clone --depth 1 https://github.com/sirikata/liboauthcpp "$dl\liboauthcpp"
+          cmake -S "$dl\liboauthcpp\build" -B "$dl\oauth-build" -A $arch
+          cmake --build "$dl\oauth-build" --config $env:CONFIG
+          Copy-Item "$dl\liboauthcpp\include\liboauthcpp\liboauthcpp.h" "$comp\liboauthcpp\"
+
+          # libraries next to the project ($(SolutionDir)$(Platform)\$(Configuration))
+          $out = "$comp\$env:PLATFORM\$env:CONFIG"
+          New-Item -ItemType Directory -Force $out | Out-Null
+          Copy-Item (Get-ChildItem -Recurse "$dl\jansson-build" -Filter jansson.lib | Select-Object -First 1).FullName $out
+          Copy-Item (Get-ChildItem -Recurse "$dl\oauth-build" -Filter oauthcpp.lib | Select-Object -First 1).FullName $out
+
+          # sqlite 3.40.1 amalgamation, symbols renamed to discogger_* (sqlite3ren.h)
+          Invoke-WebRequest -UseBasicParsing https://www.sqlite.org/2022/sqlite-amalgamation-3400100.zip -OutFile "$dl\sqlite.zip"
+          7z x "$dl\sqlite.zip" "-o$dl" -y | Out-Null
+          $sq = "$dl\sqlite-amalgamation-3400100"
+          $inc = "$root\sdk\foobar2000\discogger libs\sqlite-amal-3401\include"
+          New-Item -ItemType Directory -Force $inc | Out-Null
+          Copy-Item "$sq\sqlite3.h" $inc
+          echo "SQLITE_SRC=$sq" >> $env:GITHUB_ENV
+          echo "COMP_DIR=$comp" >> $env:GITHUB_ENV
+
+      - name: Build sqlite
+        shell: cmd
+        run: |
+          if "%PLATFORM%"=="Win32" (set VCARCH=x86) else (set VCARCH=x64)
+          for /f "usebackq delims=" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath`) do set VSDIR=%%i
+          call "%VSDIR%\VC\Auxiliary\Build\vcvarsall.bat" %VCARCH% || exit /b 1
+          cd /d "%SQLITE_SRC%" || exit /b 1
+          cl /nologo /c /O2 /MD /DSQLITE_THREADSAFE=1 /FI"%COMP_DIR%\sqlite3ren.h" sqlite3.c || exit /b 1
+          for %%d in ("disgogger libs" "discogger libs") do (
+            mkdir "%GITHUB_WORKSPACE%\sdk\foobar2000\%%~d\sqlite-amal-336\%PLATFORM%\%CONFIG%" 2>nul
+            lib /nologo /OUT:"%GITHUB_WORKSPACE%\sdk\foobar2000\%%~d\sqlite-amal-336\%PLATFORM%\%CONFIG%\sqlite3.lib" sqlite3.obj || exit /b 1
+          )
+
+      - name: Build foo_discogger
+        working-directory: sdk/foobar2000/foo_discogger
+        run: |
+          msbuild foo_discogger.vcxproj /m /nologo /v:minimal "/p:Configuration=$env:CONFIG" "/p:Platform=$env:PLATFORM" "/p:SolutionDir=$env:COMP_DIR\" | Tee-Object -FilePath build.log
+          $code = $LASTEXITCODE
+          Write-Host "===== error summary ====="
+          Select-String -Path build.log -Pattern ': (fatal )?error ' | ForEach-Object { $_.Line -replace '^.*\\foo_discogger\\', '' -replace '\s*\[[^\]]*\.vcxproj\]$', '' } | Sort-Object -Unique | Select-Object -First 150
+          exit $code
+
+      - name: Upload component
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: foo_discogger-${{ matrix.platform }}
+          path: |
+            sdk/foobar2000/foo_discogger/**/${{ env.CONFIG }}/foo_discogger.dll
