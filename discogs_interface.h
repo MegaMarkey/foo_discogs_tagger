@@ -218,7 +218,6 @@ public:
 		threaded_process_status& p_status, abort_callback& p_abort);
 
 	void search_artist(const pfc::string8 &name, pfc::array_t<Artist_ptr> &exact_matches, pfc::array_t<Artist_ptr> &other_matches, threaded_process_status &p_status, abort_callback &p_abort);
-#ifdef SEARCH_AT
 
 	struct parse_amt_info {
 
@@ -244,7 +243,6 @@ public:
 		threaded_process_status& p_status, abort_callback& p_abort);
 
 	rppair_t search_amt_artist(const pfc::string8 &name, const QueryDefMap qdm_search_query, pfc::array_t<Artist_ptr> &exact_matches, pfc::array_t<Artist_ptr> &other_matches, threaded_process_status &p_status, abort_callback &p_abort);
-#endif
 	// cached release or nullptr, nothing is loaded or inserted
 	inline Release_ptr get_cached_release(const size_t lkey) {
 		return get_release_from_cache(lkey);

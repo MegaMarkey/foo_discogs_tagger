@@ -41,10 +41,12 @@ jobs:
           New-Item -ItemType Directory -Force $dl | Out-Null
           $arch = if ($env:PLATFORM -eq 'Win32') { 'Win32' } else { 'x64' }
 
-          # foobar2000 SDK (latest from foobar2000.org)
+          # foobar2000 SDK 2025-03-07 (the released v1.0.22.3 reports "fb2k SDK: 20250307 80";
+          # newer SDKs require C++20 and changed the cfg_objList API used by conf.cpp)
+          $sdkname = 'SDK-2025-03-07.7z'
           $page = Invoke-WebRequest -UseBasicParsing https://www.foobar2000.org/SDK
           $sdk = ($page.Links | Where-Object { $_.href -match 'SDK-[0-9-]+\.7z$' } | Select-Object -First 1).href
-          if (-not $sdk) { throw 'foobar2000 SDK link not found' }
+          if ($sdk) { $sdk = $sdk -replace 'SDK-[0-9-]+\.7z$', $sdkname } else { $sdk = "/files/$sdkname" }
           if ($sdk -notmatch '^https?:') { $sdk = "https://www.foobar2000.org/$($sdk.TrimStart('/'))" }
           Write-Host "SDK: $sdk"
           Invoke-WebRequest -UseBasicParsing $sdk -OutFile "$dl\sdk.7z"
