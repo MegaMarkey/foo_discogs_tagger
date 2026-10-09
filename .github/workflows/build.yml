@@ -110,6 +110,18 @@ jobs:
             lib /nologo /OUT:"%GITHUB_WORKSPACE%\sdk\foobar2000\%%~d\sqlite-amal-336\%PLATFORM%\%CONFIG%\sqlite3.lib" sqlite3.obj || exit /b 1
           )
 
+      - name: Diagnose SDK include paths
+        continue-on-error: true
+        run: |
+          $root = "$env:GITHUB_WORKSPACE"
+          Get-ChildItem -Recurse $root -Include Directory.Build.* -Depth 4 | ForEach-Object { Write-Host "found: $($_.FullName)" }
+          foreach ($p in "$root\sdk\libPPUI\libPPUI.vcxproj", "$root\sdk\foobar2000\helpers\foobar2000_sdk_helpers.vcxproj") {
+            Write-Host "== $p"
+            Select-String -Path $p -Pattern 'IncludePath|PlatformToolset|Import |UseOfAtl|Configuration\|' | ForEach-Object { Write-Host $_.Line.Trim() }
+            msbuild $p -nologo "-p:Configuration=$env:CONFIG" "-p:Platform=$env:PLATFORM" -getProperty:IncludePath -getProperty:VC_ATLMFC_IncludePath -getProperty:PlatformToolset -getProperty:VCToolsVersion
+          }
+          Get-ChildItem "${env:ProgramFiles}\Microsoft Visual Studio\2022\*\VC\Tools\MSVC\*\atlmfc\include\atlbase.h" | ForEach-Object { Write-Host "atlbase: $($_.FullName)" }
+
       - name: Build foo_discogger
         working-directory: sdk/foobar2000/foo_discogger
         run: |
