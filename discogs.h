@@ -1110,6 +1110,10 @@ namespace Discogs
 			return search_roles;
 		}
 
+		string_encoded_array get_query_major_formats_qty() const {
+			return query_major_formats_qty;
+		}
+
 		static ExposedMap<Release> create_tags_map() {
 			ExposedMap<Release> m;
 			m["ID"] = { &Release::get_id, nullptr };

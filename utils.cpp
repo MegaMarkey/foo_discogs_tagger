@@ -1418,6 +1418,19 @@ bool sortByVal(const std::pair<int, int>& a, const std::pair<int, int>& b)
 	return a.second < b.second;
 }
 
+// restored: removed upstream in 9f9a2ca, still used by tags.h, tag_writer.cpp and the mapping dialogs
+extern bool is_multivalue_meta(const pfc::string& field) {
+	std::vector<pfc::string8> vmultis;
+	split(CONF.multivalue_fields, ";", 0, vmultis);
+
+	auto found_it =
+		std::find_if(vmultis.begin(), vmultis.end(), [&](const pfc::string8 & e) {
+		return pfc::stringLite::g_equalsCaseInsensitive(e, field);
+			});
+
+	return found_it != std::end(vmultis);
+}
+
 int duration_in_seconds(pfc::string8 duration) {
 	int duration_seconds;
 	size_t pos = min(duration.find_first(':'), duration.find_first('.'));

@@ -215,6 +215,8 @@ extern void CustomFont(HWND hwndParent, size_t flag, bool check_font = true, boo
 
 extern bool sortByVal(const std::pair<int, int>& a, const std::pair<int, int>& b);
 
+extern bool is_multivalue_meta(const pfc::string& field);
+
 extern int duration_in_seconds(pfc::string8 duration);
 extern size_t EnglishToDecimal(const std::string& s);
 extern bool validation_of_roman_number(std::string str);

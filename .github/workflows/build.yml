@@ -114,7 +114,7 @@ jobs:
           $PSNativeCommandUseErrorActionPreference = $false
           msbuild foo_discogger.vcxproj /m /nologo /v:minimal "/p:Configuration=$env:CONFIG" "/p:Platform=$env:PLATFORM" "/p:SolutionDir=$env:COMP_DIR\" "/flp:logfile=build.log;verbosity=minimal"
           $code = $LASTEXITCODE
-          $errs = Select-String -Path build.log -Pattern ': (fatal )?error ' | ForEach-Object { $_.Line -replace '^.*\\foo_discogger\\', '' -replace '\s*\[[^\]]*\.vcxproj\]$', '' } | Sort-Object -Unique
+          $errs = Select-String -Path build.log -Pattern ': (fatal )?error ' | ForEach-Object { $_.Line -replace '^.*?\\foo_discogger\\', '' -replace '\s*\[[^\]]*\.vcxproj\]$', '' } | Sort-Object -Unique
           Write-Host "===== error summary ($($errs.Count) unique) ====="
           $errs | Select-Object -First 120 | ForEach-Object { Write-Host $_ }
           exit $code
