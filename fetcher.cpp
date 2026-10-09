@@ -4,7 +4,7 @@
 #include "exception.h"
 #include "utils.h"
 
-char USER_AGENT[] = "User-Agent: <<user agent>>";
+char USER_AGENT[] = "User-Agent: " COMPONENT_NAME "/" FOO_DISCOGGER_VERSION " +https://github.com/MegaMarkey/foo_discogs_tagger";
 
 const double RL_AVG_THRESHOLD = 0.5;
 const size_t RL_REMAINING_THRESHOLD = 30;

@@ -50,6 +50,11 @@ The CI writes this file from the repository secrets `DISCOGS_CONSUMER_KEY` and
 with `Authorization Failed (401)`. OAuth tokens belong to the application they
 were generated with, so a build with different credentials needs a new token.
 
+Create the file before the first build: an incremental build does not notice a
+header that was added later, so rebuild (`/t:Rebuild`) in that case. The key
+and secret end up readable in `foo_discogger.dll` (and in the CI artifacts), so
+use a Discogs application that exists only for these builds.
+
 ## Build
 
 ```
