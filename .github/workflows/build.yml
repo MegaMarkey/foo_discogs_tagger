@@ -11,7 +11,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform: [x64, Win32]
+        platform: [x64]  # TODO: re-add Win32 once x64 builds
     env:
       CONFIG: Release
       PLATFORM: ${{ matrix.platform }}
