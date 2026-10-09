@@ -65,7 +65,7 @@ jobs:
           7z x "$dl\jansson.tar.gz" "-o$dl" -y | Out-Null
           7z x "$dl\jansson.tar" "-o$dl" -y | Out-Null
           New-Item -ItemType Directory -Force "$dl\unistd" | Out-Null
-          Set-Content "$dl\unistd\unistd.h" "#pragma once`n#include <io.h>"
+          Set-Content "$dl\unistd\unistd.h" "#pragma once`n#include <io.h>`n#define STDIN_FILENO 0`n#define STDOUT_FILENO 1`n#define STDERR_FILENO 2"
           cmake -S "$dl\jansson-2.14" -B "$dl\jansson-build" -A $arch -DJANSSON_BUILD_DOCS=OFF -DJANSSON_WITHOUT_TESTS=ON -DJANSSON_EXAMPLES=OFF -DJANSSON_BUILD_SHARED_LIBS=OFF "-DCMAKE_C_FLAGS=/DWIN32 /D_WINDOWS /DHAVE_UNISTD_H /I$($dl -replace '\\','/')/unistd"
           cmake --build "$dl\jansson-build" --config $env:CONFIG -- /v:minimal
           Get-ChildItem -Recurse "$dl\jansson-build" -Filter *.lib | ForEach-Object { Write-Host "jansson lib: $($_.FullName)" }
