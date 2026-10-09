@@ -19,6 +19,29 @@ static bool is_preview_dialog_alive(CPreviewTagsDialog* dlg) {
 	return dlg && dlg == g_discogs->preview_tags_dialog && ::IsWindow(dlg->m_hWnd);
 }
 
+bool foo_discogs_threaded_locked_process_callback::lock_operation(abort_callback& p_abort) {
+	{
+		std::lock_guard<std::mutex> guard(g_discogs->locked_operation_rw_mutex);
+		g_discogs->vlocked.emplace(std::to_string((unsigned long long)this), this);
+	}
+	for (;;) {
+		{
+			// check and take the lock in one step
+			std::lock_guard<std::mutex> guard(g_discogs->locked_operation_rw_mutex);
+			if (!g_discogs->locked_operation) {
+				g_discogs->locked_operation++;
+				g_discogs->locked_process_callback = this;
+				m_holds_lock = true;
+				return true;
+			}
+		}
+		if (p_abort.is_aborting()) {
+			return false;
+		}
+		::Sleep(10);
+	}
+}
+
 void foo_discogs_threaded_process_callback::run(threaded_process_status &p_status, abort_callback &p_abort) {
 	try {
 		safe_run(p_status, p_abort);
@@ -105,6 +128,10 @@ void generate_tags_task::safe_run(threaded_process_status& p_status, abort_callb
 	}
 	else if (m_preview_dialog)  {
 		m_preview_dialog->enable(false, true);
+	}
+
+	if (!lock_operation(p_abort)) {
+		return;
 	}
 
 	m_tag_writer->generate_tags(m_alt_mappings, p_status, p_abort);
@@ -288,6 +315,10 @@ void write_tags_task::start() {
 }
 
 void write_tags_task::safe_run(threaded_process_status &p_status, abort_callback &p_abort) {
+
+	if (!lock_operation(p_abort)) {
+		return;
+	}
 
 	m_tag_writer->write_tags();
 
@@ -705,6 +736,9 @@ void find_deleted_releases_task::start() {
 }
 
 void find_deleted_releases_task::safe_run(threaded_process_status &p_status, abort_callback &p_abort) {
+	if (!lock_operation(p_abort)) {
+		return;
+	}
 	if (!m_infos_loaded) {
 		foo_discogs_exception ex;
 		ex << "Unable to read the tags of all selected files.";
@@ -812,6 +846,9 @@ void find_releases_not_in_collection_task::start() {
 }
 
 void find_releases_not_in_collection_task::safe_run(threaded_process_status &p_status, abort_callback &p_abort) {
+	if (!lock_operation(p_abort)) {
+		return;
+	}
 	if (!m_infos_loaded) {
 		foo_discogs_exception ex;
 		ex << "Unable to read the tags of all selected files.";
@@ -1136,6 +1173,10 @@ void search_artist_process_callback::start(HWND parent) {
 
 void search_artist_process_callback::safe_run(threaded_process_status &p_status, abort_callback &p_abort) {
 
+	if (!lock_operation(p_abort)) {
+		return;
+	}
+
 	pfc::string8 msg;
 
 	msg << "fetching online artist list...";
@@ -1292,6 +1333,10 @@ void tree_apply_filter_process_callback::start(HWND parent) {
 void tree_apply_filter_process_callback::safe_run(threaded_process_status& p_status, abort_callback& p_abort) {
 	p_status.set_item(!m_strFilter.get_length() ? "show all" : PFC_string_formatter() << "filter: " << m_strFilter);
 
+	if (!lock_operation(p_abort)) {
+		return;
+	}
+
 	CFindReleaseDialog* find_dlg = g_discogs->find_release_dialog;
 	try {
 		find_dlg->apply_filter(m_strFilter, m_force_redraw, m_force_rebuild, p_status, p_abort);
@@ -1336,6 +1381,10 @@ void on_search_artist_done_process_callback::start(HWND parent) {
 void on_search_artist_done_process_callback::safe_run(threaded_process_status& p_status, abort_callback& p_abort) {
 	p_status.set_item(PFC_string_formatter() << m_p_artist_exact_matches.get_count() << " exact, " << m_p_artist_other_matches.get_count() << "other matches");
 
+	if (!lock_operation(p_abort)) {
+		return;
+	}
+
 	CFindReleaseDialog* find_dlg = g_discogs->find_release_dialog;
 	try {
 		find_dlg->on_search_artist_done(m_p_artist_exact_matches, m_p_artist_other_matches, m_append, m_out_va_cap);
@@ -1374,6 +1423,10 @@ void on_get_artist_done_process_callback::start(HWND parent) {
 
 void on_get_artist_done_process_callback::safe_run(threaded_process_status& p_status, abort_callback& p_abort) {
 	p_status.set_item(m_artist.get() ? m_artist->name : "");
+
+	if (!lock_operation(p_abort)) {
+		return;
+	}
 
 	CFindReleaseDialog* find_dlg = g_discogs->find_release_dialog;
 	try {

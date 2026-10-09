@@ -45,46 +45,34 @@ public:
 	locked_task_exception(const char* msg) : foo_discogs_exception(msg) {}
 };
 
-class foo_discogs_locked_threaded_process_callback : public foo_discogs_threaded_process_callback
+// Reconstructed (never committed upstream), behaves like the released v1.0.22.3:
+// derived tasks call lock_operation() at the start of safe_run(), which waits until no other
+// locked operation runs. The lock is held until the task object is destroyed (after on_done).
+class foo_discogs_threaded_locked_process_callback : public foo_discogs_threaded_process_callback
 {
 public:
-	foo_discogs_locked_threaded_process_callback() {
-		if (g_discogs->locked_operation) {
-			locked_task_exception e("Operation locked");
-			throw e;
+	~foo_discogs_threaded_locked_process_callback() {
+		std::lock_guard<std::mutex> guard(g_discogs->locked_operation_rw_mutex);
+		g_discogs->vlocked.erase(std::to_string((unsigned long long)this));
+		if (m_holds_lock) {
+			if (g_discogs->locked_operation) {
+				g_discogs->locked_operation--;
+			}
+			if (g_discogs->locked_process_callback == this) {
+				g_discogs->locked_process_callback = nullptr;
+			}
 		}
-		g_discogs->locked_operation++;
 	}
 
-	~foo_discogs_locked_threaded_process_callback() {
-		g_discogs->locked_operation--;
-	}
+protected:
+	// returns false if aborted while waiting for the lock
+	bool lock_operation(abort_callback& p_abort);
+
+private:
+	bool m_holds_lock = false;
 };
 
-// Reconstructed: removed upstream in 0acb368, but write_tags_task still derives from it.
-class foo_discogs_write_tag_locked_threaded_process_callback : public foo_discogs_threaded_process_callback
-{
-public:
-	foo_discogs_write_tag_locked_threaded_process_callback() {
-		std::lock_guard<std::mutex> guard(g_discogs->write_tag_locked_operation_rw_mutex);
-		if (g_discogs->write_tag_locked_operation) {
-			locked_task_exception e("Write tag operation locked");
-			throw e;
-		}
-		g_discogs->write_tag_locked_operation++;
-	}
-
-	~foo_discogs_write_tag_locked_threaded_process_callback() {
-		std::lock_guard<std::mutex> guard(g_discogs->write_tag_locked_operation_rw_mutex);
-		g_discogs->write_tag_locked_operation--;
-	}
-};
-
-// Reconstructed: never committed upstream. No locking: its subclasses are created
-// from other tasks' on_success and from call sites without try/catch, so it must not throw.
-class foo_discogs_threaded_locked_process_callback : public foo_discogs_threaded_process_callback {};
-
-class generate_tags_task : public foo_discogs_threaded_process_callback
+class generate_tags_task : public foo_discogs_threaded_locked_process_callback
 {
 public:
 
@@ -113,7 +101,7 @@ private:
 };
 
 
-class write_tags_task : public foo_discogs_write_tag_locked_threaded_process_callback
+class write_tags_task : public foo_discogs_threaded_locked_process_callback
 {
 public:
 	write_tags_task(TagWriter_ptr tag_writer) : m_tag_writer(tag_writer) {}
@@ -165,7 +153,7 @@ private:
 };
 
 
-class find_deleted_releases_task : public foo_discogs_locked_threaded_process_callback
+class find_deleted_releases_task : public foo_discogs_threaded_locked_process_callback
 {
 public:
 	find_deleted_releases_task(metadb_handle_list items);
@@ -186,7 +174,7 @@ private:
 };
 
 
-class find_releases_not_in_collection_task : public foo_discogs_locked_threaded_process_callback
+class find_releases_not_in_collection_task : public foo_discogs_threaded_locked_process_callback
 {
 public:
 	find_releases_not_in_collection_task(metadb_handle_list items);
