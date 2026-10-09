@@ -34,6 +34,7 @@ jobs:
       - name: Prepare dependencies
         run: |
           $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
           $root = "$env:GITHUB_WORKSPACE"
           $comp = "$root\sdk\foobar2000\foo_discogger"
           $dl = "$root\_dl"
@@ -66,19 +67,20 @@ jobs:
           New-Item -ItemType Directory -Force "$dl\unistd" | Out-Null
           Set-Content "$dl\unistd\unistd.h" "#pragma once`n#include <io.h>"
           cmake -S "$dl\jansson-2.14" -B "$dl\jansson-build" -A $arch -DJANSSON_BUILD_DOCS=OFF -DJANSSON_WITHOUT_TESTS=ON -DJANSSON_EXAMPLES=OFF -DJANSSON_BUILD_SHARED_LIBS=OFF "-DCMAKE_C_FLAGS=/DWIN32 /D_WINDOWS /DHAVE_UNISTD_H /I$($dl -replace '\\','/')/unistd"
-          cmake --build "$dl\jansson-build" --config $env:CONFIG
+          cmake --build "$dl\jansson-build" --config $env:CONFIG -- /v:minimal
+          Get-ChildItem -Recurse "$dl\jansson-build" -Filter *.lib | ForEach-Object { Write-Host "jansson lib: $($_.FullName)" }
           Copy-Item "$dl\jansson-2.14\src\jansson.h", "$dl\jansson-build\include\jansson_config.h" "$comp\jansson\"
 
           # liboauthcpp
           git clone --depth 1 https://github.com/sirikata/liboauthcpp "$dl\liboauthcpp"
           cmake -S "$dl\liboauthcpp\build" -B "$dl\oauth-build" -A $arch
-          cmake --build "$dl\oauth-build" --config $env:CONFIG
+          cmake --build "$dl\oauth-build" --config $env:CONFIG --target oauthcpp -- /v:minimal
           Copy-Item "$dl\liboauthcpp\include\liboauthcpp\liboauthcpp.h" "$comp\liboauthcpp\"
 
           # libraries next to the project ($(SolutionDir)$(Platform)\$(Configuration))
           $out = "$comp\$env:PLATFORM\$env:CONFIG"
           New-Item -ItemType Directory -Force $out | Out-Null
-          Copy-Item (Get-ChildItem -Recurse "$dl\jansson-build" -Filter jansson.lib | Select-Object -First 1).FullName $out
+          Copy-Item (Get-ChildItem -Recurse "$dl\jansson-build" -Filter *jansson*.lib | Select-Object -First 1).FullName $out
           Copy-Item (Get-ChildItem -Recurse "$dl\oauth-build" -Filter oauthcpp.lib | Select-Object -First 1).FullName $out
 
           # sqlite 3.40.1 amalgamation, symbols renamed to discogger_* (sqlite3ren.h)
@@ -107,6 +109,7 @@ jobs:
       - name: Build foo_discogger
         working-directory: sdk/foobar2000/foo_discogger
         run: |
+          $PSNativeCommandUseErrorActionPreference = $false
           msbuild foo_discogger.vcxproj /m /nologo /v:minimal "/p:Configuration=$env:CONFIG" "/p:Platform=$env:PLATFORM" "/p:SolutionDir=$env:COMP_DIR\" | Tee-Object -FilePath build.log
           $code = $LASTEXITCODE
           Write-Host "===== error summary ====="
