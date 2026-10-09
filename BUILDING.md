@@ -35,8 +35,13 @@ The SDK projects `helpers` and `libPPUI` also need WTL in their include path
 ## Build
 
 ```
-msbuild foo_discogger.vcxproj /p:Configuration=Release /p:Platform=x64 /p:SolutionDir=<root>\sdk\foobar2000\foo_discogger\
+msbuild foo_discogger.vcxproj /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v143 /p:SolutionDir=<root>\sdk\foobar2000\foo_discogger\
 ```
+
+Some configurations of the SDK projects (`libPPUI`, `helpers`) still select
+toolset v142. `/p:PlatformToolset=v143` builds everything with the same
+toolset; without it the v142 build tools must be installed together with
+their ATL component.
 
 ## Reconstructed sources
 
